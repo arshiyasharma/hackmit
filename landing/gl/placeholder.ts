@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { asset, manifest } from "../data/manifest";
+import { aboutEntryCanvas } from "./aboutEntry";
 
 // Missing assets must never block work (spec E1 item 12): when a file is not
 // there, a labelled canvas stands in and one warning is logged.
@@ -75,6 +76,12 @@ export function placeholderCanvas(path: string, w = 1920, h = 1080) {
 export function loadTexture(path: string): Promise<THREE.Texture> {
   const hit = cache.get(path);
   if (hit) return hit;
+  // Keep chapter IV in sync with the real story, without a frozen page image.
+  if (path === "about/title-card") {
+    const job = aboutEntryCanvas().then((canvas) => tune(new THREE.CanvasTexture(canvas)));
+    cache.set(path, job);
+    return job;
+  }
   const job = new Promise<THREE.Texture>((resolve) => {
     const img = new Image();
     img.decoding = "async";

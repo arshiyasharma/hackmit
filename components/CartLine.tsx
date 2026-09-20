@@ -136,18 +136,18 @@ export function LineFit({ product }: { product: Product }) {
     <span
       title={result.reason}
       className={cn(
-        "inline-flex min-h-6 items-center gap-1.5 rounded-full border bg-surface/70 px-2.5 text-[12px]",
+        "inline-flex min-h-6 max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full border bg-surface/70 px-2.5 py-0.5 text-[12px]",
         verdictClass[result.verdict]
       )}
     >
       <span
         aria-hidden
-        className={cn("size-1.5 rounded-full", verdictDot[result.verdict])}
+        className={cn("size-1.5 shrink-0 rounded-full", verdictDot[result.verdict])}
       />
-      <span className="font-medium">{verdictLabel[result.verdict]}</span>
+      <span className="whitespace-nowrap font-medium">{verdictLabel[result.verdict]}</span>
       {/* a measurement, so it is set like one */}
       {margin ? (
-        <span className="tabular font-mono text-[11px]">· {margin}</span>
+        <span className="tabular whitespace-nowrap font-mono text-[11px]">· {margin}</span>
       ) : null}
     </span>
   );
@@ -270,7 +270,7 @@ export function CartLine({
           : { opacity: 0, x: -24, transition: EXIT }
       }
       transition={reduced ? REDUCED : ENTER}
-      className={cn("flex items-start gap-4 py-4 desk:gap-6 desk:py-5", className)}
+      className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] desk:gap-6 desk:py-5", className)}
     >
       <BothImages
         placeholderUrl={placeholderUrl}
@@ -278,7 +278,7 @@ export function CartLine({
         request={request}
       />
 
-      <div className="min-w-0 flex-1">
+      <div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
         <a
           href={product.url}
           target="_blank"
@@ -323,8 +323,8 @@ export function CartLine({
         </div>
       </div>
 
-      {/* the price column: right-aligned mono, so the basket adds up by eye */}
-      <div className="flex shrink-0 flex-col items-end gap-1 pt-0.5 text-right">
+      {/* Keep price and removal together so narrow screens have room for the title. */}
+      <div className="col-start-2 row-start-1 flex flex-col items-end gap-1 pt-0.5 text-right sm:col-start-3">
         <span className="tabular min-w-[7ch] font-mono text-[15px] text-foreground desk:text-[17px]">
           {formatMoney(lineCents, product.currency)}
         </span>
@@ -333,23 +333,22 @@ export function CartLine({
             {formatMoney(product.priceCents, product.currency)} each
           </span>
         ) : null}
+        {onRemove ? (
+          <button
+            type="button"
+            onClick={() => onRemove(item.id)}
+            aria-label={`Don't buy ${product.title}`}
+            title="Don't buy this one"
+            className={cn(
+              "tap -mr-1.5 flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full",
+              "text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:bg-muted",
+              FOCUS_RING
+            )}
+          >
+            <X className="size-4" aria-hidden />
+          </button>
+        ) : null}
       </div>
-
-      {onRemove ? (
-        <button
-          type="button"
-          onClick={() => onRemove(item.id)}
-          aria-label={`Don't buy ${product.title}`}
-          title="Don't buy this one"
-          className={cn(
-            "tap -mt-1.5 -mr-1.5 flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full",
-            "text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:bg-muted",
-            FOCUS_RING
-          )}
-        >
-          <X className="size-4" aria-hidden />
-        </button>
-      ) : null}
     </motion.li>
   );
 }

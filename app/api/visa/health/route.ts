@@ -81,30 +81,29 @@ export async function GET() {
     );
   } catch (error) {
     if (error instanceof VicApiError) {
-      // 401/403 is an auth problem and is the thing this endpoint exists to
-      // catch. Anything else means Visa read us and disagreed about business
-      // rules, which is exactly what a fake instruction id should produce.
+      // A gateway error or rejected synthetic probe is not proof that Visa
+      // authenticated us or decrypted the payload. Only a successful call is green.
       const authFailed = error.httpStatus === 401 || error.httpStatus === 403;
       return Response.json(
         {
-          ok: !authFailed,
-          stage: authFailed ? "auth-failed" : "authenticated",
+          ok: false,
+          stage: authFailed ? "auth-failed" : "probe-rejected",
           error: authFailed
             ? `Visa refused our credentials (${error.httpStatus}). Check that VISA_KEY_ID ` +
               `matches the certificate, and that the shared secret is the VIC one.`
-            : null,
+            : "Visa rejected the diagnostic probe. Authentication and purchase readiness are not confirmed.",
           note: authFailed
             ? null
-            : "Visa read our request and answered at the business layer, so signing and encryption work.",
+            : "Check the sandbox response before presenting Visa as connected.",
           httpStatus: error.httpStatus,
           correlationId: error.correlationId,
           vars,
         },
-        { status: authFailed ? 502 : 200, headers: { "Cache-Control": "no-store" } }
+        { status: 502, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    console.error("[api/visa/health] probe failed", error);
+    console.error("[api/visa/health] probe failed");
     return Response.json(
       {
         ok: false,

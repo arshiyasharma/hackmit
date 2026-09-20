@@ -11,11 +11,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ---------------------------------------------------------------------------
-   PIXX-AR palette — the landing page's design system, carried into the product
-   (docs/ROOM3_PRODUCT_SPEC.md). Paper, ink, and ONE accent: THE COLOUR OF THE
-   ROOM THE PRODUCT LIVES IN. Room III of the landing is the tomato room — its
-   facade, the paint on its wall, its armchair — so the product answers in that
-   red, not in the landing's blue highlight. Do not add a second accent.
+   PIXX-AR palette — quiet paper, dark ink, and a consistent blue action colour.
    All of shadcn's own tokens below are mapped onto these so every component
    copied into components/ui inherits the palette automatically.
 --------------------------------------------------------------------------- */
@@ -24,19 +20,16 @@
   --surface: #ffffff;
   --foreground: #111111; /* ink */
   --muted: #5f646e; /* muted TEXT, not a surface — 5.6:1 on paper */
-  /* room III's tomato is #E0462E on the facade; as TEXT on paper that is only
-     3.6:1, so the working accent is the same hue deepened to 5:1. The facade's
-     own red stays available for fills and large marks. */
-  --accent: #c2391f;
-  --accent-bright: #e0462e;
+  --accent: #265eb0;
+  --accent-bright: #1d4e96;
   --line: #e4dfd2;
   --ok: #25734a;
   /* the alarm must never be mistaken for the accent: amber, not red */
   --warn: #8a5a00;
 
   /* the accent's quieter selves: fills and previews, and the drafting ground */
-  --accent-pale: #f0c6ba;
-  --accent-wash: #fbebe5;
+  --accent-pale: #b2c2d9;
+  --accent-wash: #edf2fa;
   --paper-card: #fbf4e4;
 
   /* Derived. Tailwind's `bg-muted` / `bg-secondary` need a SURFACE, and our
@@ -49,19 +42,19 @@
      is for chrome over a camera feed or a photograph, where what is behind is
      unknown: it stays opaque enough for ink text to hold 4.5:1 over a black
      room and over a white one. White text on the accent pane holds 4.6:1. */
-  --glass-fill: linear-gradient(140deg, rgb(255 255 255 / 0.74), rgb(253 246 242 / 0.5));
-  --glass-fill-thick: linear-gradient(140deg, rgb(255 255 255 / 0.9), rgb(253 247 244 / 0.8));
-  --glass-fill-accent: linear-gradient(140deg, rgb(208 64 41 / 0.96), rgb(194 57 31 / 0.94));
+  --glass-fill: linear-gradient(140deg, rgb(255 255 255 / 0.74), rgb(248 249 251 / 0.7));
+  --glass-fill-thick: linear-gradient(140deg, rgb(255 255 255 / 0.9), rgb(248 249 251 / 0.92));
+  --glass-fill-accent: linear-gradient(140deg, rgb(38 94 176 / 0.98), rgb(33 84 160 / 0.98));
   /* the pane was named for the blue it first had; the name is what components use */
   --glass-fill-blue: var(--glass-fill-accent);
   --glass-edge: rgb(255 255 255 / 0.78);
   --glass-blur: 22px;
   --glass-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.92), inset 0 -1px 0 rgb(194 57 31 / 0.08),
-    0 2px 6px rgb(90 38 24 / 0.07), 0 14px 38px -12px rgb(90 38 24 / 0.28);
+    inset 0 1px 0 rgb(255 255 255 / 0.92), inset 0 -1px 0 rgb(38 94 176 / 0.04),
+    0 2px 6px rgb(32 33 36 / 0.04), 0 14px 38px -12px rgb(32 33 36 / 0.12);
   --glass-shadow-accent:
-    inset 0 1px 0 rgb(255 255 255 / 0.38), inset 0 -1px 0 rgb(90 20 8 / 0.25),
-    0 2px 6px rgb(90 38 24 / 0.14), 0 14px 34px -12px rgb(194 57 31 / 0.5);
+    inset 0 1px 0 rgb(255 255 255 / 0.38), inset 0 -1px 0 rgb(25 55 105 / 0.12),
+    0 2px 6px rgb(32 33 36 / 0.07), 0 14px 34px -12px rgb(38 94 176 / 0.2);
   --glass-shadow-blue: var(--glass-shadow-accent);
 
   /* shadcn's own contract, mapped onto ours */
@@ -174,6 +167,69 @@
     font-variant-numeric: tabular-nums lining-nums;
     font-feature-settings: "tnum" 1, "lnum" 1;
   }
+}
+
+/* Product surfaces include body portals as well as embedded and standalone
+   screens. Important declarations belong to the base layer intentionally:
+   important layer priority runs before utilities, including rounded-full!.
+   The scope never reaches the landing tour or About page. */
+@layer base {
+  :where([data-pixx-dialog], [data-pixx-budget-prompt], [data-pixx-product], .pixx-room-root, .room-workspace),
+  :where([data-pixx-dialog], [data-pixx-budget-prompt], [data-pixx-product], .pixx-room-root, .room-workspace) *,
+  :where([data-pixx-dialog], [data-pixx-budget-prompt], [data-pixx-product], .pixx-room-root, .room-workspace) *::before,
+  :where([data-pixx-dialog], [data-pixx-budget-prompt], [data-pixx-product], .pixx-room-root, .room-workspace) *::after {
+    border-radius: 0 !important;
+  }
+  :where([data-pixx-dialog], [data-pixx-budget-prompt], [data-pixx-product], .pixx-room-root, .room-workspace),
+  :where([data-pixx-dialog], [data-pixx-budget-prompt], [data-pixx-product], .pixx-room-root, .room-workspace) * {
+    font-family: var(--font-body), "Instrument Sans", system-ui, sans-serif !important;
+  }
+  body:has(:is(.pixx-room-root, [data-pixx-product], .room-workspace)) [data-sonner-toast],
+  body:has(:is(.pixx-room-root, [data-pixx-product], .room-workspace)) [data-sonner-toast] * {
+    border-radius: 0 !important;
+    font-family: var(--font-body), "Instrument Sans", system-ui, sans-serif !important;
+  }
+  [data-pixx-dialog] :is(h1, h2) {
+    font-size: clamp(22px, 2.2vw, 28px) !important;
+    font-weight: 550 !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.025em !important;
+  }
+  [data-pixx-dialog] :is(h3, h4) {
+    font-size: 17px !important;
+    font-weight: 550 !important;
+    line-height: 1.35 !important;
+    letter-spacing: -0.015em !important;
+  }
+  [data-pixx-dialog] .eyebrow {
+    font-size: 11px !important;
+    letter-spacing: 0.025em !important;
+    text-transform: none !important;
+  }
+  [data-pixx-dialog] :is(.glass-blue, .glass-accent) {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    box-shadow: none !important;
+    color: var(--on-accent) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  [data-pixx-dialog] :is(.glass-blue, .glass-accent):hover {
+    background: var(--accent-bright) !important;
+  }
+  [data-pixx-dialog] :is(.glass-blue, .glass-accent)::before,
+  [data-pixx-dialog] :is(.glass-blue, .glass-accent)::after {
+    display: none !important;
+  }
+}
+
+/* Shared modal and non-modal budget panes use clear glass with a single edge. */
+.pixx-dialog-pane {
+  border: 1px solid rgb(215 222 232 / 0.85);
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: 0 12px 40px rgb(28 41 64 / 0.12);
+  backdrop-filter: blur(24px) saturate(1.15);
+  -webkit-backdrop-filter: blur(24px) saturate(1.15);
 }
 
 @layer utilities {

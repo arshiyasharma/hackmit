@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  *
  * It used to be react-modal-sheet: a panel dragged up from the bottom edge of a
  * phone. PIXX-AR is a website used with a mouse and a keyboard now, so the same
- * props open a centred pane of thick glass over a pale veil instead. The name
+ * props open a centred pane of clear glass over a quiet veil instead. The name
  * and the props stay exactly as they were, because the fit check, the doorway
  * measurements, the order mode, the budget nudge and the account panel all call
  * it — and none of them should have to know what it turned into.
@@ -227,7 +227,7 @@ export function Sheet({
               if (!disableDrag) onOpenChange(false);
             }}
             className={cn(
-              "absolute inset-0 bg-accent-wash/55 backdrop-blur-[6px]",
+              "absolute inset-0 bg-slate-950/12 backdrop-blur-[4px]",
               !disableDrag && "cursor-pointer"
             )}
           />
@@ -247,10 +247,7 @@ export function Sheet({
                 : { opacity: 0, scale: 0.98, transition: leave }
             }
             className={cn(
-              // the glass classes are declared after Tailwind's utilities in the
-              // same layer, so their radius wins a tie; hence the `!`
-              "glass-thick glass-sheen rounded-[28px]!",
-              "flex max-h-[86dvh] w-full max-w-[46rem] flex-col outline-none",
+              "pixx-dialog-pane relative flex max-h-[86dvh] w-full max-w-[46rem] flex-col overflow-hidden rounded-none! font-sans outline-none",
               className
             )}
           >
@@ -260,8 +257,8 @@ export function Sheet({
                 onClick={() => onOpenChange(false)}
                 aria-label="Close"
                 className={cn(
-                  "absolute right-3 top-3 z-10 grid size-11 cursor-pointer place-items-center rounded-full",
-                  "border border-line bg-surface/80 text-foreground transition-colors",
+                  "absolute right-3 top-3 z-10 grid size-9 cursor-pointer place-items-center rounded-none",
+                  "border border-line/80 bg-white/65 text-foreground transition-colors",
                   "hover:border-accent-pale hover:bg-accent-wash",
                   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 )}
@@ -270,12 +267,11 @@ export function Sheet({
               </button>
             )}
 
-            {/* the close button owns the first 56px of the corner; what is said
-                starts under it, so no caller's heading can run beneath it */}
+            {/* Reserve the close-control row so every caller keeps a clear title. */}
             <div
               className={cn(
-                "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 desk:px-8 desk:pb-8",
-                disableDrag ? "pt-6 desk:pt-8" : "pt-14"
+                "pixx-dialog-content min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 desk:px-7 desk:pb-7",
+                disableDrag ? "pt-6 desk:pt-7" : "pt-14"
               )}
             >
               {children}

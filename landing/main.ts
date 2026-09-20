@@ -89,7 +89,8 @@ class App {
     // ?product lands in room III with the product already open: the address the
     // old standalone screens forward to, and the one a test starts from
     const product = params.has("product");
-    const skip = params.has("skip") || product;
+    const about = params.has("about");
+    const skip = params.has("skip") || product || about;
     this.stage.post.values.exposure = 0;
     const loaded = this.stage.init();
     sound.preload();
@@ -103,11 +104,15 @@ class App {
 
     if (skip) {
       await loaded;
+      if (this.dead) return;
       title.destroy();
       this.stage.post.values.exposure = 1;
       if (product) {
         store.fillBasket();
         store.set({ chapter: PRODUCT_CHAPTER });
+        this.resetStage();
+      } else if (about) {
+        store.set({ chapter: ABOUT_CHAPTER });
         this.resetStage();
       }
       this.enterRoom();
@@ -438,12 +443,16 @@ class App {
     await this.stage.pullBack(store.state.chapter);
   }
 
-  /** Chapter IV: the room is only ever a backdrop for the About page. */
+  /** Chapter IV opens on arrival; leaving About returns to the room selector. */
   private async openAbout() {
-    this.syncHud();
-    this.syncHotspots();
-    await machine.run("FINALE", "ROOM", () => this.about.open({ onCovered: () => this.resetStage() }));
-    this.syncHud();
+    if (this.dead || machine.busy || !machine.is("ROOM") || store.state.chapter !== ABOUT_CHAPTER) return;
+    void this.toast.hide();
+    const opened = await machine.run("FINALE", "ROOM", () => this.about.open({ onCovered: () => this.resetStage() }));
+    // Do not enterRoom() here: that would immediately open About again.
+    if (opened && !this.dead) {
+      await this.flyOut();
+      if (!this.dead) this.labels[ABOUT_CHAPTER].entry.focus({ preventScroll: true });
+    }
   }
 
   /** Chapter III: hand the screen to the real product, and take it back after. */
@@ -457,7 +466,7 @@ class App {
       this.syncHud();
       await host.openProduct({
         onCovered: () => {
-          this.resetStage();
+          // Keep the exact room view behind the glass interface.
           sound.hush(true);
           this.stage.setPaused(true);
         },

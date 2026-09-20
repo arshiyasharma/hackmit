@@ -3,11 +3,19 @@ import { join } from "node:path";
 
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import CheckoutRun from "./CheckoutRun";
+import CheckoutSheet from "./CheckoutSheet";
 import TestModeChip from "./TestModeChip";
 import type { CartItem, Product } from "@/types";
+
+// Exercise the order-mode content without a browser-only portal. Shared Sheet
+// focus trapping and dismissal are independently verified in the browser.
+vi.mock("@/components/ui/Sheet", () => ({
+  Sheet: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div role="dialog">{children}</div> : null,
+}));
 
 /**
  * Does the checkout screen actually RENDER?
@@ -100,6 +108,8 @@ describe("CheckoutRun renders the idle screen", () => {
   it("does not claim the agent visits real shops — that would be the bluff", () => {
     expect(body).not.toContain("works each shop's own site");
     expect(body).not.toContain("stops at the final confirm");
+    expect(body).not.toContain("proves its identity");
+    expect(body).toContain("simulates checkout");
   });
 
   it("shows no run rows, no mandate line and no signature line before it starts", () => {
@@ -112,10 +122,102 @@ describe("CheckoutRun renders the idle screen", () => {
     expect(renderToStaticMarkup(<CheckoutRun lines={[]} mode="test" />)).toBe("");
   });
 
-  it("tells the truth when the real-order switch is on: the server still refuses", () => {
+  it("does not offer real purchases even if a saved mode is live", () => {
     const live = text(renderToStaticMarkup(<CheckoutRun lines={BASKET} mode="live" />));
-    expect(live).toContain("the server still refuses");
-    expect(live).not.toContain("Nothing is bought and no card is charged");
+    expect(live).toContain("Real orders are unavailable in this version");
+    expect(live).toContain("Nothing is bought and no card is charged");
+    expect(live).not.toContain("server-side flags");
+  });
+});
+
+describe("checkout eligibility is shown before starting", () => {
+  const walmart = cartItem({
+    id: "walmart-plush",
+    retailer: "walmart.com",
+    retailerDomain: "walmart.com",
+    title: "Plush toy from Walmart",
+    url: "https://www.walmart.com/ip/plush/12345",
+    priceCents: 2550,
+  }, 2);
+
+  it("shows a store link and no dead buy button for unsupported-only baskets", () => {
+    const markup = renderToStaticMarkup(<CheckoutRun lines={[walmart]} mode="test" />);
+    const body = text(markup);
+    expect(body).toContain("Not included in checkout");
+    expect(body).toContain("Plush toy from Walmart");
+    expect(body).toContain("We cannot check out at walmart.com yet.");
+    expect(body).toContain("View at walmart.com");
+    expect(markup).toContain('href="https://www.walmart.com/ip/plush/12345"');
+    expect(markup).toContain('rel="noopener noreferrer"');
+    expect(markup).not.toContain("<button");
+  });
+
+  it("asks to buy only the eligible quantity, total, and shops in a mixed basket", () => {
+    const lines = [
+      cartItem({ retailer: "ikea.com" }, 2),
+      cartItem({ id: "ikea-frame", title: "Small photo frame", priceCents: 1900 }),
+      walmart,
+    ];
+    const markup = renderToStaticMarkup(<CheckoutRun lines={lines} mode="test" />);
+    const body = text(markup);
+    // Two display-name spellings of IKEA still represent one supported shop.
+    // Walmart's two items and $51 never enter the checkout button's promise.
+    expect(body).toContain("Buy 3 available items — $259 across 1 shop");
+    expect(body).not.toContain("Buy all");
+    expect(body).not.toContain("$310");
+    expect(body).toContain("These items are excluded from this test run");
+    expect(body.indexOf("Not included in checkout")).toBeLessThan(body.indexOf("Buy 3"));
+    expect(markup).toContain('href="https://www.walmart.com/ip/plush/12345"');
+  });
+
+  it("discloses a known-shop product without a price before offering the subset", () => {
+    const noPrice = cartItem({ id: "no-price", title: "Lamp without a price", priceCents: 0 });
+    const body = text(renderToStaticMarkup(<CheckoutRun lines={[cartItem(), noPrice]} mode="test" />));
+    expect(body).toContain("Lamp without a price has no price on it.");
+    expect(body).toContain("Buy 1 available item — $120 across 1 shop");
+  });
+
+  it("never renders a non-web product URL as an external store link", () => {
+    const invalid = cartItem({ retailer: "Other shop", url: "javascript:alert(1)" });
+    const markup = renderToStaticMarkup(<CheckoutRun lines={[invalid]} mode="test" />);
+    expect(markup).not.toContain("<a ");
+    expect(markup).not.toContain("<button");
+  });
+});
+
+describe("order mode explains the actual simulation", () => {
+  const markup = renderToStaticMarkup(
+    <CheckoutSheet open onOpenChange={() => {}} lines={BASKET} mode="test" onModeChange={() => {}} />
+  );
+  const body = text(markup);
+
+  it("explains the test without claiming real retailer checkout or a final-confirm stop", () => {
+    expect(body).toContain("A test run simulates checkout for supported shops");
+    expect(body).toContain("Nothing is bought, and no card is charged");
+    expect(body).not.toContain("final confirm");
+    expect(body).not.toContain("each shop's own page");
+    expect(body).not.toContain("NEXT_PUBLIC");
+    expect(body).not.toContain("rebuild");
+  });
+
+  it("preserves cents in the displayed basket total", () => {
+    const markup = renderToStaticMarkup(
+      <CheckoutSheet open onOpenChange={() => {}} lines={[cartItem({ priceCents: 16450 })]} mode="test" onModeChange={() => {}} />
+    );
+    // NumberFlow includes its formatted value in accessible text even though
+    // the visual digits are individually rendered for animation.
+    const total = markup.slice(markup.indexOf('aria-label="Basket total"'));
+    expect(total).toContain("164.50");
+    expect(total).not.toContain('>165<');
+  });
+
+  it("keeps real orders unavailable rather than offering a mode that cannot work", () => {
+    expect(body).toContain("Real orders Unavailable in this version");
+    const realOrders = markup.match(/<button[^>]*>[\s\S]*?<\/button>/g)
+      ?.find((button) => text(button).includes("Real orders"));
+    expect(realOrders).toContain('aria-disabled="true"');
+    expect(realOrders).toContain('disabled=""');
+    expect(body).not.toContain("Use real orders");
   });
 });
 

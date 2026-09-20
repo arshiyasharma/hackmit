@@ -45,3 +45,6 @@ ref/
 
 # generated placeholder sprites — content-addressed cache, rebuilt on demand
 /.placeholder-cache/
+
+# local agent checkouts
+/.claude/worktrees/

@@ -34,10 +34,12 @@ export class Stage {
   private raf = 0;
   private last = 0;
   private paused = false;
+  private disposed = false;
   private coarse = window.matchMedia("(pointer: coarse)").matches;
   private dprCap = this.coarse ? DPR_CAP.coarse : DPR_CAP.fine;
   private sized = "";
   private shadowVideo?: HTMLVideoElement;
+  private shadowTexture?: THREE.VideoTexture;
   private cleanup: (() => void)[] = [];
 
   constructor(public canvas: HTMLCanvasElement) {
@@ -51,12 +53,14 @@ export class Stage {
   }
 
   async init() {
+    if (this.disposed) return;
     await this.world.build(manifest.chapters.map((c) => store.roomStill(c.index)));
+    if (this.disposed || !this.canvas.parentElement) return;
     this.resize();
 
     const onResize = () => this.resize();
     const onMove = (e: PointerEvent) => {
-      if (e.pointerType === "touch") return;
+      if (this.paused || e.pointerType === "touch") return;
       this.world.pointer((e.clientX / this.W) * 2 - 1, (e.clientY / this.H) * 2 - 1);
     };
     // on touch a drag pans the room inside the same clamp as the mouse rig
@@ -95,7 +99,7 @@ export class Stage {
       window.removeEventListener("pointerup", askTilt);
       if (!window.matchMedia("(pointer: coarse)").matches || typeof DeviceOrientationEvent === "undefined") return;
       const ask = (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission;
-      const listen = () => window.addEventListener("deviceorientation", onTilt);
+      const listen = () => { if (!this.disposed) window.addEventListener("deviceorientation", onTilt); };
       if (ask) ask.call(DeviceOrientationEvent).then((r) => { if (r === "granted") listen(); }).catch(() => {});
       else listen();
     };
@@ -138,18 +142,20 @@ export class Stage {
   }
 
   private async loadShadowLoop() {
-    if (!(await exists(manifest.video.shadow))) return;
+    if (!(await exists(manifest.video.shadow)) || this.disposed) return;
     const video = document.createElement("video");
     video.src = asset(manifest.video.shadow);
     video.muted = true;
     video.loop = true;
     video.playsInline = true;
     video.crossOrigin = "anonymous";
+    this.shadowVideo = video;
     try {
       await video.play();
+      if (this.disposed) { video.pause(); return; }
       const tex = new THREE.VideoTexture(video);
       tex.colorSpace = THREE.NoColorSpace;
-      this.shadowVideo = video;
+      this.shadowTexture = tex;
       this.world.setShadowVideo(tex);
     } catch {
       // autoplay refused: the procedural shadow stays
@@ -164,7 +170,8 @@ export class Stage {
   }
 
   resize() {
-    const parent = this.canvas.parentElement!;
+    const parent = this.canvas.parentElement;
+    if (this.disposed || !parent) return;
     this.W = parent.clientWidth || window.innerWidth;
     this.H = parent.clientHeight || window.innerHeight;
     const dpr = Math.min(window.devicePixelRatio || 1, this.dprCap);
@@ -183,6 +190,8 @@ export class Stage {
     this.post.resize(this.W, this.H, dpr);
     this.world.layout(this.W, this.H);
     this.flat.layout(this.W, this.H);
+    // Resizing clears a WebGL canvas. Keep the frozen room visible behind glass.
+    if (this.paused) this.frame(0, performance.now() / 1000);
   }
 
   onFrame(fn: FrameFn) {
@@ -191,21 +200,22 @@ export class Stage {
   }
 
   private tick = (now: number) => {
+    if (this.disposed) return;
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
-    // fully covered by the product: keep the clock, skip the draw
+    // Frozen behind the glass product: keep the clock, skip continuous drawing
     if (!this.paused) this.frame(dt, now / 1000);
     this.raf = requestAnimationFrame(this.tick);
   };
 
-  /** Stop drawing while something opaque covers the stage. The product runs a
-   *  camera and its own WebGL scene, and a phone will not pay for two. */
+  /** Keep the last room frame behind the product without running two scenes. */
   setPaused(paused: boolean) {
     this.paused = paused;
     this.last = performance.now();
   }
 
   frame(dt: number, time: number) {
+    if (this.disposed) return;
     this.world.update(dt, time);
     this.frames.forEach((fn) => fn(dt, time));
     this.post.render(this.scene, this.camera, time);
@@ -312,10 +322,15 @@ export class Stage {
   }
 
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.cleanup.forEach((fn) => fn());
     this.frames.clear();
     this.shadowVideo?.pause();
+    this.shadowVideo?.removeAttribute("src");
+    this.shadowVideo?.load();
+    this.shadowTexture?.dispose();
     gsap.killTweensOf(this.post.values);
     gsap.killTweensOf(this.world);
     this.world.dispose();

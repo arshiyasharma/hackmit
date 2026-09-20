@@ -14,9 +14,8 @@
  * and this file is the navigator, so "go to the room" swaps the screen in place
  * instead of walking out of the landing.
  *
- * THE COVER. A sheet of paper floods in, the landing resets and stops drawing
- * behind it, and the paper lifts off the product. Leaving runs it backwards.
- * The landing is told at both opaque moments, never while it can be seen.
+ * The room remains visible throughout. The interface fades over its last
+ * rendered frame, and the landing resumes that same view when it closes.
  */
 
 import * as React from "react";
@@ -43,24 +42,24 @@ const SCREEN_OF: Record<string, Screen> = {
   "/checkout": "checkout",
 };
 
-/** How long the paper takes to cover, and to lift. Mirrored in room3.css. */
-const COVER_MS = 380;
+/** Duration of the interface fade and landing handoff. Mirrored in room3.css. */
+const COVER_MS = 180;
 
 type Props = {
-  /** the paper is opaque: the landing may reset and stop drawing */
+  /** the interface is ready: freeze the existing room behind it */
   onCovered: () => void;
-  /** leaving, and opaque again: the landing may wake up behind the paper */
+  /** leaving: resume the existing room */
   onLeaving: () => void;
-  /** the paper has lifted; unmount */
+  /** the interface has faded out; unmount */
   onGone: () => void;
 };
 
 /**
- *   covering   paper 0 -> 1 over the landing; the product is not mounted yet
- *   revealing  paper 1 -> 0 off the product
- *   open       no paper
- *   closing    paper 0 -> 1 over the product
- *   lifting    product gone; paper 1 -> 0 off the landing
+ *   covering   wait briefly for the room entry to settle
+ *   revealing  fade the interface over the frozen room
+ *   open       interactive glass panel
+ *   closing    fade the interface out
+ *   lifting    resume the room, then release the overlay
  */
 type Cover = "covering" | "revealing" | "open" | "closing" | "lifting";
 
@@ -86,8 +85,10 @@ function ownsHistoryEntry(): boolean {
 
 export default function ProductRoom({ onCovered, onLeaving, onGone }: Props) {
   const session = useSession();
-  // a beat of plain paper beats flashing the sign-in at someone already signed in
+  // Resolve the session before choosing the entry card action.
   const known = useSessionReady();
+  const [entered, setEntered] = React.useState(false);
+  const admitted = Boolean(session && entered);
   const hasRoom = useStore((s) => s.roomImage !== null);
 
   const [cover, setCover] = React.useState<Cover>("covering");
@@ -220,7 +221,7 @@ export default function ProductRoom({ onCovered, onLeaving, onGone }: Props) {
     return () => window.removeEventListener("popstate", onPop);
   }, [nav, leave]);
 
-  // lets the stylesheet hide the landing behind the product
+  // Share the room palette with product controls and body-portalled dialogs.
   React.useEffect(() => {
     const html = document.documentElement;
     html.classList.add("pixx-room-open");
@@ -244,11 +245,11 @@ export default function ProductRoom({ onCovered, onLeaving, onGone }: Props) {
   const paper = cover === "open" ? null : cover === "covering" || cover === "closing" ? "in" : "out";
 
   return (
-    <div className="pixx-room-root" data-cover={cover} data-screen={session ? screen : "gate"}>
+    <div className="pixx-room-root" data-cover={cover} data-screen={admitted ? screen : "gate"}>
       {mounted ? (
         <div className="pixx-room-app">
           <AppNavProvider value={nav}>
-            {!known ? null : session ? (
+            {!known ? null : admitted ? (
               <>
                 <div className="pixx-room-screen" key={screen}>
                   {screen === "capture" ? <Capture /> : null}
@@ -258,7 +259,7 @@ export default function ProductRoom({ onCovered, onLeaving, onGone }: Props) {
                 <AccountChip screen={screen} onLeave={leave} />
               </>
             ) : (
-              <SignInGate onLeave={leave} />
+              <SignInGate onLeave={leave} onContinue={() => setEntered(true)} />
             )}
           </AppNavProvider>
         </div>

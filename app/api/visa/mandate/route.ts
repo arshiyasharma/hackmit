@@ -1,3 +1,5 @@
+import { runOnce } from "@/lib/checkout/runs";
+import { checkoutOwner, readObject, rejectCrossOrigin } from "@/lib/checkout/request";
 import type { NextRequest } from "next/server";
 
 import { findRunByBasketId, getRun, setInstructionId } from "@/lib/checkout/runs";
@@ -42,12 +44,11 @@ function fail(status: number, body: Record<string, unknown>): Response {
 }
 
 export async function POST(request: NextRequest) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return fail(400, { error: "We could not read that request." });
-  }
+  const forbidden = rejectCrossOrigin(request);
+  if (forbidden) return forbidden;
+  const body = await readObject(request);
+  if (!body) return Response.json({ error: "We could not read that request." },
+    { status: 400, headers: { "Cache-Control": "no-store" } });
 
   const runId = typeof body.runId === "string" ? body.runId.trim() : "";
   const basketId = typeof body.basketId === "string" ? body.basketId.trim() : "";
@@ -55,100 +56,105 @@ export async function POST(request: NextRequest) {
     return fail(400, { error: "Tell us which basket to authorise, as basketId." });
   }
 
-  const run = runId ? getRun(runId) : findRunByBasketId(basketId);
-  if (!run) {
+  const run = runId ? getRun(runId) : findRunByBasketId(basketId, checkoutOwner(request) ?? "");
+  if (!run || !run.ownerId || run.ownerId !== checkoutOwner(request)) {
     return fail(404, {
       error: "That basket is not on this server any more. Press checkout again.",
     });
   }
-  const basket: Basket = run.basket;
+  if (run.instructionCancelled) return fail(409, { error: "This checkout mandate was cancelled. Start a new checkout." });
+  return runOnce(run, "mandate", async () => {
+    const basket: Basket = run.basket;
+    if (run.instructionId) return Response.json({ instructionId: run.instructionId, status: "EXISTS" },
+      { headers: { "Cache-Control": "no-store" } });
 
-  const missing = missingVicVars();
-  if (missing.length) {
-    return fail(503, {
-      error:
-        `Visa Intelligent Commerce is not configured yet (missing ${missing.join(", ")}). ` +
-        `The checkout run is unaffected and will still complete in test mode.`,
-      stage: "vic-unconfigured",
+    const missing = missingVicVars();
+    if (missing.length) {
+      return fail(503, {
+        error:
+          `Visa Intelligent Commerce is not configured yet (missing ${missing.join(", ")}). ` +
+          `The checkout run is unaffected and will still complete in test mode.`,
+        stage: "vic-unconfigured",
+      });
+    }
+
+    const tokenId = enrollmentReferenceId();
+    if (!tokenId) {
+      // The wall. Card tokenization is a separate Visa product with its own
+      // approval, and without it there is no tokenId to mandate against.
+      return fail(503, {
+        error:
+          "Visa Token Service onboarding has not landed, so there is no card token to " +
+          "authorise against yet. The checkout run is unaffected and will still complete " +
+          "in test mode.",
+        stage: "vts-pending",
+      });
+    }
+
+    const config = loadVicConfig();
+    const context = createWorkflowContext();
+    const client = buildClientObject(config.externalClientId, config.externalAppId);
+
+    const payload = buildInitiatePurchaseInstructionPayload({
+      consumerId: config.consumerId,
+      tokenId,
+      context,
+      basket,
+      client,
     });
-  }
 
-  const tokenId = enrollmentReferenceId();
-  if (!tokenId) {
-    // The wall. Card tokenization is a separate Visa product with its own
-    // approval, and without it there is no tokenId to mandate against.
-    return fail(503, {
-      error:
-        "Visa Token Service onboarding has not landed, so there is no card token to " +
-        "authorise against yet. The checkout run is unaffected and will still complete " +
-        "in test mode.",
-      stage: "vts-pending",
-    });
-  }
+    try {
+      const response = await vicRequest<Record<string, unknown>>(
+        "POST",
+        VIC_ENDPOINTS.instructions,
+        payload
+      );
 
-  const config = loadVicConfig();
-  const context = createWorkflowContext();
-  const client = buildClientObject(config.externalClientId, config.externalAppId);
+      const data = response.data ?? {};
+      const instructionId =
+        typeof data.instructionId === "string" ? data.instructionId : null;
 
-  const payload = buildInitiatePurchaseInstructionPayload({
-    consumerId: config.consumerId,
-    tokenId,
-    context,
-    basket,
-    client,
+      if (!instructionId) {
+        // Visa answered 2xx without an id. Say so rather than inventing one.
+        return fail(502, {
+          error: "Visa accepted the mandate but did not return an instruction id.",
+          correlationId: response.correlationId,
+        });
+      }
+
+      setInstructionId(run.runId, instructionId);
+
+      return Response.json(
+        {
+          instructionId,
+          status: typeof data.status === "string" ? data.status : null,
+          pendingEvents: Array.isArray(data.pendingEvents) ? data.pendingEvents : [],
+          // what we asked for, so the screen can show the cap without guessing
+          mandates: buildMandates(basket).map((mandate) => ({
+            preferredMerchantName: mandate.preferredMerchantName,
+            declineThreshold: mandate.declineThreshold,
+            effectiveUntilTime: mandate.effectiveUntilTime,
+            quantity: mandate.quantity,
+            description: mandate.description,
+          })),
+          budgetMinor: basket.budgetMinor,
+          clientReferenceId: context.clientReferenceId,
+          correlationId: response.correlationId,
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    } catch (error) {
+      if (error instanceof VicApiError) {
+        return fail(502, {
+          error: "Visa could not complete this sandbox request.",
+          stage: "vic-refused",
+          httpStatus: error.httpStatus,
+          // the only id Visa support can act on
+          correlationId: error.correlationId,
+        });
+      }
+      console.error("[api/visa/mandate] failed");
+      return fail(502, { error: "We could not reach Visa's sandbox just now." });
+    }
   });
-
-  try {
-    const response = await vicRequest<Record<string, unknown>>(
-      "POST",
-      VIC_ENDPOINTS.instructions,
-      payload
-    );
-
-    const data = response.data ?? {};
-    const instructionId =
-      typeof data.instructionId === "string" ? data.instructionId : null;
-
-    if (!instructionId) {
-      // Visa answered 2xx without an id. Say so rather than inventing one.
-      return fail(502, {
-        error: "Visa accepted the mandate but did not return an instruction id.",
-        correlationId: response.correlationId,
-      });
-    }
-
-    setInstructionId(run.runId, instructionId);
-
-    return Response.json(
-      {
-        instructionId,
-        status: typeof data.status === "string" ? data.status : null,
-        pendingEvents: Array.isArray(data.pendingEvents) ? data.pendingEvents : [],
-        // what we asked for, so the screen can show the cap without guessing
-        mandates: buildMandates(basket).map((mandate) => ({
-          preferredMerchantName: mandate.preferredMerchantName,
-          declineThreshold: mandate.declineThreshold,
-          effectiveUntilTime: mandate.effectiveUntilTime,
-          quantity: mandate.quantity,
-          description: mandate.description,
-        })),
-        budgetMinor: basket.budgetMinor,
-        clientReferenceId: context.clientReferenceId,
-        correlationId: response.correlationId,
-      },
-      { headers: { "Cache-Control": "no-store" } }
-    );
-  } catch (error) {
-    if (error instanceof VicApiError) {
-      return fail(502, {
-        error: error.message,
-        stage: "vic-refused",
-        httpStatus: error.httpStatus,
-        // the only id Visa support can act on
-        correlationId: error.correlationId,
-      });
-    }
-    console.error("[api/visa/mandate] failed", error);
-    return fail(502, { error: "We could not reach Visa's sandbox just now." });
-  }
 }

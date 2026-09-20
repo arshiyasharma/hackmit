@@ -1,3 +1,4 @@
+import { readObject, rejectCrossOrigin } from "@/lib/checkout/request";
 import type { NextRequest } from "next/server";
 
 import { enrollmentReferenceId, loadVicConfig, missingVicVars } from "@/lib/visa/config";
@@ -32,7 +33,10 @@ function fail(status: number, body: Record<string, unknown>): Response {
 }
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const forbidden = rejectCrossOrigin(request);
+  if (forbidden) return forbidden;
+  const body = await readObject(request);
+  if (!body) return fail(400, { error: "We could not read that request." });
 
   const missing = missingVicVars();
   if (missing.length) {
@@ -81,13 +85,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof VicApiError) {
       return fail(502, {
-        error: error.message,
+        error: "Visa could not complete this sandbox request.",
         stage: "vic-refused",
         httpStatus: error.httpStatus,
         correlationId: error.correlationId,
       });
     }
-    console.error("[api/visa/enroll] failed", error);
+    console.error("[api/visa/enroll] failed");
     return fail(502, { error: "We could not reach Visa's sandbox just now." });
   }
 }

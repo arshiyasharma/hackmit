@@ -192,8 +192,7 @@ export function ArScene() {
       <EnterArButton store={store} />
     ) : arSupported === false && roomImage ? (
       <p className="glass-pill pointer-events-none max-w-full px-4 py-2 text-center text-[12px] text-muted-foreground">
-        This browser has no live AR — Chrome on Android does. Your photo is to
-        scale either way.
+        Photo mode · live AR is unavailable in this browser.
       </p>
     ) : null;
 

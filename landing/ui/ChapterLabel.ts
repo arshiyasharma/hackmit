@@ -19,8 +19,9 @@ export class ChapterLabel {
     this.label = h("div", "chapter-label", `<span class="eyebrow">Chapter ${c.numeral}</span><span class="chapter-name">${c.name}</span>`);
     this.entry = h("button", "tile chapter-entry");
     this.entry.type = "button";
-    this.entry.setAttribute("aria-label", `${manifest.strings.hud.enterRoom}: chapter ${c.numeral}, ${c.name}`);
-    this.entry.innerHTML = `<span class="tile-body"><span class="tile-icon">${icon("door")}</span><span class="tile-label">${manifest.strings.hud.enterRoom}</span><span class="tile-peel"></span></span>`;
+    const entryLabel = "entryLabel" in c ? c.entryLabel : manifest.strings.hud.enterRoom;
+    this.entry.setAttribute("aria-label", `${entryLabel}: chapter ${c.numeral}, ${c.name}`);
+    this.entry.innerHTML = `<span class="tile-body"><span class="tile-icon">${icon("entryLabel" in c ? "arrowRight" : "door")}</span><span class="tile-label">${entryLabel}</span><span class="tile-peel"></span></span>`;
     this.entry.addEventListener("click", () => onEnter(chapter));
     parent.append(this.label, this.entry);
     this.setVisible(false);

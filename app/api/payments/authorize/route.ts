@@ -1,3 +1,4 @@
+import { readObject, rejectCrossOrigin } from "@/lib/checkout/request";
 import type { NextRequest } from "next/server";
 
 import {
@@ -36,17 +37,16 @@ function bad(error: string): Response {
 }
 
 export async function POST(request: NextRequest) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return bad("We could not read that payment request.");
-  }
+  const forbidden = rejectCrossOrigin(request);
+  if (forbidden) return forbidden;
+  const body = await readObject(request);
+  if (!body) return Response.json({ error: "We could not read that request." },
+    { status: 400, headers: { "Cache-Control": "no-store" } });
 
   const amountMinor = body.amountMinor;
   if (
     typeof amountMinor !== "number" ||
-    !Number.isInteger(amountMinor) ||
+    !Number.isSafeInteger(amountMinor) ||
     amountMinor <= 0
   ) {
     return bad("Tell us the amount as a whole number of cents, as amountMinor.");
@@ -55,10 +55,10 @@ export async function POST(request: NextRequest) {
     return bad("That amount is too large to authorize.");
   }
 
-  const currency =
-    typeof body.currency === "string" && /^[A-Za-z]{3}$/.test(body.currency)
-      ? body.currency.toUpperCase()
-      : "USD";
+  if (body.currency !== undefined && body.currency !== "USD") {
+    return bad("The demo sandbox supports USD only.");
+  }
+  const currency = "USD";
 
   const lineId = typeof body.lineId === "string" ? body.lineId.trim() : "";
   // Visa's clientReferenceInformation.code is short; a uuid line id does not
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
         { status: 503, headers: { "Cache-Control": "no-store" } }
       );
     }
-    console.error("[api/payments/authorize] upstream failed", error);
+    console.error("[api/payments/authorize] upstream failed");
     return Response.json(
       { error: "We could not reach Visa's sandbox just now." },
       { status: 502, headers: { "Cache-Control": "no-store" } }

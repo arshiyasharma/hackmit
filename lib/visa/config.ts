@@ -85,6 +85,9 @@ export function loadVicConfig(): VicConfig {
     ""
   );
 
+  if (baseUrl !== "https://sandbox.api.visa.com") {
+    throw new Error("Only the Visa sandbox is enabled in this demo.");
+  }
   return {
     baseUrl,
     apiKey: env.VISA_VIC_API_KEY!.trim(),

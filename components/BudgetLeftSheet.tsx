@@ -68,27 +68,23 @@ export default function BudgetLeftSheet({
       initialSnap={0}
       label="You have budget left"
       // a question with two answers, not a page: narrower than the default dialog
-      className="desk:max-w-[38rem]"
+      className="max-w-[30rem]!"
     >
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-5 font-sans">
         <div>
-          <p className="eyebrow text-accent">Before you check out</p>
-          {/* the figure is mono like every figure; the words are the headline */}
-          <h2 className="mt-3 flex flex-wrap items-baseline gap-x-3 font-display text-[40px] leading-none font-normal tracking-[0.01em] desk:text-[48px]">
-            <span className="tabular font-mono text-[0.8em] tracking-normal">
-              {money(leftCents)}
-            </span>{" "}
-            to go
+          <p className="text-[11px] font-medium text-accent">Before you review</p>
+          <h2 className="mt-2 text-[26px] font-medium leading-tight tracking-[-0.03em]">
+            <span className="tabular-nums">{money(leftCents)}</span> left in your budget
           </h2>
-          <p className="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-muted-foreground">
+          <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
             {suggestions.length
-              ? "One of these would finish the room — or check out as you are."
-              : "Add anything else you want, or check out as you are."}
+              ? "Add another piece, or continue with the items you’ve chosen."
+              : "You can add another piece or review the items you’ve chosen."}
           </p>
         </div>
 
         {suggestions.length ? (
-          <ul className="grid gap-2.5 desk:grid-cols-2">
+          <ul className="grid gap-2 sm:grid-cols-2">
             {suggestions.map((suggestion) => (
               <li key={suggestion}>
                 <button
@@ -98,13 +94,13 @@ export default function BudgetLeftSheet({
                     askFor(suggestion);
                   }}
                   className={cn(
-                    "group tap flex min-h-12 w-full cursor-pointer items-center justify-between gap-3",
-                    "rounded-2xl border border-line bg-surface/70 px-4 text-left text-[15px]",
+                    "group flex min-h-11 w-full cursor-pointer items-center justify-between gap-3",
+                    "rounded-none border border-line bg-white/55 px-3 py-2 text-left text-[13px]",
                     "transition-colors hover:border-accent hover:bg-accent-wash active:bg-accent-wash",
                     FOCUS_RING
                   )}
                 >
-                  <span className="truncate capitalize">{suggestion}</span>
+                  <span className="min-w-0 capitalize">{suggestion}</span>
                   <ArrowRight
                     className="size-4 shrink-0 text-accent transition-transform group-hover:translate-x-0.5"
                     aria-hidden
@@ -115,28 +111,28 @@ export default function BudgetLeftSheet({
           </ul>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
           <button
             type="button"
             onClick={onContinue}
             className={cn(
-              "glass-blue tap min-h-12 flex-1 cursor-pointer rounded-full! px-6 text-sm font-medium",
-              "whitespace-nowrap transition-transform hover:-translate-y-px active:translate-y-px",
+              "min-h-11 flex-1 cursor-pointer rounded-none border border-accent bg-accent px-4 text-[13px] font-medium text-white",
+              "whitespace-nowrap transition-colors hover:bg-accent-bright",
               FOCUS_RING
             )}
           >
-            Check out anyway
+            Continue to review
           </button>
           <button
             type="button"
             onClick={() => onOpenChange(false)}
             className={cn(
-              "tap min-h-12 cursor-pointer rounded-full border border-line bg-surface/70 px-5 text-sm",
-              "whitespace-nowrap transition-colors hover:border-foreground/30 hover:bg-surface",
+              "min-h-11 cursor-pointer rounded-none border border-line bg-white/55 px-4 text-[13px]",
+              "whitespace-nowrap transition-colors hover:border-foreground/30 hover:bg-white/85",
               FOCUS_RING
             )}
           >
-            Keep shopping
+            Keep designing
           </button>
         </div>
       </div>

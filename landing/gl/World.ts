@@ -55,6 +55,8 @@ export class World {
   roll = 0;
   travel = { x: 0, y: 0 };
 
+  private disposed = false;
+  private geometry?: THREE.PlaneGeometry;
   private wide = { tx: 0, ty: 0, rollScale: 1 };
 
   constructor() {
@@ -63,9 +65,12 @@ export class World {
   }
 
   async build(stills: string[]) {
+    if (this.disposed) return;
     const geo = new THREE.PlaneGeometry(1, 1);
+    this.geometry = geo;
     for (const chapter of manifest.chapters) {
       const [facadeTex, roomTex] = await Promise.all([loadTexture(chapter.facade), loadTexture(stills[chapter.index])]);
+      if (this.disposed) return;
       const group = new THREE.Group();
       const room = new THREE.Mesh(geo, createRoomMaterial(roomTex));
       const facade = new THREE.Mesh(geo, createFacadeMaterial(facadeTex, manifest.windowRect));
@@ -314,6 +319,7 @@ export class World {
     if (!m || m.still === path) return;
     m.still = path;
     const tex = await loadTexture(path);
+    if (this.disposed) return;
     const u = m.room.material.uniforms;
     if (seconds <= 0) {
       u.uTexA.value = tex;
@@ -329,10 +335,14 @@ export class World {
   }
 
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
     for (const m of this.modules) {
       m.facade.material.dispose();
       m.room.material.dispose();
     }
-    this.modules[0]?.room.geometry.dispose();
+    this.geometry?.dispose();
+    this.modules = [];
+    this.strip.clear();
   }
 }

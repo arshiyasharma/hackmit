@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isRequestObject, MAX_QUERY_LENGTH, validRoomContext } from "@/lib/sourcing/request";
 import type { Product } from "@/lib/sourcing/enrich";
 import { parseShoppingQuery } from "@/lib/sourcing/parseQuery";
 import {
@@ -14,11 +15,14 @@ const MAX_SEARCH_TERMS = 3;
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  const query = body?.query;
-
-  if (!query || typeof query !== "string") {
-    return NextResponse.json({ error: "query required" }, { status: 400 });
+  if (!isRequestObject(body) || typeof body.query !== "string" ||
+      !body.query.trim() || body.query.length > MAX_QUERY_LENGTH) {
+    return NextResponse.json({ error: "query must contain 1–500 characters" }, { status: 400 });
   }
+  if (!validRoomContext(body.roomContext)) {
+    return NextResponse.json({ error: "Invalid roomContext" }, { status: 400 });
+  }
+  const query = body.query.trim();
 
   const apiKey = process.env.SERPAPI_KEY ?? "";
 
@@ -98,7 +102,7 @@ export async function POST(req: NextRequest) {
     if (products.length === 0) {
       return NextResponse.json({
         products: [],
-        note: "no_whitelist_matches",
+        note: "no_results",
       });
     }
 

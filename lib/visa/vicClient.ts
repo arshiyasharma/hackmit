@@ -108,6 +108,8 @@ export async function vicRequest<T = unknown>(
     },
     ...(wire ? { body: wire } : {}),
     cache: "no-store",
+    redirect: "error",
+    signal: AbortSignal.timeout(12_000),
   });
 
   const correlationId = correlationOf(response);
@@ -122,13 +124,13 @@ export async function vicRequest<T = unknown>(
   if (raw && typeof raw === "object" && "encData" in (raw as object)) {
     try {
       data = await decryptPayload(raw, config.mlePrivateKey, config.keyId);
-    } catch (error) {
+    } catch {
       // an undecryptable body is worth saying out loud — but only that it
       // failed, never what was in it
       console.error(
-        `[visa] could not decrypt ${response.status} body correlation=${correlationId ?? "none"}`,
-        error instanceof Error ? error.message : "unknown"
+        `[visa] could not decrypt ${response.status} body correlation=${correlationId ?? "none"}`
       );
+      throw new Error("Visa returned an unreadable encrypted response.");
     }
   }
 

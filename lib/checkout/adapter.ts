@@ -49,10 +49,14 @@ const ALIASES: Readonly<Record<string, Retailer>> = {
  */
 export function resolveRetailer(product: Product): Retailer | null {
   try {
-    const host = new URL(product.url).host;
+    const url = new URL(product.url);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
     for (const retailer of RETAILERS) {
-      if (hostBelongsTo(retailer, host)) return retailer;
+      if (hostBelongsTo(retailer, url.host)) return retailer;
     }
+    // A valid URL is authoritative even when its shop is unsupported. A
+    // scraper's name or domain must not disguise a different destination.
+    return null;
   } catch {
     // not a URL. Fall through to the name; the server will refuse a line with
     // no usable product URL anyway.
@@ -128,6 +132,15 @@ export function toBasket(
       continue;
     }
 
+    const currency = product.currency?.trim().toUpperCase();
+    if (currency !== "USD") {
+      unsupported.push({
+        line,
+        reason: `${product.title} is priced in ${currency || "an unknown currency"}. Checkout currently supports USD only.`,
+      });
+      continue;
+    }
+
     basketLines.push({
       lineId: line.id,
       placementId: line.itemId,
@@ -137,7 +150,7 @@ export function toBasket(
       productUrl: product.url,
       imageUrl: product.imageUrl ?? product.image ?? "",
       priceMinor: product.priceCents,
-      currency: "USD",
+      currency,
       dimensionsMm: dimensions(product),
       quantity: Number.isInteger(line.quantity) && line.quantity > 0 ? line.quantity : 1,
     });

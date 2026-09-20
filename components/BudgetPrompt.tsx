@@ -47,6 +47,11 @@ export default function BudgetPrompt() {
     String(Math.round(budgetCents / 100))
   );
   const [dismissed, setDismissed] = React.useState(false);
+  const fieldId = React.useId();
+  const titleId = React.useId();
+  const helpId = React.useId();
+  const dollars = Number(draft.replace(/[^\d.]/g, ""));
+  const validAmount = Number.isFinite(dollars) && dollars > 0;
 
   // asked once: a photo exists, nothing is placed yet, and nobody has chosen
   const open = !!roomImage && !budgetSet && !dismissed && items.length === 0;
@@ -100,87 +105,87 @@ export default function BudgetPrompt() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, transition: reduced ? REDUCED : EXIT }}
             transition={reduced ? REDUCED : ENTER}
-            className={cn(
-              "glass-thick glass-sheen pointer-events-auto w-full max-w-[34rem]",
-              "rounded-[28px]! p-7 desk:p-9"
-            )}
+            data-pixx-budget-prompt=""
+            className="pixx-dialog-pane pointer-events-auto w-full max-w-[26rem] rounded-none! p-6 font-sans"
             role="dialog"
-            aria-label="Set your budget"
+            aria-labelledby={titleId}
           >
-            <p className="eyebrow text-accent">The budget</p>
-            <h2 className="mt-3 font-display text-[40px] leading-none font-normal tracking-[0.01em] desk:text-[48px]">
-              What are you spending?
+            <h2 id={titleId} className="text-[24px] font-medium leading-tight tracking-[-0.03em]">
+              Set budget
             </h2>
-            <p className="mt-3 max-w-[44ch] text-[15px] leading-relaxed text-muted-foreground">
-              Every piece you pick comes out of this. You can change it any time.
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+              Choose a total for this room. You can change it any time.
             </p>
 
-            <div className="mt-6 flex flex-wrap gap-2.5">
-              {PRESETS_CENTS.map((cents) => (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (validAmount) commit(dollars * 100);
+              }}
+              className="mt-5"
+            >
+              <label htmlFor={fieldId} className="mb-2 block text-[12px] font-medium">Total budget</label>
+              <div className="relative">
+                <span aria-hidden className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[18px] text-muted-foreground">$</span>
+                <input
+                  id={fieldId}
+                  ref={field}
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value.replace(/[^\d.]/g, ""))}
+                  inputMode="decimal"
+                  aria-label="Your budget, in dollars"
+                  aria-describedby={helpId}
+                  aria-invalid={draft.length > 0 && !validAmount ? true : undefined}
+                  className="min-h-12 w-full rounded-none border border-line bg-white/75 py-2 pl-7 pr-14 font-sans text-[20px] tabular-nums text-foreground outline-none focus:border-accent focus:ring-2 focus:ring-accent/15"
+                />
+                <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] text-muted-foreground">USD</span>
+              </div>
+              <p id={helpId} className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                {draft.length > 0 && !validAmount ? "Enter an amount greater than zero." : "$10 minimum."}
+              </p>
+
+              <div className="mt-3 grid grid-cols-3 gap-2" aria-label="Quick budgets">
+                {PRESETS_CENTS.map((cents) => (
+                  <button
+                    key={cents}
+                    type="button"
+                    onClick={() => commit(cents)}
+                    aria-label={`Set budget to ${money(cents)}`}
+                    className={cn(
+                      "min-h-9 cursor-pointer rounded-none border border-line bg-white/50 px-3 text-[13px] tabular-nums",
+                      "transition-colors hover:border-accent hover:bg-accent/5 hover:text-accent",
+                      FOCUS_RING
+                    )}
+                  >
+                    {money(cents)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-5 flex items-center gap-2">
                 <button
-                  key={cents}
-                  type="button"
-                  onClick={() => commit(cents)}
+                  type="submit"
+                  disabled={!validAmount}
                   className={cn(
-                    "tap tabular min-h-11 cursor-pointer rounded-full border border-line bg-surface/70 px-5",
-                    "font-mono text-[15px] text-foreground",
-                    "transition-colors hover:border-accent hover:bg-accent-wash hover:text-accent",
-                    "active:bg-accent-wash",
+                    "min-h-11 flex-1 cursor-pointer rounded-none border border-accent bg-accent px-4 text-[13px] font-medium text-white",
+                    "transition-colors hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-45",
                     FOCUS_RING
                   )}
                 >
-                  {money(cents)}
+                  Set budget
                 </button>
-              ))}
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const dollars = Number(draft.replace(/[^\d.]/g, ""));
-                if (Number.isFinite(dollars) && dollars > 0) commit(dollars * 100);
-              }}
-              className="mt-4 flex flex-wrap items-center gap-2.5"
-            >
-              <label className="flex items-center gap-2">
-                <span aria-hidden className="font-mono text-[15px] text-muted-foreground">
-                  $
-                </span>
-                <input
-                  ref={field}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, ""))}
-                  inputMode="decimal"
-                  aria-label="Your budget, in dollars"
+                <button
+                  type="button"
+                  onClick={() => setDismissed(true)}
                   className={cn(
-                    "tabular min-h-11 w-[12ch] rounded-xl border border-line bg-surface px-3",
-                    "font-mono text-lg text-foreground",
-                    "outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+                    "min-h-11 cursor-pointer rounded-none border border-line bg-white/40 px-4 text-[13px] text-muted-foreground",
+                    "transition-colors hover:bg-white/80 hover:text-foreground",
+                    FOCUS_RING
                   )}
-                />
-              </label>
-              <button
-                type="submit"
-                className={cn(
-                  "glass-blue tap min-h-11 cursor-pointer rounded-full! px-6 text-sm font-medium",
-                  "transition-transform hover:-translate-y-px active:translate-y-px",
-                  FOCUS_RING
-                )}
-              >
-                Set it
-              </button>
-              <button
-                type="button"
-                onClick={() => setDismissed(true)}
-                className={cn(
-                  "tap min-h-11 cursor-pointer rounded-md px-2 text-sm text-muted-foreground",
-                  "underline decoration-line underline-offset-4",
-                  "transition-colors hover:text-foreground hover:decoration-foreground/40",
-                  FOCUS_RING
-                )}
-              >
-                Skip
-              </button>
+                >
+                  Skip
+                </button>
+              </div>
             </form>
           </motion.div>
         </div>

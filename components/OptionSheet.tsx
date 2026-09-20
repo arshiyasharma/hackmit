@@ -1,18 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { create } from "zustand";
 
 import SourcingResults from "@/components/SourcingResults";
 import { withDemo } from "@/lib/demo";
+import { budgetForItem, optionSearchKey, shouldRefreshOptions } from "@/lib/optionSearch";
 import { ENTER, EXIT, REDUCED } from "@/lib/motion";
 import { usePreview } from "@/lib/preview";
 import {
   roomContextFor,
   searchQuery,
-  spentCents,
   useActiveItem,
   useRoomContext,
   useStore,
@@ -21,28 +21,12 @@ import { cn } from "@/lib/utils";
 import type { PlacedItem, Product } from "@/types";
 
 /**
- * The options for the active placeholder: THE LISTING TRAY, docked under the
- * room (docs/ROOM3_PRODUCT_SPEC.md 1b, beats 04 and 05).
+ * Matching products for the active item, inside the persistent left sidebar.
+ * The host shares that space with the room inventory.
+ * Hovering or focusing a listing previews it in the room before linking it.
  *
- * The file is still called OptionSheet because five other files import it by
- * that name, but it is not a sheet any more. A bottom sheet is a phone's answer
- * to "where do five listings go"; on a laptop it is a modal curtain over the
- * very room the listings are for. So this is a non-modal pane of thick glass
- * standing in the stage — the room stays live above it, the style strip stays
- * editable beside it, and pointing at a listing tries it on in the room.
- *
- * It renders INLINE, with no portal, on purpose: its right edge and its height
- * are the room page's own CSS variables (`--stage-right`, `--tray-h`, set on
- * <main>), the same two the scene reads to keep the object clear of it. A
- * portal to <body> would sit outside them.
- *
- * It takes NO PROPS and reads the store, like every other overlay on the room
- * screen, and it is always about `activeItemId` — the one field the whole
- * chrome agrees on.
- *
- * It also owns the search. The item exists before either async job returns, so
- * this fires /api/search for the active item the moment it appears and the
- * tray shows five skeletons in the meantime. Never a spinner.
+ * Search ownership stays here: each newly active item starts one request,
+ * context edits refresh it, and an interrupted request can resume on remount.
  */
 
 /* --------------------------------------------------------- open / closed */
@@ -72,7 +56,7 @@ export function closeOptions(): void {
   useSheetState.setState({ open: false });
 }
 
-/** Is the tray showing? The room page sizes the stage's free area from this. */
+/** Is the matching-products tab showing? */
 export function useOptionsOpen(): boolean {
   return useSheetState((s) => s.open);
 }
@@ -81,7 +65,7 @@ export function useOptionsOpen(): boolean {
 
 /** One search per item, even across a remount of the tray. */
 const started = new Set<string>();
-/** itemId -> the exact query already sent for it, so a repeat is a no-op */
+/** itemId -> the exact query and budget already sent for it, so a repeat is a no-op */
 const asked = new Map<string, string>();
 const inFlight = new Map<string, AbortController>();
 
@@ -112,19 +96,23 @@ export function OptionSheet() {
   const open = useSheetState((s) => s.open);
   const item = useActiveItem();
   const roomContext = useRoomContext();
+  const remainingBudget = useStore((state) => budgetForItem(state, item?.id));
   const reduced = useReducedMotion();
 
   const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [notes, setNotes] = React.useState<Record<string, string | undefined>>({});
-  const [queriesUsed, setQueriesUsed] = React.useState<Record<string, string>>({});
+  const [searchesUsed, setSearchesUsed] = React.useState<Record<string, string>>({});
 
   /* the string on screen IS the string that gets sent */
   const query = item ? searchQuery(roomContext, item.request) : "";
+  const currentSearchKey = optionSearchKey(query, remainingBudget);
 
   const runSearch = React.useCallback(async (target: PlacedItem) => {
     const state = useStore.getState();
     const context = roomContextFor(state);
     const sent = searchQuery(context, target.request);
+    const budgetRemainingCents = budgetForItem(state, target.id);
+    const key = optionSearchKey(sent, budgetRemainingCents);
 
     /*
      * THE SAME QUESTION IS NOT ASKED TWICE.
@@ -132,12 +120,12 @@ export function OptionSheet() {
      * Every call here spends a SerpAPI request, and the server log caught this
      * firing eleven times for one query inside forty seconds — a re-render
      * upstream re-entering the effect that starts a search. The guard is the
-     * pair (item, query): if that exact question is already asked, this call
+     * combination (item, query, budget): if that exact question is already asked, this call
      * is a duplicate and it stops here. `started` alone could not see it,
      * because it only knows the item.
      */
-    if (asked.get(target.id) === sent) return;
-    asked.set(target.id, sent);
+    if (asked.get(target.id) === key) return;
+    asked.set(target.id, key);
 
     inFlight.get(target.id)?.abort();
     const controller = new AbortController();
@@ -155,22 +143,23 @@ export function OptionSheet() {
           category: target.category,
           query: sent,
           roomContext: context,
-          budgetRemainingCents: state.budgetCents - spentCents(state.items),
+          budgetRemainingCents,
         }),
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`search ${res.status}`);
 
       const answer = (await res.json()) as SearchAnswer;
+      if (controller.signal.aborted || inFlight.get(target.id) !== controller) return;
       // an empty list is a ANSWER, not a failure: the tray says so in words
       useStore.getState().setOptions(target.id, optionsOf(answer));
       setNotes((n) => ({
         ...n,
         [target.id]: typeof answer.note === "string" ? answer.note : undefined,
       }));
-      setQueriesUsed((q) => ({
+      setSearchesUsed((q) => ({
         ...q,
-        [target.id]: typeof answer.query === "string" ? answer.query : sent,
+        [target.id]: key,
       }));
     } catch (err) {
       if (controller.signal.aborted) return;
@@ -178,9 +167,9 @@ export function OptionSheet() {
       asked.delete(target.id);
       console.warn("[options] /api/search failed", err);
       useStore.getState().setOptions(target.id, null);
-      setQueriesUsed((q) => ({ ...q, [target.id]: sent }));
+      setSearchesUsed((q) => ({ ...q, [target.id]: key }));
     } finally {
-      if (!controller.signal.aborted) setPendingId(null);
+      if (!controller.signal.aborted) setPendingId((current) => current === target.id ? null : current);
       if (inFlight.get(target.id) === controller) inFlight.delete(target.id);
     }
   }, []);
@@ -202,24 +191,19 @@ export function OptionSheet() {
    * runs again on its own; a short delay keeps three quick edits to one fetch.
    * (The tray is not modal, so the strip stays reachable while it is up.)
    */
-  const queryRef = React.useRef(query);
   React.useEffect(() => {
-    const previous = queryRef.current;
-    queryRef.current = query;
     if (!item || !open) return;
-    if (previous === query) return;
-    if (queriesUsed[item.id] === undefined) return; // nothing searched yet
-    if (queriesUsed[item.id] === query) return;
+    const previous = searchesUsed[item.id] ?? asked.get(item.id);
+    if (!shouldRefreshOptions(item.optionsStatus, previous, currentSearchKey)) return;
 
     const target = item;
     const timer = window.setTimeout(() => {
       started.delete(target.id);
-      // the query itself changed, so this is a new question, not a repeat
       asked.delete(target.id);
       void runSearch(target);
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [query, item, open, queriesUsed, runSearch]);
+  }, [currentSearchKey, item, open, searchesUsed, runSearch]);
 
   /* a new active item brings its options up with it */
   const lastOpened = React.useRef<string | null>(null);
@@ -305,8 +289,8 @@ export function OptionSheet() {
   // removing a style chip changes the query; the results on screen are older
   const stale =
     !searching &&
-    queriesUsed[item.id] !== undefined &&
-    queriesUsed[item.id] !== query;
+    searchesUsed[item.id] !== undefined &&
+    searchesUsed[item.id] !== currentSearchKey;
 
   const heading = item.category || item.request;
   const note = notes[item.id];
@@ -322,116 +306,89 @@ export function OptionSheet() {
         <motion.section
           key="tray"
           role="region"
-          aria-label={`Options for ${heading}`}
+          aria-label={`Matching products for ${heading}`}
           data-option-tray=""
-          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0, transition: reduced ? REDUCED : ENTER }}
-          exit={
-            reduced
-              ? { opacity: 0, transition: REDUCED }
-              : { opacity: 0, y: 16, transition: EXIT }
-          }
-          style={{
-            // 16px clear of the agent panel, and never flush against the window
-            // when there is no panel beside the stage
-            right: "max(var(--stage-right, 0px), 16px)",
-            height: "var(--tray-h, min(44dvh, 26rem))",
-          }}
-          className={cn(
-            // the glass classes set their own position and radius and, being
-            // declared after the utilities in the same layer, win a tie
-            "glass-thick glass-sheen absolute! rounded-[28px]!",
-            "pointer-events-auto bottom-4 left-4 z-30 flex flex-col gap-2.5 px-4 pb-3.5 pt-3"
-          )}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, transition: reduced ? REDUCED : ENTER }}
+          exit={{ opacity: 0, transition: reduced ? REDUCED : EXIT }}
+          className="room-options pointer-events-auto relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-none bg-transparent font-sans"
         >
-          <header className="flex h-11 shrink-0 items-center gap-4">
-            <div className="min-w-0 flex-1">
-              <p className="eyebrow text-accent">Real things</p>
-              <div className="mt-1 flex min-w-0 items-baseline gap-3">
-                <h2 className="min-w-0 shrink truncate font-display text-[26px] font-medium capitalize leading-none tracking-[0.01em]">
+          <header className="shrink-0 border-b border-line/70 px-3 pb-3 pt-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-medium text-muted-foreground">Matching products</p>
+              <button
+                type="button"
+                onClick={closeOptions}
+                aria-label="Back to your items"
+                title="Back to your items (Esc)"
+                className={cn(
+                  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-none text-muted-foreground",
+                  "transition-colors hover:bg-white/70 hover:text-foreground",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                )}
+              >
+                <ArrowLeft className="size-4" aria-hidden />
+              </button>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate font-sans text-[16px] font-medium capitalize leading-snug text-foreground">
                   {heading}
                 </h2>
-                <p className="min-w-0 flex-1 truncate text-[13px] leading-none text-muted-foreground">
-                  you asked for “{item.request}”
-                </p>
+                {count !== null ? (
+                  <p className="mt-1 font-sans text-[12px] leading-normal text-muted-foreground">
+                    {count} product{count === 1 ? "" : "s"}
+                    {count > 0 ? ` · ${shops} shop${shops === 1 ? "" : "s"}` : ""}
+                  </p>
+                ) : null}
               </div>
             </div>
+            <p
+              className="mt-2 line-clamp-2 font-sans text-[12px] leading-relaxed text-muted-foreground"
+              title={item.request}
+            >
+              For “{item.request}”
+            </p>
 
-            <div className="flex min-w-0 max-w-[46%] flex-col items-end gap-1.5 text-right">
-              {count !== null ? (
-                <p className="eyebrow tabular text-foreground">
-                  {count} listing{count === 1 ? "" : "s"}
-                  {count > 0 ? (
-                    <span className="text-muted-foreground">
-                      {" "}
-                      · from {shops} shop{shops === 1 ? "" : "s"}
-                    </span>
-                  ) : null}
-                </p>
-              ) : null}
-              {/*
-               * THE QUERY, ON SCREEN. This is the string that was sent,
-               * character for character — it is how the room context turns
-               * into results, and it is what you point at when a judge asks
-               * how the search is personalised. Editing the strip changes it.
-               */}
-              <p
-                className="max-w-full truncate font-mono text-[11px] leading-none text-muted-foreground"
-                title={query || item.request}
-              >
-                searching{" "}
-                <span className="text-foreground">{query || item.request}</span>
-              </p>
-            </div>
+            <details className="mt-2 font-sans text-[11px] leading-relaxed text-muted-foreground">
+              <summary className="w-fit cursor-pointer rounded-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                Search details
+              </summary>
+              <p className="mt-1 break-words text-foreground">{query || item.request}</p>
+            </details>
 
             {stale ? (
               <button
                 type="button"
                 onClick={retry}
                 className={cn(
-                  "h-11 shrink-0 cursor-pointer rounded-full border border-accent bg-surface/70 px-4",
-                  "text-[13px] font-medium text-accent transition-colors hover:bg-accent-wash",
+                  "mt-2 min-h-8 cursor-pointer rounded-none border border-accent/30 bg-accent-wash px-3",
+                  "font-sans text-[12px] font-medium text-accent transition-colors hover:border-accent",
                   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 )}
               >
-                Search again
+                Refresh options
               </button>
             ) : null}
 
-            <button
-              type="button"
-              onClick={closeOptions}
-              aria-label="Close the listings"
-              title="Close (Esc)"
-              className={cn(
-                "grid size-11 shrink-0 cursor-pointer place-items-center rounded-full",
-                "border border-line bg-surface/80 text-foreground transition-colors",
-                "hover:border-accent-pale hover:bg-accent-wash",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              )}
-            >
-              <X className="size-4" aria-hidden />
-            </button>
+            {roomContext?.source === "fallback" ? (
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                Room style unavailable. Showing a general search.
+              </p>
+            ) : null}
+
+            {note && view.options.length > 0 && !waiting ? (
+              <p className="mt-2 text-[11px] leading-relaxed text-warn">{note}</p>
+            ) : null}
           </header>
-
-          {roomContext?.source === "fallback" ? (
-            <p className="shrink-0 text-[11px] leading-none text-muted-foreground">
-              Couldn&rsquo;t read the style — this search is generic.
-            </p>
-          ) : null}
-
-          {/* the route's own words when it sends them WITH listings: today that
-              is only the rehearsal set saying it is frozen, and it must be said */}
-          {note && view.options.length > 0 && !waiting ? (
-            <p className="shrink-0 font-mono text-[11px] leading-none text-warn">{note}</p>
-          ) : null}
 
           <SourcingResults
             item={view}
             query={query}
+            layout="list"
             note={note}
             onRetry={retry}
-            className="flex-1"
+            className="flex-1 px-3 pb-3 pt-3"
           />
         </motion.section>
       ) : null}

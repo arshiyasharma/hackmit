@@ -6,7 +6,9 @@ import {
   formatMoneyMinor,
   subtotalMinor,
 } from "@/lib/checkout/basket";
-import { createRun } from "@/lib/checkout/runs";
+import { createRun, findRunByBasketId, getRun, isTerminal, updateLine } from "@/lib/checkout/runs";
+import { checkoutOwner, ownerCookie, readObject, rejectCrossOrigin } from "@/lib/checkout/request";
+import { hostBelongsTo } from "@/lib/checkout/retailers";
 import type { Basket, BasketLine, Retailer } from "@/lib/checkout/types";
 
 /**
@@ -54,7 +56,7 @@ const RETAILERS: ReadonlySet<string> = new Set<Retailer>([
 
 /** A whole, positive number of cents — or nothing. Never a float. */
 function minor(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 100_000_000
     ? value
     : undefined;
 }
@@ -71,7 +73,7 @@ type LineProblem = { index: number; reason: string };
 
 /** One line, or the sentence explaining why it is not one. */
 function toLine(raw: unknown, index: number): BasketLine | LineProblem {
-  if (!raw || typeof raw !== "object") {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { index, reason: "one of the items in your basket is empty" };
   }
   const r = raw as Record<string, unknown>;
@@ -105,10 +107,24 @@ function toLine(raw: unknown, index: number): BasketLine | LineProblem {
     return { index, reason: `${title} is not priced in dollars` };
   }
 
-  const quantity =
-    typeof r.quantity === "number" && Number.isInteger(r.quantity) && r.quantity > 0
-      ? r.quantity
-      : 1;
+  let url: URL;
+  try { url = new URL(productUrl); } catch {
+    return { index, reason: `${title} has an invalid shop link` };
+  }
+  if (url.protocol !== "https:" || url.username || url.password || url.port ||
+      !hostBelongsTo(retailer as Retailer, url.hostname)) {
+    return { index, reason: `${title} has a link that does not belong to its shop` };
+  }
+  const quantity = r.quantity === undefined ? 1 : r.quantity;
+  if (typeof quantity !== "number" || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) {
+    return { index, reason: `${title} needs a quantity between 1 and 99` };
+  }
+  if (priceMinor * quantity > 100_000_000) {
+    return { index, reason: `${title} exceeds the test checkout amount limit` };
+  }
+  if (lineId.length > 128 || placementId.length > 128 || !str(r.listingId) || str(r.listingId).length > 256 || title.length > 500 || productUrl.length > 4096) {
+    return { index, reason: `${title.slice(0, 80)} has invalid item details` };
+  }
 
   const d = r.dimensionsMm;
   const dimensionsMm =
@@ -157,7 +173,14 @@ function isProblem(value: BasketLine | LineProblem): value is LineProblem {
 function startWalk(runId: string): void {
   const walk = () =>
     runCheckout(runId).catch((error: unknown) => {
-      console.error("[api/checkout] walk failed", runId, error);
+      console.error("[api/checkout] walk failed", runId);
+      const run = getRun(runId);
+      for (const line of run?.lines ?? []) {
+        if (!isTerminal(line.status)) updateLine(runId, line.lineId, {
+          state: "failed", reason: "Checkout could not finish. No retailer order was placed.",
+        });
+      }
+      void error;
     });
 
   try {
@@ -168,15 +191,13 @@ function startWalk(runId: string): void {
 }
 
 export async function POST(request: NextRequest) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return bad("We could not read that basket. Try pressing checkout again.");
-  }
+  const forbidden = rejectCrossOrigin(request);
+  if (forbidden) return forbidden;
+  const body = await readObject(request);
+  if (!body) return bad("We could not read that basket. Try pressing checkout again.");
 
   const raw = body.basket;
-  if (!raw || typeof raw !== "object") {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return bad("There is no basket to check out.");
   }
   const rawBasket = raw as Record<string, unknown>;
@@ -188,6 +209,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (rawLines.length > 12) return bad("Please check out at most 12 items at a time.");
   const parsed = rawLines.map(toLine);
   const problem = parsed.find(isProblem);
   if (problem) {
@@ -197,6 +219,14 @@ export async function POST(request: NextRequest) {
   }
 
   const lines = parsed as BasketLine[];
+  if (new Set(lines.map((line) => line.lineId)).size !== lines.length ||
+      new Set(lines.map((line) => line.placementId)).size !== lines.length) {
+    return bad("An item appears twice in this checkout. Refresh the review and try again.");
+  }
+  if (rawBasket.budgetMinor !== undefined && minor(rawBasket.budgetMinor) === undefined) {
+    return bad("The budget must be a valid whole number of cents.");
+  }
+  if (str(rawBasket.basketId).length > 128) return bad("That basket id is not valid.");
   const basket: Basket = {
     basketId: str(rawBasket.basketId) || crypto.randomUUID(),
     lines,
@@ -204,6 +234,9 @@ export async function POST(request: NextRequest) {
   };
 
   const subtotal = subtotalMinor(basket);
+  if (!Number.isSafeInteger(subtotal) || subtotal > 100_000_000) {
+    return bad("That basket exceeds the test checkout amount limit.");
+  }
   const acknowledged = body.acknowledgedOverBudget === true;
   if (basket.budgetMinor > 0 && subtotal > basket.budgetMinor && !acknowledged) {
     const over = subtotal - basket.budgetMinor;
@@ -215,13 +248,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const run = createRun(basket);
+  const ownerId = checkoutOwner(request) ?? crypto.randomUUID();
+  const previous = findRunByBasketId(basket.basketId, ownerId);
+  if (previous && JSON.stringify(previous.basket) !== JSON.stringify(basket)) {
+    return Response.json({ error: "This basket was already submitted with different items. Review it again." },
+      { status: 409, headers: { "Cache-Control": "no-store" } });
+  }
+  const run = previous ?? createRun(basket, ownerId);
 
   // never awaited: the button must not wait out a ten-second walk
-  startWalk(run.runId);
+  if (!previous) startWalk(run.runId);
 
   return Response.json(
     { runId: run.runId, lines: run.lines },
-    { headers: { "Cache-Control": "no-store" } }
+    { headers: { "Cache-Control": "no-store", "Set-Cookie": ownerCookie(request, ownerId) } }
   );
 }

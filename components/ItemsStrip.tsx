@@ -1,275 +1,143 @@
 "use client";
 
-/**
- * IN THE ROOM — one chip per thing standing in it.
- *
- * On a laptop this is a section of the agent panel, under the conversation:
- * the chips WRAP, because a list you have to scroll sideways with a mouse is a
- * list you stop reading, and the way to the checkout is one wide button at its
- * foot. In a narrow window the same markup falls back to a single row that
- * scrolls, by CSS alone.
- *
- * WHY IT EARNS ITS SPACE. In AR the thing you placed five minutes ago may be
- * behind you, and turning around in front of a judge to find it is not a demo.
- * Clicking a chip makes that item active, which is what every overlay reads, so
- * the options, the budget deltas and the dimension label all follow.
- *
- * It takes no props and reads the store.
- *
- * The chip for an item whose jobs are still in flight is a skeleton, and it
- * appears the instant the user submits — before the placeholder or the search
- * has answered. That is the visible half of the 100ms rule.
- */
-
 import * as React from "react";
-import { AppLink, useAppNav } from "@/lib/nav";
+import Image from "next/image";
+import { Armchair, LoaderCircle } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowRight } from "lucide-react";
 
-import BudgetLeftSheet from "@/components/BudgetLeftSheet";
-import { RemoveButton, money } from "@/components/BudgetHud";
+import { RemoveButton } from "@/components/BudgetHud";
 import { openOptionsFor } from "@/components/OptionSheet";
-import { NumberPlate } from "@/components/ui/NumberPlate";
-import { Skeleton } from "@/components/ui/skeleton";
-import { demoHref } from "@/lib/demo";
 import { DUR, EASE, EXIT, REDUCED } from "@/lib/motion";
-import { linkedItems, spentCents, useStore } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import type { PlacedItem } from "@/types";
+import { productImage, type PlacedItem } from "@/types";
 
-/* ------------------------------------------------------------------ utils */
-
-/** "floor lamp" -> "Floor lamp". The chip is a label, not a sentence. */
 function titleCase(text: string): string {
   const trimmed = text.trim().replace(/^(?:a|an|the)\s+/i, "");
-  if (!trimmed) return "Item";
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : "Item";
 }
 
-function moneyFormat(cents: number, currency: string) {
-  const whole = Math.abs(cents) % 100 === 0;
-  return {
-    style: "currency" as const,
-    currency,
-    currencyDisplay: "narrowSymbol" as const,
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2,
-  };
+function itemStatus(item: PlacedItem): string {
+  if (item.linkedProduct) {
+    const { priceCents, currency } = item.linkedProduct;
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "USD",
+      minimumFractionDigits: priceCents % 100 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(priceCents / 100);
+  }
+  if (item.optionsStatus === "pending") return "Finding options…";
+  if (item.options.length > 0) {
+    return `${item.options.length} option${item.options.length === 1 ? "" : "s"} to explore`;
+  }
+  if (item.optionsStatus === "failed") return "Search unavailable";
+  if (item.placeholderStatus === "pending") return "Creating preview…";
+  return "No matches yet";
 }
 
-/**
- * Which items are the ones that took the basket past the budget. Running total
- * in the order they were asked for, so the outline lands on the last ones in
- * rather than on all of them. Nothing is auto-removed; this only says which to
- * reconsider.
- */
+/** The last items added are the first to cross the budget, as in the room HUD. */
 function overBudgetIds(items: PlacedItem[], budgetCents: number): Set<string> {
-  const out = new Set<string>();
+  const ids = new Set<string>();
   let running = 0;
   for (const item of items) {
     const price = item.linkedProduct?.priceCents ?? 0;
     running += price;
-    if (price > 0 && running > budgetCents) out.add(item.id);
+    if (price > 0 && running > budgetCents) ids.add(item.id);
   }
-  return out;
+  return ids;
 }
 
-/* -------------------------------------------------------------- component */
-
-const FOCUS_RING =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
-
-/** A chip's time, on the entrance curve; its neighbours close the gap on it too. */
-const CHIP = { duration: DUR.micro, ease: EASE.out } as const;
-
+/** A persistent room inventory. Selecting a row opens its existing product options. */
 export function ItemsStrip() {
   const items = useStore((s) => s.items);
   const activeItemId = useStore((s) => s.activeItemId);
   const budgetCents = useStore((s) => s.budgetCents);
   const setActiveItem = useStore((s) => s.setActiveItem);
   const reduced = useReducedMotion();
-
-  const over = React.useMemo(
-    () => overBudgetIds(items, budgetCents),
-    [items, budgetCents]
-  );
-
-  const linkedCount = linkedItems(items).length;
-
-  /* what is still unspent, and the dialog that offers to spend it */
-  const spent = spentCents(items);
-  const underBy = budgetCents - spent;
-  // a URL on its own, a screen swap inside the landing's room III
-  const nav = useAppNav();
-  const [asking, setAsking] = React.useState(false);
-
-  if (items.length === 0) return null;
-
-  const move = reduced ? REDUCED : CHIP;
-  const leave = reduced ? REDUCED : EXIT;
+  const over = React.useMemo(() => overBudgetIds(items, budgetCents), [items, budgetCents]);
+  const move = reduced ? REDUCED : { duration: DUR.micro, ease: EASE.out };
 
   return (
-    <section
-      // a hairline over it: the conversation above scrolls, and this does not
-      className="pointer-events-auto flex min-w-0 shrink-0 flex-col gap-2.5 border-t border-line pt-3"
-      aria-label="What you have placed"
-    >
-      {/* the heading belongs to the panel; a narrow window has no room for it */}
-      <header className="hidden items-baseline justify-between gap-3 desk:flex">
-        <h2 className="eyebrow text-muted-foreground">In the room</h2>
-        <p className="tabular font-mono text-[11px] text-muted-foreground">
-          {linkedCount} of {items.length} linked
-        </p>
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col font-sans" aria-label="Items in your room">
+      <header className="mb-3 flex items-center justify-between gap-2 px-2">
+        <h2 className="text-xs font-medium text-muted-foreground">Your items</h2>
+        <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>
       </header>
 
-      <div className="flex min-w-0 items-center gap-1.5 desk:flex-col desk:items-stretch desk:gap-3">
-        {/*
-          One row that scrolls below `desk`; from `desk` up the chips wrap, and
-          only a long list scrolls — downwards, so the conversation above keeps
-          its height. The padding is room for a chip's focus ring, which the
-          scroll box would otherwise clip.
-        */}
-        <ul
-          className={cn(
-            "no-scrollbar relative -m-1 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto p-1",
-            "desk:max-h-[9.5rem] desk:flex-none desk:flex-wrap desk:overflow-y-auto"
-          )}
-        >
+      {items.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-line px-4 py-6 text-center">
+          <Armchair className="mx-auto mb-3 size-6 text-muted-foreground/70" aria-hidden />
+          <p className="text-sm font-medium">A little room to imagine</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            Ask for a piece you love. Everything you add will live here.
+          </p>
+        </div>
+      ) : (
+        <ul className="no-scrollbar -m-1 flex min-h-0 flex-col gap-1 overflow-y-auto p-1">
           <AnimatePresence initial={false} mode="popLayout">
             {items.map((item) => {
               const active = item.id === activeItemId;
               const linked = item.linkedProduct;
+              const thumbnail = linked
+                ? item.listingCutoutUrl || productImage(linked) || item.placeholderUrl
+                : item.placeholderUrl;
+              const pending = !linked && item.optionsStatus === "pending";
+              const label = titleCase(item.category);
+              const status = itemStatus(item);
               const isOver = over.has(item.id);
-              const pending =
-                item.placeholderStatus === "pending" ||
-                item.optionsStatus === "pending";
 
               return (
                 <motion.li
                   key={item.id}
                   layout
-                  initial={{ opacity: 0, y: reduced ? 0 : 8, scale: reduced ? 1 : 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, scale: reduced ? 1 : 0.96, transition: leave }}
+                  initial={{ opacity: 0, y: reduced ? 0 : 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, transition: reduced ? REDUCED : EXIT }}
                   transition={move}
                   className={cn(
-                    "group flex min-h-11 shrink-0 items-center rounded-full border py-1 pr-1.5 pl-3.5 desk:min-h-10",
-                    // nearly solid: the same chip has to read over a photograph
-                    "bg-surface/90 transition-colors",
-                    active
-                      ? "border-accent bg-accent-wash"
-                      : isOver
-                        ? "border-warn hover:bg-surface"
-                        : "border-line hover:border-accent-pale hover:bg-surface"
+                    "group flex min-w-0 items-center gap-1 rounded-xl p-1.5 transition-colors",
+                    active ? "bg-accent-wash" : "hover:bg-muted/70"
                   )}
                 >
                   <button
                     type="button"
                     onClick={() => {
-                      // makes it active AND brings its options up — the tray owns
-                      // its own open state, this is its published way in
                       setActiveItem(item.id);
                       openOptionsFor(item.id);
                     }}
+                    data-item-select=""
                     aria-current={active ? "true" : undefined}
-                    className={cn(
-                      "flex min-h-8 cursor-pointer items-center gap-2 rounded-full text-left",
-                      FOCUS_RING
-                    )}
+                    aria-label={`${label}, ${status}. View options`}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
-                    <span className="text-[13px] font-medium whitespace-nowrap">
-                      {titleCase(item.category)}
+                    <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line/70 bg-white/70">
+                      {thumbnail ? (
+                        <Image src={thumbnail} alt="" fill sizes="40px" unoptimized className="object-contain p-1" />
+                      ) : pending ? (
+                        <LoaderCircle className="size-4 animate-spin text-muted-foreground motion-reduce:animate-none" aria-hidden />
+                      ) : (
+                        <Armchair className="size-4 text-muted-foreground" aria-hidden />
+                      )}
                     </span>
-
-                    <span className="text-muted-foreground" aria-hidden>
-                      ·
-                    </span>
-
-                    {linked ? (
-                      <NumberPlate
-                        value={linked.priceCents / 100}
-                        size="xs"
-                        tone={isOver ? "warn" : "default"}
-                        format={moneyFormat(linked.priceCents, linked.currency || "USD")}
-                        label={`${titleCase(item.category)} price`}
-                      />
-                    ) : pending ? (
-                      // pale blue: the colour of a thing that is not a fact yet
-                      <Skeleton className="h-3 w-14 rounded-full bg-accent-pale/70" />
-                    ) : (
-                      <span className="text-[13px] whitespace-nowrap text-muted-foreground">
-                        not linked yet
+                    <span className="min-w-0 flex-1 py-1">
+                      <span className={cn("block truncate text-[13px] font-medium", active && "text-accent")}>{label}</span>
+                      <span className={cn("mt-0.5 block truncate text-xs tabular-nums", isOver ? "text-warn" : "text-muted-foreground")}>
+                        {status}{isOver ? " · Over budget" : ""}
                       </span>
-                    )}
+                    </span>
                   </button>
-
-                  {/* the same gesture as the cross on the sprite's label, so the
-                      refund delta and the undo toast cannot drift apart. With a
-                      mouse it waits for the pointer (or the keyboard) to arrive;
-                      on a touch screen, which cannot hover, it is always there. */}
                   <RemoveButton
                     itemId={item.id}
-                    label={titleCase(item.category)}
-                    className={cn(
-                      "ml-2 transition-[opacity,color,background-color,border-color]",
-                      active ? null : "[@media(hover:hover)]:opacity-0",
-                      "group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
-                    )}
+                    label={label}
+                    className="border-transparent bg-transparent opacity-70 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   />
                 </motion.li>
               );
             })}
           </AnimatePresence>
         </ul>
-
-        {linkedCount > 0 ? (
-          <motion.div layout transition={move} className="shrink-0">
-            <AppLink
-              href={demoHref("/checkout")}
-              onClick={(event) => {
-                /*
-                 * ONE QUESTION BEFORE THE END. Money still to go at checkout is
-                 * the only moment this screen has something useful to say, so
-                 * the button asks once — "$272 to go, this room could also use
-                 * a floor rug" — and then gets out of the way. Already at or
-                 * over budget, it just goes.
-                 */
-                if (underBy > 0) {
-                  event.preventDefault();
-                  setAsking(true);
-                }
-              }}
-              className={cn(
-                "glass-blue group/out flex min-h-11 cursor-pointer items-center justify-between gap-3",
-                "rounded-full! px-5 text-sm font-medium whitespace-nowrap desk:min-h-12 desk:w-full",
-                "transition-transform hover:-translate-y-px active:translate-y-px",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              )}
-            >
-              Check out
-              <span className="flex items-center gap-2.5">
-                {/* what is being checked out, the same figure THE NUMBER shows */}
-                <span className="tabular hidden font-mono text-[13px] desk:inline">
-                  {money(spent)}
-                </span>
-                <ArrowRight
-                  aria-hidden
-                  className="size-4 transition-transform group-hover/out:translate-x-0.5"
-                />
-              </span>
-            </AppLink>
-          </motion.div>
-        ) : null}
-      </div>
-
-      <BudgetLeftSheet
-        open={asking}
-        onOpenChange={setAsking}
-        onContinue={() => {
-          setAsking(false);
-          nav.push(demoHref("/checkout"));
-        }}
-      />
+      )}
     </section>
   );
 }

@@ -180,3 +180,15 @@ describe("the walk with PAYMENT_PROVIDER=acceptance", () => {
     expect(getRun(run.runId)!.finishedAt).not.toBeNull();
   });
 });
+
+describe("retry safety", () => {
+  it("concurrent and later starts authorize a run only once", async () => {
+    process.env.PAYMENT_PROVIDER = "acceptance";
+    authorizeMock.mockResolvedValue(authorized("42.00"));
+    const run = createRun(basket([line("ikea")]));
+    await Promise.all([runCheckout(run.runId, { stepMs: 1 }), runCheckout(run.runId, { stepMs: 1 })]);
+    await runCheckout(run.runId, { stepMs: 1 });
+    expect(authorizeMock).toHaveBeenCalledTimes(1);
+    expect(getRun(run.runId)!.lines[0].status.state).toBe("placed");
+  });
+});

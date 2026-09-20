@@ -193,6 +193,12 @@ function titleHas(title: string, word: string): boolean {
   return title.includes(word) || title.includes(stem(word));
 }
 
+
+const EXPLICIT_DESCRIPTORS = new Set([
+  "pink", "red", "blue", "green", "yellow", "black", "white", "purple", "orange",
+  "teal", "navy", "brass", "gold", "silver", "oak", "walnut", "leather", "velvet",
+]);
+
 /**
  * Keep products whose titles match the design query (e.g. pink + lamp).
  *
@@ -224,6 +230,15 @@ export function filterProductsByDesignQuery<
     // Every product noun in the query must appear ("table" query ≠ only "lamp").
     if (!nouns.every((w) => titleHas(title, w))) {
       return false;
+    }
+
+    // Explicit colors/materials and lamp form factors belong to the request,
+    // not to optional room styling. Do not silently trade brass for green.
+    if (!words.filter((word) => EXPLICIT_DESCRIPTORS.has(word)).every((word) => titleHas(title, word))) return false;
+    if (nouns.some((word) => word === "lamp" || word === "lamps")) {
+      if (words.includes("floor") && !/\bfloor[\s/-]+(?:standing[\s/-]+)?(?:reading[\s/-]+)?lamps?\b|\bstanding\s+(?:tall\s+)?lamps?\b/.test(title)) return false;
+      if (!words.some((word) => /^(?:shade|lampshade|bulb)s?$/.test(word)) &&
+          /\b(?:floor|table)\s+lamp\s*shades?\b|\b(?:replacement|shade[- ]only|lampshade[- ]only)\b|\blamp\s*shades?\b.*\bfor\b.*\blamps?\b|\blight\s+bulbs?\b/.test(title)) return false;
     }
 
     // Block cross-category collisions: "side table" must not match "table lamp"

@@ -20,23 +20,16 @@
  * An empty submit is a valid submit: the room type chooses an object. The demo
  * must never dead-end on a blank field.
  *
- * WHERE IT LIVES. At the foot of the agent panel (app/room/page.tsx), as the
- * composer of the conversation above it. On a phone it used to fold into a
- * "+ Add something" button so it stopped covering the room; in the panel it
- * covers nothing, so THE FIELD STAYS OPEN — a laptop expects a composer it can
- * reach with a key ("/" or Cmd/Ctrl+K), not one it has to unfold first. What
- * still folds once something is placed is the row of suggestions, which would
- * otherwise eat the conversation's height: it comes back the moment the field
- * is engaged, and "Add something" is the label of the folded state.
+ * WHERE IT LIVES. At the bottom center of the room, below the image. The
+ * composer stays open and room-derived suggestions stay above it, including
+ * after an item has been placed. A suggestion fills the field; the user sends.
+ * "/" or Cmd/Ctrl+K focuses the field from elsewhere on the room screen.
  */
 
 import * as React from "react";
-import { motion, AnimatePresence, useReducedMotion } from "motion/react";
-import { ArrowUp, Plus } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { withDemo } from "@/lib/demo";
-import { DUR, ENTER, EXIT, REDUCED, STAGGER } from "@/lib/motion";
 import { roomContextFor, useRoomContext, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { RoomContext } from "@/types";
@@ -91,9 +84,8 @@ export function useAsking(): boolean {
 /* ------------------------------------------------------------ suggestions */
 
 /**
- * Chips come from THIS room, never a hardcoded list. /api/analyze may hand us
- * ask-chip seeds directly; if it only gives us a room type and a lighting
- * word, we build the asks out of those.
+ * Use the analyzed room's suggestions first, then its room type. Generic
+ * furniture suggestions keep the composer useful before the room read arrives.
  */
 const ASKS_BY_ROOM: Array<readonly [string, string[]]> = [
   ["bedroom", ["a table lamp", "a floor rug", "a mirror", "a side table"]],
@@ -134,7 +126,7 @@ export function buildAsks(context: RoomContext | null): string[] {
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).slice(0, 6);
+  }).slice(0, 3);
 }
 
 /* ----------------------------------------------------------------- jobs */
@@ -206,16 +198,12 @@ function modalOpen(): boolean {
 /* --------------------------------------------------------------- component */
 
 export function AskInput() {
-  const items = useStore((s) => s.items);
   const roomContext = useRoomContext();
-  const roomImage = useStore((s) => s.roomImage);
-  const reduced = useReducedMotion();
 
   const [text, setText] = React.useState("");
   const [focused, setFocused] = React.useState(false);
   const fieldRef = React.useRef<HTMLInputElement | null>(null);
 
-  const hasItems = items.length > 0;
   const empty = text.trim().length === 0;
 
   /*
@@ -225,17 +213,15 @@ export function AskInput() {
    */
   const asking = focused || !empty;
 
-  // the suggestions are the whole panel's job until something is placed; after
-  // that they fold away, and come back while the field is engaged
-  const showChips = !hasItems || asking;
-
   React.useEffect(() => {
     setAskingFlag(asking);
     return () => setAskingFlag(false);
   }, [asking]);
 
-  const asks = React.useMemo(() => buildAsks(roomContext), [roomContext]);
-  const waitingForContext = roomContext === null && roomImage !== null;
+  const asks = React.useMemo(
+    () => roomContext ? buildAsks(roomContext) : ASKS_DEFAULT.slice(0, 3),
+    [roomContext]
+  );
 
   const submit = React.useCallback(
     (raw: string) => {
@@ -326,165 +312,73 @@ export function AskInput() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const arrive = reduced ? REDUCED : ENTER;
-  const leave = reduced ? REDUCED : EXIT;
-
-  // the motion sheet's caret: a 2px accent bar, blinking there-and-back, only
-  // while the field is focused and still empty. With words in it the browser's
-  // own caret takes over, because only the browser knows where it is.
-  const showCaret = focused && text.length === 0;
-
-  // every `duration-[240ms]` below is DUR.micro, said in CSS
   return (
-    // `relative`: the row that is leaving is lifted out of the flow against
-    // this box, so the foot of the panel changes height once, not twice
-    <div className="pointer-events-auto relative">
-      {/* ------------------------------------------- above the pill: chips */}
-      <AnimatePresence initial={false} mode="popLayout">
-        {showChips ? (
-          <motion.div
-            key="chips"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: arrive }}
-            exit={{ opacity: 0, transition: leave }}
-            // chips generated from this room, not a fixed list; they wrap
-            // inside the panel rather than scrolling sideways under a mouse
-            className="mb-3 flex flex-wrap gap-x-1.5 gap-y-2 empty:hidden"
-          >
-            {waitingForContext && asks.length === 0
-              ? [0, 1, 2].map((i) => (
-                  <Skeleton key={i} className="h-9 w-28 shrink-0 rounded-full" />
-                ))
-              : null}
-
-            {asks.map((ask, i) => (
-              <motion.button
-                key={ask}
-                type="button"
-                initial={{ opacity: 0, y: reduced ? 0 : 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={
-                  reduced
-                    ? REDUCED
-                    : { ...ENTER, delay: Math.min(i, 6) * STAGGER.chip }
-                }
-                // keep the focus in the field: a blur here would fold the
-                // suggestions away from under the pointer before the click landed
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  // a chip only fills the field; sending is still the user's call
-                  setText(ask);
-                  fieldRef.current?.focus();
-                }}
-                className={cn(
-                  // `tap` puts a 44px hit area around a chip that reads as 36px
-                  "glass-pill tap min-h-9 shrink-0 cursor-pointer px-3.5 py-1.5",
-                  "text-[14px] leading-tight whitespace-nowrap text-foreground",
-                  "transition-colors duration-[240ms]",
-                  "hover:text-accent hover:[background:var(--accent-wash)]",
-                  "active:[background:var(--accent-pale)]",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                )}
-              >
-                {ask}
-              </motion.button>
-            ))}
-          </motion.div>
-        ) : (
-          /* the folded state: something is standing in the room, and the ask
-             is waiting for the next thing */
-          <motion.button
-            key="add"
+    <div className="room-composer-input pointer-events-auto w-full">
+      <div
+        aria-label="Suggested items"
+        className="room-composer-suggestions mb-2.5 flex flex-wrap justify-center gap-2"
+      >
+        {asks.map((ask) => (
+          <button
+            key={ask}
             type="button"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: arrive }}
-            exit={{ opacity: 0, transition: leave }}
-            onClick={() => fieldRef.current?.focus()}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => {
+              // Choosing a suggestion fills the field without sending it.
+              setText(ask);
+              fieldRef.current?.focus();
+            }}
             className={cn(
-              "eyebrow tap mb-2.5 inline-flex cursor-pointer items-center gap-1.5 rounded-full",
-              "text-muted-foreground transition-colors duration-[240ms] hover:text-accent",
-              "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+              "min-h-9 max-w-full cursor-pointer rounded-none border border-line bg-surface px-3.5 py-2",
+              "font-sans text-[13px] leading-tight text-muted-foreground",
+              "transition-colors hover:border-accent/30 hover:bg-accent-wash hover:text-foreground",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             )}
           >
-            <Plus className="size-3.5 text-accent" aria-hidden />
-            Add something
-          </motion.button>
-        )}
-      </AnimatePresence>
+            {ask}
+          </button>
+        ))}
+      </div>
 
-      {/* ------------------------------------------------------- the pill */}
       <form
-        onSubmit={(e) => {
-          e.preventDefault();
+        onSubmit={(event) => {
+          event.preventDefault();
           submit(text);
         }}
         className={cn(
-          "glass-pill flex items-center gap-2 py-1.5 pr-1.5 pl-5",
-          // the ring is an outline, so it never fights the glass's own shadow
-          "outline-2 outline-offset-2 outline-transparent transition-[outline-color] duration-[240ms]",
-          "focus-within:outline-accent"
+          "room-composer-field flex min-h-[60px] items-center gap-3 rounded-none border border-line bg-surface py-2.5 pr-2.5 pl-5",
+          "shadow-[0_2px_12px_rgba(0,0,0,0.035)] transition-[border-color,box-shadow]",
+          "focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/10"
         )}
       >
         <label htmlFor="ask-field" className="sr-only">
-          What does this room need?
+          What would you like in your room?
         </label>
+        <input
+          id="ask-field"
+          ref={fieldRef}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            // Clear the field first, then release focus on the next Escape.
+            event.preventDefault();
+            if (text.length > 0) setText("");
+            else event.currentTarget.blur();
+          }}
+          enterKeyHint="send"
+          autoComplete="off"
+          aria-keyshortcuts="/ Control+K Meta+K"
+          placeholder="What would you like in your room?"
+          className="min-w-0 flex-1 bg-transparent py-2 font-sans text-base text-foreground caret-accent placeholder:text-muted-foreground focus:outline-none"
+        />
 
-        <span className="relative flex min-w-0 flex-1 items-center">
-          {showCaret ? (
-            <motion.span
-              aria-hidden
-              className="pointer-events-none absolute left-0 top-1/2 h-[1.3em] w-0.5 -translate-y-1/2 rounded-full bg-accent text-base"
-              initial={{ opacity: 1 }}
-              animate={reduced ? { opacity: 1 } : { opacity: [1, 0] }}
-              transition={
-                reduced
-                  ? REDUCED
-                  : {
-                      duration: DUR.element,
-                      ease: "linear",
-                      repeat: Infinity,
-                      repeatType: "reverse",
-                    }
-              }
-            />
-          ) : null}
-          <input
-            id="ask-field"
-            ref={fieldRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            onKeyDown={(e) => {
-              if (e.key !== "Escape") return;
-              // Escape belongs to the field first: clear the words, then let
-              // go. Marked handled, so the host does not also read it as
-              // "leave the room".
-              e.preventDefault();
-              if (text.length > 0) setText("");
-              else e.currentTarget.blur();
-            }}
-            enterKeyHint="send"
-            autoComplete="off"
-            aria-keyshortcuts="/ Control+K Meta+K"
-            placeholder="a tall lamp"
-            className={cn(
-              // 16px and up: legible at arm's length, and no zoom-on-focus
-              "min-w-0 flex-1 bg-transparent py-2 pl-1.5 font-sans text-base text-foreground",
-              "placeholder:text-muted-foreground focus:outline-none",
-              showCaret ? "caret-transparent" : "caret-accent"
-            )}
-          />
-        </span>
-
-        {/* the way in from the keyboard, said once, where the eye already is */}
         {!focused && empty ? (
           <kbd
             aria-hidden
-            className={cn(
-              "grid h-6 min-w-6 shrink-0 place-items-center rounded-md border border-line bg-surface/70 px-1.5",
-              "font-mono text-[11px] leading-none text-muted-foreground"
-            )}
+            className="hidden h-5 min-w-5 shrink-0 place-items-center rounded border border-line px-1 font-sans text-[11px] leading-none text-muted-foreground sm:grid"
           >
             /
           </kbd>
@@ -492,34 +386,17 @@ export function AskInput() {
 
         <button
           type="submit"
-          onPointerDown={(e) => e.preventDefault()}
-          aria-label="Ask for this"
+          onPointerDown={(event) => event.preventDefault()}
+          aria-label="Add item to your room"
           className={cn(
-            // solid, not glass: it already sits on a glass pill on a glass panel
-            "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full",
-            "bg-accent text-[color:var(--on-accent)] transition-transform duration-[240ms]",
-            "hover:-translate-y-px active:translate-y-px",
+            "flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-none",
+            "bg-accent text-white transition-colors hover:bg-accent-bright active:bg-accent-bright",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           )}
         >
-          <ArrowUp className="size-5" aria-hidden />
+          <ArrowUp className="size-[19px]" strokeWidth={2} aria-hidden />
         </button>
       </form>
-
-      {/* the promise, under the pill, until the first thing has been asked for */}
-      <AnimatePresence initial={false}>
-        {!hasItems ? (
-          <motion.p
-            key="promise"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: arrive }}
-            exit={{ opacity: 0, transition: leave }}
-            className="eyebrow mt-3 text-center text-muted-foreground"
-          >
-            NO CATALOGUE. NO FILTERS. NO FLOOR PLAN.
-          </motion.p>
-        ) : null}
-      </AnimatePresence>
     </div>
   );
 }

@@ -1,21 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Check, ExternalLink, Link2 } from "lucide-react";
-import {
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useSpring,
-  useTransform,
-} from "motion/react";
+import { Check, ExternalLink, Plus } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 
 import FitBadge, { fitForProduct } from "@/components/FitBadge";
 import { Badge } from "@/components/ui/badge";
 import { NumberPlate, centsToUnits, formatCarton } from "@/components/ui/NumberPlate";
 import { withDemo } from "@/lib/demo";
 import type { FitResult } from "@/lib/fit";
-import { DUR, EASE, SCRUB } from "@/lib/motion";
+import { DUR, EASE } from "@/lib/motion";
 import { usePreview } from "@/lib/preview";
 import { useStore, itemById } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -29,7 +23,7 @@ import { productImage, type Product, type Profile } from "@/types";
  * alternatives and on the checkout review. `index` is the tray's own addition:
  * the place in the row, printed "01" to "05".
  *
- * LINKING IS THE BEAT THE WHOLE PIVOT TURNS ON. Clicking "Link this" links that
+ * LINKING IS THE BEAT THE WHOLE PIVOT TURNS ON. Clicking "Use in room" links that
  * listing to the placeholder standing in the room, and three things happen at
  * once: the sprite resizes to the listing's real height, its dimension label
  * updates, and the budget fires a delta — the DIFFERENCE on a relink, never the
@@ -255,10 +249,10 @@ function RetailerMark({ product }: { product: Product }) {
           height={14}
           loading="lazy"
           onError={() => setFailed(true)}
-          className="size-3.5 shrink-0 rounded-[3px]"
+          className="size-3.5 shrink-0"
         />
       ) : null}
-      <span className="truncate font-mono text-[11px] uppercase leading-none tracking-[0.12em] text-muted-foreground">
+      <span className="truncate font-sans text-[11px] leading-normal text-muted-foreground">
         {product.retailer}
       </span>
     </span>
@@ -301,7 +295,7 @@ function Dimensions({ product, compact }: { product: Product; compact: boolean }
     return (
       <p
         className={cn(
-          "font-mono text-[11px] leading-[1.45] text-muted-foreground",
+          "font-sans text-[11px] leading-[1.45] text-muted-foreground",
           compact ? "truncate" : "min-w-0 flex-1"
         )}
       >
@@ -312,8 +306,8 @@ function Dimensions({ product, compact }: { product: Product; compact: boolean }
 
   if (compact) {
     return (
-      <p className="font-mono text-[11px] leading-snug text-foreground/80">
-        <span className="tabular">{dims}</span>
+      <p className="font-sans text-[11px] leading-snug text-foreground/80">
+        <span className="tabular-nums">{dims}</span>
         <span className="text-muted-foreground">
           {" — "}
           <Provenance product={product} />
@@ -323,11 +317,11 @@ function Dimensions({ product, compact }: { product: Product; compact: boolean }
   }
 
   return (
-    <p className="min-w-0 flex-1 font-mono text-[11px] leading-[1.45] text-foreground">
-      <span className="tabular block truncate">{MM.format(product.dimsMm[1])} mm tall</span>
+    <p className="min-w-0 flex-1 font-sans text-[11px] leading-[1.45] text-foreground">
+      <span className="tabular-nums block truncate">{MM.format(product.dimsMm[1])} mm tall</span>
       <span className="block truncate text-muted-foreground" title={dims}>
         <Provenance product={product} />
-        <span className="tabular"> · {dims}</span>
+        <span className="tabular-nums"> · {dims}</span>
       </span>
     </p>
   );
@@ -371,12 +365,12 @@ function Price({ product }: { product: Product }) {
       format={PRICE_FORMAT(product.currency)}
       label={formatPrice(product.priceCents, product.currency)}
       tone={product.inStock ? "default" : "muted"}
-      className="shrink-0"
+      className="shrink-0 [&>span]:font-sans [&>span]:text-[14px] [&>span]:font-medium"
     />
   );
 }
 
-/** The name, in the display face, linking OUT to the page the price came from. */
+/** The product name links to the listing that supplied its price and details. */
 function NameLink({ product, compact }: { product: Product; compact: boolean }) {
   return (
     <a
@@ -385,26 +379,14 @@ function NameLink({ product, compact }: { product: Product; compact: boolean }) 
       rel="noopener noreferrer"
       title={product.title}
       className={cn(
-        "group/title flex min-w-0 items-start gap-1 rounded-sm font-display text-[20px] font-medium",
-        "leading-[1.15] tracking-[0.01em] text-foreground underline-offset-2 transition-colors",
+        "group/title flex min-w-0 items-start gap-1 rounded-none font-sans text-[13px] font-medium",
+        "leading-[1.4] text-foreground underline-offset-2 transition-colors",
         "hover:text-accent hover:underline",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       )}
     >
-      <span
-        className={
-          compact
-            ? "line-clamp-1"
-            : // two lines once the window is tall enough for the tray to afford them
-              "line-clamp-1 [@media(min-height:54rem)]:line-clamp-2"
-        }
-      >
-        {product.title}
-      </span>
-      <ExternalLink
-        className="mt-1 size-3 shrink-0 text-muted-foreground opacity-70 transition-colors group-hover/title:text-accent"
-        aria-hidden
-      />
+      <span className={compact ? "line-clamp-1" : "line-clamp-2"}>{product.title}</span>
+      <ExternalLink className="mt-0.5 size-3 shrink-0 text-muted-foreground/70" aria-hidden />
       <span className="sr-only">(opens the listing in a new tab)</span>
     </a>
   );
@@ -413,14 +395,11 @@ function NameLink({ product, compact }: { product: Product; compact: boolean }) 
 /* --------------------------------------------------------------- the card */
 
 export function ProductCard({ product, compact = false, index }: ProductCardProps) {
-  return compact ? (
-    <CompactCard product={product} />
-  ) : (
-    <TrayCard product={product} index={index} />
-  );
+  return compact ? <CompactCard product={product} /> : <TrayCard product={product} index={index} />;
 }
 
-/* ---------------------------------------------------------------- compact */
+const FIT_STYLING =
+  "min-w-0 [&_button]:rounded-none [&_button]:font-sans [&_button]:text-[10px] [&_button]:px-1.5 [&_button]:py-1 [&_.font-mono]:font-sans [&>span]:rounded-none";
 
 function CompactCard({ product }: { product: Product }) {
   const reduced = useReducedMotion();
@@ -429,92 +408,35 @@ function CompactCard({ product }: { product: Product }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-[18px] border bg-surface p-2.5 transition-colors",
-        linked ? "border-accent" : "border-line hover:border-accent-pale",
+        "flex items-center gap-3 rounded-none border bg-white/55 p-2.5 font-sans transition-colors",
+        linked ? "border-accent" : "border-line/70 hover:border-accent/40",
         !product.inStock && "opacity-75"
       )}
       data-linked={linked || undefined}
     >
-      <div className="size-[4.5rem] shrink-0 overflow-hidden rounded-[12px] bg-muted">
+      <div className="size-[4.5rem] shrink-0 overflow-hidden rounded-none bg-white/60">
         <Photo product={product} className="p-1.5" />
       </div>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <RetailerMark product={product} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <NameLink product={product} compact />
+        <RetailerMark product={product} />
         <div className="flex items-center gap-2">
           <Price product={product} />
-          {!product.inStock ? (
-            <Badge variant="secondary" className="shrink-0">
-              Out of stock
-            </Badge>
-          ) : null}
+          {!product.inStock ? <Badge variant="secondary" className="shrink-0 rounded-none">Out of stock</Badge> : null}
         </div>
         <Dimensions product={product} compact />
-        <FitBadge product={product} />
+        <div className={FIT_STYLING}><FitBadge product={product} /></div>
       </div>
-
-      <LinkButton
-        compact
-        linked={linked}
-        busy={linking}
-        disabled={!itemId}
-        onLink={link}
-        reduced={reduced}
-      />
+      <LinkButton compact linked={linked} busy={linking} disabled={!itemId} onLink={link} reduced={reduced} />
     </div>
   );
 }
 
-/* ------------------------------------------------------------------- tray */
-
-/**
- * The card in the listing tray. The tray is short and wide — five of these in
- * one row under the room — so the card spends its height carefully: the photo
- * well takes whatever is left after the words, and the index, the shop, the
- * state tags and the fit verdict all ride ON the well rather than under it.
- */
+/** One quiet, compact match. Hover preview is owned by the surrounding result list. */
 function TrayCard({ product, index }: { product: Product; index?: number }) {
   const reduced = useReducedMotion();
   const { itemId, linked, linking, link } = useLinking(product);
-
-  // being tried on in the room right now — and not already the linked one,
-  // because a linked listing is not a preview of anything
-  const trying =
-    usePreview((s) => s.product?.id === product.id && s.itemId === itemId) && !linked;
-
-  /*
-   * THE PHOTO FLOATS. Under the pointer it lifts a few pixels and leans two or
-   * three degrees toward it, so the row feels like objects on a shelf rather
-   * than a table of thumbnails. Transform only, on the listing rail's own
-   * spring; a touch has no "toward", and reduced motion gets none of it.
-   */
-  const px = useMotionValue(0);
-  const py = useMotionValue(0);
-  const near = useMotionValue(0);
-  const sx = useSpring(px, SCRUB);
-  const sy = useSpring(py, SCRUB);
-  const lift = useSpring(near, SCRUB);
-  const rotateY = useTransform(sx, [-1, 1], [-3, 3]);
-  const rotateX = useTransform(sy, [-1, 1], [3, -3]);
-  const y = useTransform(lift, [0, 1], [0, -4]);
-  const scale = useTransform(lift, [0, 1], [1, 1.04]);
-
-  const onPointerMove = (event: React.PointerEvent<HTMLElement>) => {
-    if (reduced || event.pointerType === "touch") return;
-    const box = event.currentTarget.getBoundingClientRect();
-    if (box.width === 0 || box.height === 0) return;
-    px.set(((event.clientX - box.left) / box.width) * 2 - 1);
-    py.set(((event.clientY - box.top) / box.height) * 2 - 1);
-    near.set(1);
-  };
-  const onPointerLeave = () => {
-    px.set(0);
-    py.set(0);
-    near.set(0);
-  };
-
-  const src = productImage(product);
+  const trying = usePreview((s) => s.product?.id === product.id && s.itemId === itemId) && !linked;
 
   return (
     <article
@@ -522,113 +444,55 @@ function TrayCard({ product, index }: { product: Product; index?: number }) {
       data-product-id={product.id}
       data-linked={linked || undefined}
       data-trying={trying || undefined}
-      onPointerMove={onPointerMove}
-      onPointerLeave={onPointerLeave}
       className={cn(
-        "group/card flex h-full w-full min-w-0 flex-col rounded-[22px] border bg-surface p-2.5",
-        "transition-colors duration-[240ms]",
-        linked
-          ? "border-accent shadow-[0_0_0_1px_var(--accent)]"
-          : trying
-            ? "border-dashed border-accent"
-            : "border-line hover:border-accent-pale",
+        "group/card flex min-h-[282px] w-full min-w-0 flex-col gap-1.5 rounded-none border bg-white/55 p-2.5 font-sans transition-colors",
+        linked ? "border-accent" : trying ? "border-accent/65 bg-white/75" : "border-line/70 hover:border-accent/40",
         !product.inStock && "opacity-75"
       )}
     >
-      {/* ------------------------------------------------ the photo well */}
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-[14px] bg-muted">
-        {/* a soft light from above, inside the well — what the photo floats in */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_85%_at_28%_-10%,rgb(255_255_255/0.9),transparent_62%)]"
-        />
-
-        {src ? (
-          <motion.div
-            className="absolute inset-0"
-            style={
-              reduced ? undefined : { rotateX, rotateY, y, scale, transformPerspective: 700 }
-            }
-          >
-            <Photo product={product} className="p-3" />
-          </motion.div>
-        ) : (
-          <div className="absolute inset-0">
-            <Photo product={product} />
-          </div>
-        )}
-
-        {/* the place in the row and the shop, top left; what state it is in, top right */}
-        <div className="absolute inset-x-1.5 top-1.5 flex flex-wrap items-start justify-between gap-1">
-          <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface/90 py-1 pl-2 pr-2.5">
-            {typeof index === "number" ? (
-              <span className="tabular font-mono text-[11px] font-bold leading-none text-accent">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-            ) : null}
-            <RetailerMark product={product} />
+      <div className="relative h-[98px] shrink-0 overflow-hidden rounded-none bg-white/65">
+        <Photo product={product} className="p-2" />
+        {typeof index === "number" ? (
+          <span className="absolute left-1.5 top-1.5 text-[10px] tabular-nums text-muted-foreground">
+            {String(index + 1).padStart(2, "0")}
           </span>
-
-          <span className="ml-auto flex flex-col items-end gap-1">
-            {linked ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-1 text-[11px] font-medium leading-none text-[var(--on-accent)]">
-                <Check className="size-3" aria-hidden />
-                Linked
-              </span>
-            ) : trying ? (
-              <span className="eyebrow rounded-full bg-accent-pale px-2 py-1 text-foreground">
-                Trying on
-              </span>
-            ) : null}
-            {!product.inStock ? (
-              <Badge variant="secondary" className="shrink-0">
-                Out of stock
-              </Badge>
-            ) : null}
-          </span>
-        </div>
-
-        {/* the verdict rides on the well; its own white ground keeps it legible
-            whatever the photo behind it is */}
-        <div className="absolute inset-x-1.5 bottom-1.5 flex">
-          <span className="inline-flex max-w-full rounded-full bg-surface">
-            <FitBadge product={product} />
-          </span>
+        ) : null}
+        <div className="absolute right-1.5 top-1.5 flex flex-col items-end gap-1">
+          {linked ? (
+            <span className="inline-flex items-center gap-1 border border-accent/20 bg-white/90 px-1.5 py-1 text-[10px] leading-none text-accent">
+              <Check className="size-3" aria-hidden />In your room
+            </span>
+          ) : trying ? (
+            <span className="border border-accent/20 bg-white/90 px-1.5 py-1 text-[10px] leading-none text-accent">Previewing</span>
+          ) : null}
+          {!product.inStock ? <Badge variant="secondary" className="rounded-none text-[10px]">Out of stock</Badge> : null}
         </div>
       </div>
 
-      {/* ------------------------------------------------------ the words */}
-      <div className="mt-2 h-[23px] [@media(min-height:54rem)]:h-[46px]">
-        <NameLink product={product} compact={false} />
-      </div>
-
-      <div className="mt-1.5 flex min-h-8 items-start justify-between gap-2">
-        <Dimensions product={product} compact={false} />
+      <div className="min-h-[36px]"><NameLink product={product} compact={false} /></div>
+      <div className="flex min-h-5 items-center justify-between gap-3">
+        <RetailerMark product={product} />
         <Price product={product} />
       </div>
-
-      <div className="mt-2">
-        <LinkButton
-          linked={linked}
-          busy={linking}
-          disabled={!itemId}
-          onLink={link}
-          reduced={reduced}
-        />
+      <div className="flex flex-wrap items-start justify-between gap-1.5">
+        <div className={FIT_STYLING}><FitBadge product={product} /></div>
+        <details className="min-w-0 basis-full text-[11px] leading-relaxed text-muted-foreground">
+          <summary className="w-fit cursor-pointer text-[11px] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            {product.dimsMm && product.dimsSource !== "quoted" ? (
+              <><span className="font-medium text-warn">{product.dimsSource === "approx" ? "Approximate size" : "Estimated size"}</span>{" · Details"}</>
+            ) : product.dimsMm ? "Dimensions & source" : "No listed size · Details"}
+          </summary>
+          <div className="mt-1.5 border-l border-line pl-2"><Dimensions product={product} compact /></div>
+        </details>
+      </div>
+      <div className="mt-auto">
+        <LinkButton linked={linked} busy={linking} disabled={!itemId} onLink={link} reduced={reduced} />
       </div>
     </article>
   );
 }
 
-/**
- * Click to link it to the placeholder. A short press, 8 ms of haptic, 44 px of
- * target. The linked card does NOT unlink on a second click — removing is a
- * separate gesture, and an accidental double click must not empty the room.
- *
- * The linked button is `aria-disabled`, not `disabled`: a disabled button drops
- * keyboard focus on the floor, and the arrow keys that walk the row start from
- * wherever focus is. It still does nothing when pressed.
- */
+/** Selection keeps keyboard focus and never removes a product on a second click. */
 function LinkButton({
   linked,
   busy,
@@ -644,8 +508,7 @@ function LinkButton({
   reduced: boolean | null;
   compact?: boolean;
 }) {
-  const label = linked ? "Linked" : busy ? "Linking" : "Link this";
-
+  const label = linked ? "In your room" : busy ? "Adding to room" : "Use in room";
   return (
     <motion.button
       type="button"
@@ -653,39 +516,22 @@ function LinkButton({
       onClick={onLink}
       aria-pressed={linked}
       aria-disabled={linked || undefined}
+      aria-busy={busy || undefined}
       disabled={disabled}
-      title={disabled ? "Ask for an object first, then link a listing to it" : undefined}
+      title={disabled ? "Ask for an item first, then choose a product for it" : undefined}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 font-sans text-sm font-medium",
+        "inline-flex items-center justify-center gap-1.5 rounded-none border font-sans text-[12px] font-medium",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        compact ? "tap size-11 shrink-0" : "h-11 w-full",
+        compact ? "tap size-10 shrink-0" : "h-9 w-full",
         linked
-          ? "cursor-default rounded-full border border-accent/40 bg-accent-wash text-accent"
-          : // the glass classes carry their own radius and win a tie with a
-            // utility, hence the `!`; brightness is the hover, never the blur
-            "glass-blue cursor-pointer rounded-full! transition-[filter] duration-[240ms] hover:brightness-110",
-        disabled && "cursor-not-allowed opacity-50 hover:brightness-100"
+          ? "cursor-default border-accent/30 bg-accent/5 text-accent"
+          : "cursor-pointer border-accent bg-accent text-white transition-colors hover:bg-accent-bright",
+        disabled && "cursor-not-allowed opacity-50"
       )}
-      whileTap={reduced || disabled || linked ? undefined : { scale: 0.94 }}
-      animate={reduced ? undefined : { scale: linked ? [1, 1.06, 1] : 1 }}
-      /*
-       * The bounce is three keyframes, and motion 13 throws on a spring with
-       * more than two ("Only two keyframes currently supported with spring and
-       * inertia animations") — which fired on every single link. So it is a
-       * tween, on the motion sheet's micro duration and entrance curve, and the
-       * press uses the same pair.
-       */
-      transition={
-        linked && !reduced
-          ? { duration: DUR.micro, times: [0, 0.4, 1], ease: EASE.out }
-          : { duration: DUR.micro, ease: EASE.out }
-      }
+      whileTap={reduced || disabled || linked ? undefined : { y: 1 }}
+      transition={{ duration: DUR.micro, ease: EASE.out }}
     >
-      {linked ? (
-        <Check className={compact ? "size-5" : "size-4"} aria-hidden />
-      ) : (
-        <Link2 className={compact ? "size-5" : "size-4"} aria-hidden />
-      )}
+      {linked ? <Check className="size-4" aria-hidden /> : <Plus className="size-4" aria-hidden />}
       {compact ? <span className="sr-only">{label}</span> : <span>{label}</span>}
     </motion.button>
   );

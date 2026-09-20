@@ -6,9 +6,8 @@ import {
   AnimatePresence,
   motion,
   useReducedMotion,
-  type Variants,
 } from "motion/react";
-import { Camera, ImageUp, TriangleAlert, X } from "lucide-react";
+import { Camera, ImageUp, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { StatusLine } from "@/components/ui/StatusLine";
@@ -18,16 +17,14 @@ import { NEUTRAL_ROOM_CONTEXT, useStore } from "@/lib/store";
 import { useAppNav } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import type { Room, RoomContext } from "@/types";
+import "./capture-glass.css";
 
 /**
  * Capture — beat 01, "the room, empty".
  *
- * PIXX-AR is opened on a laptop, so the first thing on screen is a page and not
- * a viewfinder: the sentence on the left, one large glass pane on the right
- * that takes a photo by drop, by file, or by switching the camera on. A narrow
- * window gets the same two blocks stacked — there is no second layout. Once a
- * camera is live the feed IS the screen: the sentence, one shutter, one way to
- * upload instead. Everything else is friction.
+ * A centered photo picker accepts a drop, an upload, or a camera capture.
+ * Once a camera is live, the feed fills the screen with one capture button.
+ * Image processing and analysis share the same path.
  *
  * Two load-bearing details:
  *  - EXIF orientation is applied with exifr before anything downstream sees the
@@ -63,19 +60,6 @@ const DARK_LUMINANCE = 0.22;
  * log stayed clean. Whoever waits second waits longer.
  */
 const ANALYZE_TIMEOUT_MS = 20000;
-
-/**
- * The motion sheet's sentence, cut where the sheet cuts it. The lines are set
- * by hand because each one rises out of its own mask: a line the browser
- * re-wrapped would arrive in pieces.
- */
-const HEADLINE_LINES = ["Shop for the", "room you are", "standing in."] as const;
-
-const SUBLINE =
-  "Point your phone at the room. Ask for one thing at a time. See it at its real size before you buy it.";
-
-/** What this screen wants from you: the pane's title, and the line under the live feed's headline. */
-const INSTRUCTION = "Photograph the room you want to change.";
 
 const ANALYSING = [
   "Reading the light in the room…",
@@ -445,23 +429,6 @@ const wash = (token: string, percent: number) =>
   `color-mix(in srgb, var(${token}) ${percent}%, transparent)`;
 
 /*
- * BEAT 01'S SCRIM, STOP FOR STOP: 62% / 22% at 38% / 34% at 62% / 82%.
- *
- * A flat tint does not work here: a 25% wash lost the white serif against a
- * bright wall. It has to be dark where the chrome sits and open through the
- * middle, where the room has to be seen. The pool in the corner is for the
- * headline, which on a laptop stands bottom-left and reaches higher up the
- * frame than the sheet's own sub-line did.
- */
-const SCRIM = [
-  `radial-gradient(ellipse 62% 72% at 0% 100%, ${wash("--foreground", 58)}, transparent)`,
-  `linear-gradient(to bottom, ${wash("--foreground", 62)} 0%, ${wash("--foreground", 22)} 38%, ${wash("--foreground", 34)} 62%, ${wash("--foreground", 82)} 100%)`,
-].join(", ");
-
-/** A soft halo, so a white line survives the one bright window the scrim did not plan for. */
-const TYPE_SHADOW = `0 1px 28px ${wash("--foreground", 45)}`;
-
-/*
  * The light the glass sits in: soft, from above, pooled behind the pane, in
  * the accent's two palest tints so it takes the colour of whichever room the
  * product stands in. Flat paper gives a frosted pane nothing to bend. Room III
@@ -478,7 +445,7 @@ function PaperLight() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0 -z-10"
+      className="capture-paper-light pointer-events-none absolute inset-0 -z-10"
       style={{ background: LIGHT }}
     />
   );
@@ -489,10 +456,6 @@ const PRESS =
   "cursor-pointer transition-[translate,scale,color,background-color] duration-[var(--micro)] ease-[var(--ease-out)] hover:-translate-y-px active:translate-y-0 active:scale-[0.985]";
 const FOCUS_ON_PAPER =
   "focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-accent";
-/* the accent is lost against a dark scrim, so over the feed the ring is white */
-const FOCUS_ON_FEED =
-  "focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-white";
-
 /*
  * The glass classes are written after Tailwind's utilities in the same layer,
  * so their 22px radius beats a plain `rounded-full`; hence the `!`.
@@ -511,65 +474,6 @@ function arriving(reduced: boolean, order: number) {
       ? REDUCED
       : { ...ENTER, delay: TYPE_DELAY + order * STAGGER.line },
   };
-}
-
-function lineVariants(reduced: boolean): Variants {
-  return {
-    hidden: reduced ? { opacity: 0 } : { y: "110%" },
-    shown: (order: number) =>
-      reduced
-        ? { opacity: 1, transition: REDUCED }
-        : {
-            y: 0,
-            transition: { ...ENTER, delay: TYPE_DELAY + order * STAGGER.line },
-          },
-  };
-}
-
-/**
- * The headline arrives as lines, each rising out of its own mask.
- *
- * THE TRIGGER IS ON THE <h1>, WHICH NOTHING CLIPS. A masked line parked below
- * its own clip rect has no visible box, so anything that waited for the line
- * itself to show up would wait for ever.
- */
-function Headline({
-  reduced,
-  className,
-  style,
-}: {
-  reduced: boolean;
-  className?: string;
-  style?: React.CSSProperties;
-}) {
-  const variants = lineVariants(reduced);
-  return (
-    <motion.h1
-      initial="hidden"
-      animate="shown"
-      style={style}
-      // the leading goes last: a font size merged in after it would reset it
-      className={cn(
-        "font-display font-light tracking-[0.01em]",
-        className,
-        "leading-[0.98]"
-      )}
-    >
-      {HEADLINE_LINES.map((line, order) => (
-        // the mask. The foot of it is let out a little, or it crops the tails
-        // of the g, the p and the y at this line height.
-        <span key={line} className="-mb-[0.14em] block overflow-hidden pb-[0.14em]">
-          <motion.span
-            variants={variants}
-            custom={order}
-            className="block whitespace-nowrap"
-          >
-            {line}
-          </motion.span>
-        </span>
-      ))}
-    </motion.h1>
-  );
 }
 
 function carriesFiles(event: React.DragEvent): boolean {
@@ -597,6 +501,7 @@ export function Capture() {
   const [message, setMessage] = React.useState<string | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const [working, setWorking] = React.useState(false);
+  const [cameraReady, setCameraReady] = React.useState(false);
 
   const palette = useStore((s) => s.roomContext?.palette);
 
@@ -611,6 +516,7 @@ export function Capture() {
   const dragDepth = React.useRef(0);
 
   const stopCamera = React.useCallback(() => {
+    setCameraReady(false);
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
@@ -629,6 +535,7 @@ export function Capture() {
 
   const startCamera = React.useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) return;
+    setCameraReady(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -746,6 +653,7 @@ export function Capture() {
   const retake = React.useCallback(() => {
     setMessage(null);
     if (streamRef.current) {
+      setCameraReady(false);
       setPhase({ kind: "camera" });
       return;
     }
@@ -774,6 +682,19 @@ export function Capture() {
     // someone who has just closed it wants, whatever they are holding
     setPhase({ kind: "drop", reason: "desktop" });
   }, [stopCamera]);
+
+  // Escape returns to the photo picker without adding controls over the feed.
+  const cameraUp = active.kind === "camera";
+  React.useEffect(() => {
+    if (!cameraUp) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      closeCamera();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [cameraUp, closeCamera]);
 
   /*
    * The dark-room card is a dialog, so Escape answers it — with the safe
@@ -830,7 +751,7 @@ export function Capture() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, transition: reduced ? REDUCED : EXIT }}
       transition={reduced ? REDUCED : ENTER}
-      className="glass-thick flex items-start gap-2.5 px-4 py-3 text-left text-sm leading-snug text-foreground"
+      className="capture-notice glass-thick flex items-start gap-2.5 px-4 py-3 text-left text-sm leading-snug text-foreground"
     >
       <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
       <span>{message}</span>
@@ -839,124 +760,28 @@ export function Capture() {
 
   if (active.kind === "camera") {
     return (
-      <div
-        className="relative isolate min-h-dvh w-full overflow-hidden bg-foreground"
-        style={MOTION_VARS}
-      >
-        {hiddenInputs}
-
+      <div data-pixx-product="" className="capture-camera">
         <video
           ref={attachVideo}
           playsInline
           muted
           autoPlay
+          onLoadedData={() => setCameraReady(true)}
           aria-label="Live camera view of the room"
-          className="absolute inset-0 size-full object-cover"
+          className="capture-camera-feed"
         />
-
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{ background: SCRIM }}
-          aria-hidden
-        />
-
-        {/* The top-left corner belongs to the account chip room III draws
-            there, so this row starts a chip's width in. */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 grid grid-cols-[minmax(56px,1fr)_minmax(0,28rem)_minmax(56px,1fr)] items-start gap-3 px-4 pt-[max(16px,env(safe-area-inset-top))] desk:px-6 desk:pt-5">
-          <div aria-hidden />
-
-          <div className="pointer-events-auto flex flex-col items-center gap-2">
-            <AnimatePresence>{banner}</AnimatePresence>
-            {working ? (
-              <div className="glass-pill px-4 py-2">
-                <StatusLine
-                  messages={WORKING}
-                  intervalMs={1400}
-                  className={STATUS_MONO}
-                />
-              </div>
-            ) : null}
-          </div>
-
-          <button
-            type="button"
-            onClick={closeCamera}
-            aria-label="Close the camera"
-            className={cn(
-              "glass-pill pointer-events-auto inline-flex h-11 items-center gap-2 justify-self-end px-3 text-sm font-medium text-foreground hover:text-accent desk:px-4",
-              PRESS,
-              FOCUS_ON_FEED
-            )}
-          >
-            <X className="size-4" aria-hidden />
-            <span className="hidden desk:inline">Close the camera</span>
-          </button>
-        </div>
-
-        {/* On a laptop this is one row: the sentence bottom-left, the shutter
-            in the middle, the upload beside it. A narrow window folds the
-            sentence onto a row of its own above the shutter. */}
-        <div className="absolute inset-x-0 bottom-0 px-[clamp(16px,4vw,56px)] pb-[max(28px,env(safe-area-inset-bottom))] desk:pb-10">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-x-5 gap-y-8">
-            <div className="col-span-3 desk:col-span-1">
-              {/* a label is small type, and small type over a room goes on glass */}
-              <motion.p
-                {...arriving(reduced, 0)}
-                className="glass-pill eyebrow inline-flex px-3 py-1.5 text-foreground"
-              >
-                01 — Your room
-              </motion.p>
-
-              {/* white serif over the scrim: the one place light type on dark is allowed */}
-              <Headline
-                reduced={reduced}
-                className="mt-4 text-[clamp(40px,5.2vw,72px)] text-white"
-                style={{ textShadow: TYPE_SHADOW }}
-              />
-
-              <motion.p
-                {...arriving(reduced, HEADLINE_LINES.length)}
-                className="mt-4 max-w-[40ch] text-base leading-normal text-white desk:text-[17px]"
-                style={{ textShadow: TYPE_SHADOW }}
-              >
-                {INSTRUCTION}
-              </motion.p>
-            </div>
-
-            {/* the shutter: a ring of glass around a disc you can press */}
-            <motion.button
-              type="button"
-              autoFocus
-              onClick={shoot}
-              aria-label="Take the photo"
-              initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileHover={reduced ? undefined : { scale: 1.04 }}
-              whileTap={reduced ? undefined : { scale: 0.92 }}
-              transition={reduced ? REDUCED : { ...MICRO, opacity: ENTER }}
-              className={cn(
-                "glass-pill col-start-2 grid size-[84px] cursor-pointer place-items-center",
-                FOCUS_ON_FEED
-              )}
-            >
-              <span className="block size-[60px] rounded-full bg-surface ring-1 ring-accent-pale" />
-            </motion.button>
-
-            <div className="col-start-3 flex h-[84px] items-center justify-self-start">
-              <button
-                type="button"
-                onClick={() => uploadRef.current?.click()}
-                className={cn(
-                  "inline-flex h-11 cursor-pointer items-center gap-2 rounded-full px-4 text-sm font-medium text-white transition-colors duration-[var(--micro)] ease-[var(--ease-out)] hover:bg-white/15 active:bg-white/25",
-                  FOCUS_ON_FEED
-                )}
-              >
-                <ImageUp className="size-4 shrink-0" aria-hidden />
-                <span className="max-[520px]:sr-only">Upload a photo</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        {message ? (
+          <p role="alert" className="capture-camera-error">{message}</p>
+        ) : null}
+        <button
+          type="button"
+          autoFocus
+          onClick={shoot}
+          disabled={!cameraReady || working}
+          className="capture-camera-shutter"
+        >
+          Take the picture
+        </button>
       </div>
     );
   }
@@ -966,7 +791,8 @@ export function Capture() {
     const waiting = active.kind === "handoff";
     return (
       <div
-        className="relative isolate flex min-h-dvh w-full flex-col items-center justify-center bg-background px-[clamp(16px,5vw,80px)] pb-[max(32px,env(safe-area-inset-bottom))] pt-[max(72px,calc(env(safe-area-inset-top)+56px))]"
+        data-pixx-product=""
+        className="capture-review relative isolate flex min-h-dvh w-full flex-col items-center justify-center bg-background px-[clamp(16px,5vw,80px)] pb-[max(32px,env(safe-area-inset-bottom))] pt-[max(72px,calc(env(safe-area-inset-top)+56px))]"
         style={MOTION_VARS}
       >
         <PaperLight />
@@ -979,7 +805,7 @@ export function Capture() {
           className="m-0 flex w-full max-w-[76rem] flex-col items-center gap-7"
         >
           <div
-            className="relative max-w-full overflow-hidden rounded-[22px] bg-muted"
+            className="relative max-w-full overflow-hidden rounded-none bg-muted"
             style={{ boxShadow: "var(--glass-shadow)" }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- a data URL: there is nothing for the image optimiser to fetch */}
@@ -1112,14 +938,13 @@ export function Capture() {
     );
   }
 
-  /* the front page — a laptop, a refused camera, or plain http on a phone */
+  /* The first step: one photo, by upload, drop, or camera. */
   const reason = active.reason;
   const lifted = dragging && !reduced;
+
   return (
     <div
-      // The whole page takes the drop, not just the pane: a photo let go an
-      // inch outside it would otherwise make the browser open the file and
-      // walk away from the product.
+      // Accept drops across the page so a file cannot navigate away from the app.
       onDragEnter={(e) => {
         if (!carriesFiles(e)) return;
         dragDepth.current += 1;
@@ -1137,149 +962,100 @@ export function Capture() {
         setDragging(false);
         void takeFile(e.dataTransfer.files?.[0]);
       }}
-      className="relative isolate flex min-h-dvh w-full flex-col bg-background"
+      data-pixx-product=""
+      className="capture-upload"
       style={MOTION_VARS}
     >
       {hiddenInputs}
-      <PaperLight />
 
-      {/* The top padding keeps the corner the account chip stands in clear
-          even when a narrow window stacks the two blocks from the top. */}
-      <div className="mx-auto grid w-full max-w-[76rem] flex-1 grid-cols-1 items-center gap-[clamp(32px,6vw,96px)] px-[clamp(16px,5vw,80px)] pb-[max(32px,env(safe-area-inset-bottom))] pt-[max(80px,calc(env(safe-area-inset-top)+64px))] desk:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] desk:py-[clamp(72px,9dvh,112px)]">
-        <div>
-          <motion.p {...arriving(reduced, 0)} className="eyebrow text-accent">
-            01 — Your room
-          </motion.p>
-
-          <Headline
-            reduced={reduced}
-            className="mt-5 text-[clamp(48px,6.2vw,84px)] text-foreground"
-          />
-
-          <motion.p
-            {...arriving(reduced, HEADLINE_LINES.length)}
-            className="mt-[clamp(20px,3dvh,32px)] max-w-[46ch] text-[17px] leading-[1.55] text-foreground/75 desk:text-[19px]"
-          >
-            {SUBLINE}
-          </motion.p>
-        </div>
-
-        {/* The lift is a transform on a wrapper and the arrival is on the pane:
-            fading a parent would cut the glass off from what it is frosting. */}
-        <motion.div
-          animate={{ y: lifted ? -6 : 0, scale: lifted ? 1.01 : 1 }}
-          transition={reduced ? REDUCED : MICRO}
-        >
-          <motion.section
-            aria-labelledby="capture-drop-title"
-            aria-busy={working}
-            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 22, scale: 0.975 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={reduced ? REDUCED : ENTER}
-            className="glass glass-sheen flex min-h-[min(60dvh,34rem)] flex-col items-center p-[clamp(28px,4vw,52px)] text-center desk:min-h-[60dvh]"
-          >
-            {/* the dashed line says "drop here"; it turns to the accent when something is over it */}
-            <span
-              aria-hidden
-              className={cn(
-                "pointer-events-none absolute inset-3 -z-[1] rounded-[18px] border-[1.5px] border-dashed transition-colors duration-[var(--micro)] ease-[var(--ease-out)]",
-                dragging
-                  ? "border-accent bg-accent-wash/70"
-                  : "border-accent-pale"
-              )}
-            />
-
-            <div className="flex w-full flex-1 flex-col items-center justify-center gap-6">
-              <span
-                aria-hidden
-                className={cn(
-                  "grid size-16 place-items-center rounded-full transition-colors duration-[var(--micro)] ease-[var(--ease-out)]",
-                  dragging
-                    ? "bg-accent text-[var(--on-accent)]"
-                    : "bg-accent-wash text-accent"
-                )}
-              >
-                <ImageUp className="size-7" strokeWidth={1.5} />
-              </span>
-
-              <div className="flex flex-col items-center gap-3">
-                <h2
-                  id="capture-drop-title"
-                  className="font-display max-w-[20ch] text-balance text-[30px] font-medium leading-[1.05] tracking-[0.01em] desk:text-[34px]"
-                >
-                  {INSTRUCTION}
-                </h2>
-                <p className="max-w-[40ch] text-[15px] leading-normal text-muted-foreground">
-                  Drop a photo here, or pick one from this device.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => uploadRef.current?.click()}
-                  className={PRIMARY}
-                >
-                  <ImageUp className="size-[18px]" aria-hidden />
-                  Upload a photo
-                </button>
-
-                {reason === "insecure" || reason === "denied" ? (
-                  <button
-                    type="button"
-                    onClick={() => cameraRollRef.current?.click()}
-                    className={SECONDARY}
-                  >
-                    <Camera className="size-[18px]" aria-hidden />
-                    Take a photo
-                  </button>
-                ) : null}
-
-                {reason === "desktop" ? (
-                  <button
-                    type="button"
-                    onClick={() => void startCamera()}
-                    className={SECONDARY}
-                  >
-                    <Camera className="size-[18px]" aria-hidden />
-                    Use the camera
-                  </button>
-                ) : null}
-              </div>
-
-              {reason === "denied" ? (
-                <p className="max-w-[46ch] text-sm leading-relaxed text-muted-foreground">
-                  Camera access is off for this site. Turn it back on in your
-                  browser&rsquo;s site settings, then reload.
-                </p>
-              ) : null}
-
-              {reason === "insecure" ? (
-                <p className="max-w-[46ch] text-sm leading-relaxed text-muted-foreground">
-                  The live camera needs an https address. Take the photo with your
-                  camera app and pick it here — it works just as well.
-                </p>
-              ) : null}
-
-              {working ? (
-                <StatusLine
-                  messages={WORKING}
-                  intervalMs={1400}
-                  className={STATUS_MONO}
-                />
-              ) : null}
-
-              <div className="min-h-[1rem] w-full max-w-md">
-                <AnimatePresence>{banner}</AnimatePresence>
-              </div>
-            </div>
-
-            {/* said before the photo is picked, because a panorama is turned away after */}
-            <p className="eyebrow mt-4 text-muted-foreground">
-              One photo · straight on · no panoramas
-            </p>
-          </motion.section>
+      <div className="capture-panel">
+        <motion.div {...arriving(reduced, 0)} className="capture-heading">
+          <h1 className="capture-title">Start with your room</h1>
+          <p className="capture-description">
+            Upload a photo, then find pieces that fit your space.
+          </p>
         </motion.div>
+
+        <motion.section
+          aria-labelledby="capture-drop-title"
+          aria-busy={working}
+          animate={{ y: lifted ? -3 : 0 }}
+          transition={reduced ? REDUCED : MICRO}
+          data-dragging={dragging}
+          className="capture-dropzone"
+        >
+          <span aria-hidden className="capture-drop-icon">
+            <ImageUp className="size-5" strokeWidth={1.5} />
+          </span>
+
+          <h2 id="capture-drop-title" className="capture-drop-title">
+            {dragging ? "Drop your photo to begin" : "Drop your room photo here"}
+          </h2>
+
+          <div className="capture-actions">
+            <button
+              type="button"
+              onClick={() => uploadRef.current?.click()}
+              disabled={working}
+              className="capture-button capture-button-primary"
+            >
+              <ImageUp className="size-4" aria-hidden />
+              Upload a photo
+            </button>
+
+            {reason === "insecure" || reason === "denied" ? (
+              <button
+                type="button"
+                onClick={() => cameraRollRef.current?.click()}
+                disabled={working}
+                className="capture-button capture-button-secondary"
+              >
+                <Camera className="size-4" aria-hidden />
+                Take a photo
+              </button>
+            ) : null}
+
+            {reason === "desktop" ? (
+              <button
+                type="button"
+                onClick={() => void startCamera()}
+                disabled={working}
+                className="capture-button capture-button-secondary"
+              >
+                <Camera className="size-4" aria-hidden />
+                Use camera
+              </button>
+            ) : null}
+          </div>
+
+          {reason === "denied" ? (
+            <p className="capture-help">
+              Camera access is off. Enable it in your browser&rsquo;s site settings,
+              then reload, or upload a photo.
+            </p>
+          ) : null}
+
+          {reason === "insecure" ? (
+            <p className="capture-help">
+              Live camera access isn&rsquo;t available here. Take a photo with your
+              camera app, then upload it.
+            </p>
+          ) : null}
+
+          {working ? (
+            <StatusLine
+              messages={WORKING}
+              intervalMs={1400}
+              className="capture-status"
+            />
+          ) : null}
+
+          <AnimatePresence>{banner}</AnimatePresence>
+        </motion.section>
+
+        <p className="capture-tip">
+          One clear photo, taken straight on. No panoramas.
+        </p>
       </div>
     </div>
   );

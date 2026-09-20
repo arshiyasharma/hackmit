@@ -95,18 +95,18 @@ function setCache(options: SourceProductsOptions, products: Product[]): void {
   }
 }
 
-function hasAnyDimension(product: Product): boolean {
+function hasCompleteDimensions(product: Product): boolean {
   const d = product.dimensions;
-  return d.h_in != null || d.w_in != null || d.d_in != null;
+  return d.h_in != null && d.w_in != null && d.d_in != null;
 }
 
-/** Only scrape PDPs with zero dims; abort each scrape after a short budget. */
+/** Scrape incomplete dimensions; preserve each measurement already quoted. */
 export async function fillMissingDimensions(
   products: Product[]
 ): Promise<Product[]> {
   return Promise.all(
     products.map(async (product) => {
-      if (hasAnyDimension(product)) return product;
+      if (hasCompleteDimensions(product)) return product;
       try {
         const scraped = await Promise.race([
           scrapeRetailerDimensions(
@@ -351,15 +351,6 @@ export async function sourceProductsForQuery(
     upsertInBackground(products);
     setCache(options, products);
     return products;
-  }
-
-  if (enriched.length > 0) {
-    const fallback = await fillMissingDimensions(
-      finalizeProducts(enriched, designQuery, limit)
-    );
-    upsertInBackground(fallback);
-    setCache(options, fallback);
-    return fallback;
   }
 
   const elasticFallback = await fillMissingDimensions(

@@ -101,7 +101,10 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
           value={centsToUnits(readyCents)}
           unit="$"
           size="md"
-          format={{ maximumFractionDigits: 0 }}
+          format={{
+            minimumFractionDigits: readyCents % 100 === 0 ? 0 : 2,
+            maximumFractionDigits: readyCents % 100 === 0 ? 0 : 2,
+          }}
           label={testRun ? "Would have cost" : "Ordered"}
           tone="muted"
         />
@@ -113,10 +116,8 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
 
       {anySimulated ? (
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-          The retailer walk is simulated per shop — no shop exposes an API we
-          could buy through, so no basket was touched. The agent&rsquo;s
-          signature check and these order references came from the server, not
-          from this screen.
+          These simulated checkout steps ran on the server. They did not change
+          retailer baskets or place real orders.
         </p>
       ) : null}
 

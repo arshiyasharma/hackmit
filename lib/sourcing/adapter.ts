@@ -1,4 +1,5 @@
 import { sourceProductsForQuery } from "@/lib/sourcing/sourceProducts";
+import { parseShoppingQuery } from "./parseQuery";
 import { typicalDimsMm } from "@/lib/sourcing/typical";
 import type { Product as SourcedProduct } from "@/lib/sourcing/enrich";
 import type { Carton, DimsSource, Product } from "@/types";
@@ -162,6 +163,8 @@ function toProduct(
 ): Product | null {
   // no link means a judge cannot check it, so it is not an option
   if (!sourced.product_url || !sourced.title) return null;
+  // Unknown prices must never turn into a free item in the room or checkout.
+  if (!Number.isSafeInteger(sourced.price_cents) || sourced.price_cents! < 0) return null;
 
   return {
     id: sourced.id,
@@ -170,7 +173,7 @@ function toProduct(
     title: sourced.title,
     url: sourced.product_url,
     imageUrl: sourced.image_url || undefined,
-    priceCents: sourced.price_cents ?? 0,
+    priceCents: sourced.price_cents!,
     currency: sourced.currency ?? "USD",
     ...toCarton(sourced.dimensions, sourced.title, request),
     inStock: sourced.in_stock ?? true,
@@ -197,7 +200,12 @@ export async function sourceOptions(
   const apiKey = process.env.SERPAPI_KEY;
   if (!apiKey) return null;
 
-  const key = `${input.query}|${input.request}`.toLowerCase();
+  if (!input.query.trim() && !input.request.trim()) return [];
+  const key = JSON.stringify([
+    input.query.trim().toLowerCase(),
+    input.request.trim().toLowerCase(),
+    input.budgetRemainingCents ?? null,
+  ]);
 
   sweep();
   const cached = recent.get(key);
@@ -241,10 +249,17 @@ async function fetchOptions(
    */
   console.info(`[search] "${query}" (relevance: "${request || query}")`);
 
-  const maxPrice =
-    budgetRemainingCents != null && budgetRemainingCents > 0
+  const requestIntent = parseShoppingQuery(request || query);
+  const queryIntent = parseShoppingQuery(query);
+  query = queryIntent.searchQuery;
+  request = requestIntent.searchQuery;
+  const statedPrices = [requestIntent.maxPrice, queryIntent.maxPrice]
+    .filter((value): value is number => value != null);
+  const explicitMaxPrice = statedPrices.length ? Math.min(...statedPrices) : null;
+  const maxPrice = explicitMaxPrice ?? (
+    budgetRemainingCents != null && budgetRemainingCents >= 0
       ? budgetRemainingCents / 100
-      : null;
+      : null);
 
   /*
    * A LADDER, BECAUSE GOOGLE ANSWERS PLAIN QUESTIONS.
@@ -276,7 +291,9 @@ async function fetchOptions(
       // how a single question turned into six SerpAPI calls
       fallbacks: false,
       deadline: budgetMs != null ? Math.min(deadline, now() + budgetMs) : deadline,
-    }).catch((error) => {
+    }).then((products) => explicitMaxPrice == null ? products : products.filter(
+      (product) => product.price_cents != null && product.price_cents <= Math.round(explicitMaxPrice * 100)
+    )).catch((error) => {
       console.warn(`[search] "${rung}" failed:`, error);
       return [] as SourcedProduct[];
     });
@@ -297,20 +314,15 @@ async function fetchOptions(
    * screen — and when it doesn't, the answer is already here rather than
    * twenty seconds away. Two calls, one wait.
    */
-  /*
-   * THE PARTNER QUERY KEEPS THE COLOUR.
-   *
-   * Colours lead the query now, so the middle rung is "sage floor pillows" —
-   * the colour and the object, without the style word that makes Google give
-   * up. That is the one asked alongside the full query, because falling
-   * straight to the bare object would mean the colour never reached a shop
-   * that answered. The bare object is still there, last, if both come back
-   * empty.
-   */
+  // Inferred room words can be sparse or irrelevant (for example, "empty").
+  // Ask the user's complete product phrase in parallel so those words cannot
+  // consume the entire search budget before a useful query is attempted.
   const bare = rungs.length > 1 ? rungs[rungs.length - 1]! : null;
-  const partner = rungs.length > 2 ? rungs[1]! : bare;
+  // Always ask the user's own product phrase alongside inferred room styling.
+  // Extra room labels (e.g. "empty") must not prevent a useful answer.
+  const partner = bare;
   /*
-   * NEITHER OF THE FIRST TWO MAY SPEND THE WHOLE BUDGET.
+   * THE STYLED QUERY GETS A SHORTER WINDOW.
    *
    * SerpAPI does not always answer a hopeless query with an empty page; it
    * hangs. "sage decorative floor pillows" was aborted at 20.0s having
@@ -319,9 +331,9 @@ async function fetchOptions(
    * nothing. Eight seconds each, and what is left belongs to the question
    * that always works.
    */
-  const styledJob = ask(rungs[0]!, PARALLEL_CAP_MS);
+  const styledJob = ask(rungs[0]!, partner ? PARALLEL_CAP_MS : undefined);
   const plainJob = partner
-    ? ask(partner, PARALLEL_CAP_MS)
+    ? ask(partner)
     : Promise.resolve([] as SourcedProduct[]);
 
   /*
@@ -336,10 +348,17 @@ async function fetchOptions(
    * So the styled query gets a window to be better, not a blank cheque. Past
    * it, whatever the plain question found is the answer.
    */
-  const styled = await Promise.race([
-    styledJob,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), STYLED_WAIT_MS)),
-  ]);
+  // A bare query is the useful fallback itself; do not discard its healthy
+  // response at the shorter styled-query deadline.
+  let styledTimer: ReturnType<typeof setTimeout> | undefined;
+  const styled = partner
+    ? await Promise.race([
+        styledJob,
+        new Promise<null>((resolve) => {
+          styledTimer = setTimeout(() => resolve(null), STYLED_WAIT_MS);
+        }),
+      ]).finally(() => clearTimeout(styledTimer))
+    : await styledJob;
 
   let sourced: SourcedProduct[] = styled ?? [];
   if (sourced.length === 0) {
@@ -353,16 +372,16 @@ async function fetchOptions(
     sourced = await plainJob;
   }
 
-  // the bare object, last, only if colour and style both came back empty
+  // One intermediate style variant, only if both opening queries were empty.
   if (
     sourced.length === 0 &&
-    bare &&
-    bare !== partner &&
+    rungs.length > 2 &&
+    rungs[1] !== partner &&
     deadline - now() > MIN_RUNG_MS
   ) {
-    sourced = await ask(bare);
+    sourced = await ask(rungs[1]!);
     if (sourced.length > 0) {
-      console.info(`[search] "${query}" found nothing; "${bare}" answered`);
+      console.info(`[search] "${query}" found nothing; "${rungs[1]}" answered`);
     }
   }
 

@@ -211,6 +211,7 @@ const FILLER =
 function tidy(raw: unknown): string {
   if (typeof raw !== "string") return "";
   return raw
+    .slice(0, 240)
     .toLowerCase()
     .replace(/[^a-z0-9' ]+/g, " ")
     .replace(/\s+/g, " ")
@@ -253,7 +254,7 @@ export function normalise(
   const spoken = typeof request === "string" ? request.trim().slice(0, 120) : "";
   // the category a caller already has is a hint, not an answer — a second ask
   // for the same object must land on the same string as the first
-  const text = tidy(`${spoken} ${typeof category === "string" ? category : ""}`);
+  const text = tidy(`${spoken} ${typeof category === "string" ? category.slice(0, 120) : ""}`);
   const stripped = text.replace(FILLER, " ").replace(/\s+/g, " ").trim();
 
   if (!stripped) {
@@ -313,7 +314,8 @@ type Body = {
 export async function POST(request: Request) {
   let body: Body = {};
   try {
-    body = (await request.json()) as Body;
+    const raw: unknown = await request.json();
+    body = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Body : {};
   } catch {
     // an unreadable body is not a reason to stop the demo; it is a reason to
     // place the room's default object and let the user retype

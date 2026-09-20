@@ -76,6 +76,9 @@ export function getCredentials(): MerchantCredentials {
   const raw = env.VA_RUN_ENVIRONMENT?.trim() || "apitest.visaacceptance.com";
   const host = raw.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
 
+  if (!["apitest.visaacceptance.com", "apitest.cybersource.com"].includes(host.toLowerCase())) {
+    throw new Error("Only the Visa Acceptance test sandbox is enabled in this demo.");
+  }
   return {
     merchantId: env.VA_MERCHANT_ID!.trim(),
     merchantKeyId: env.VA_MERCHANT_KEY_ID!.trim(),
@@ -153,6 +156,9 @@ function str(value: unknown): string | null {
 export async function authorize(
   request: AuthorizationRequest
 ): Promise<AuthorizationResult> {
+  if (!Number.isSafeInteger(request.amountMinor) || request.amountMinor <= 0 || request.amountMinor > 100_000_000 || request.currency !== "USD") {
+    throw new Error("Invalid sandbox authorization amount or currency.");
+  }
   const credentials = getCredentials();
   const body = JSON.stringify(buildAuthorizationPayload(request));
 
@@ -168,6 +174,8 @@ export async function authorize(
     headers: { ...signed.headers, "v-c-correlation-id": randomUUID() },
     body,
     cache: "no-store",
+    redirect: "error",
+    signal: AbortSignal.timeout(8_000),
   });
 
   const correlationId =

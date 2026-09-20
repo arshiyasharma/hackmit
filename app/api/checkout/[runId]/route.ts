@@ -1,3 +1,4 @@
+import { checkoutOwner } from "@/lib/checkout/request";
 import type { NextRequest } from "next/server";
 
 import { getRun } from "@/lib/checkout/runs";
@@ -22,13 +23,13 @@ export const runtime = "nodejs";
 export const maxDuration = 10;
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: RouteContext<"/api/checkout/[runId]">
 ) {
   const { runId } = await context.params;
   const run = getRun(runId);
 
-  if (!run) {
+  if (!run || !run.ownerId || run.ownerId !== checkoutOwner(request)) {
     return Response.json(
       { error: "That checkout run is not on this server any more. Press checkout again." },
       { status: 404, headers: { "Cache-Control": "no-store" } }

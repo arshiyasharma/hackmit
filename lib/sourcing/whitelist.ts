@@ -237,6 +237,11 @@ export function isDirectRetailerUrl(link: string | null | undefined): boolean {
     return false;
   }
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+  if (parsed.username || parsed.password || (parsed.port && !["80", "443"].includes(parsed.port))) return false;
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  // Retailer pages have public DNS names, never local names or IP literals.
+  if (/^[\d.]+$/.test(host) || host.includes(":") ||
+      /(?:^|\.)(?:localhost|local|internal|test|invalid)$/.test(host)) return false;
 
-  return retailerDomainFor(parsed.hostname) !== null;
+  return retailerDomainFor(host) !== null;
 }

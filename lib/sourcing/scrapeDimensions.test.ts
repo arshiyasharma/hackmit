@@ -327,7 +327,7 @@ describe("dimensionsFromHtml, per retailer", () => {
 });
 
 describe("fetchProductHtml", () => {
-  it("sends browser headers and follows redirects", async () => {
+  it("sends browser headers and checks redirects explicitly", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response("<html>ok</html>", { status: 200 }));
@@ -341,7 +341,7 @@ describe("fetchProductHtml", () => {
     expect(headers["User-Agent"]).toMatch(/Mozilla\/5\.0 .*Chrome\/\d+/);
     expect(headers["Accept-Language"]).toBe("en-US,en;q=0.9");
     expect(headers.Accept).toContain("text/html");
-    expect(init.redirect).toBe("follow");
+    expect(init.redirect).toBe("manual");
   });
 
   it("gives up quietly on a 403, logging one line", async () => {

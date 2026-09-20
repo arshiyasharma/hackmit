@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 
+import { isRequestObject, MAX_QUERY_LENGTH, validRoomContext } from "@/lib/sourcing/request";
 import { sourceOptions } from "@/lib/sourcing/adapter";
 import type { Carton, DimsSource, Product, RoomContext } from "@/types";
 
@@ -65,7 +66,9 @@ function str(value: unknown): string | undefined {
 function num(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = Number(value.replace(/[^0-9.-]/g, ""));
+    const cleaned = value.trim().replace(/^\$\s*/, "").replace(/,/g, "");
+    if (!/^-?\d+(?:\.\d+)?$/.test(cleaned)) return undefined;
+    const parsed = Number(cleaned);
     if (Number.isFinite(parsed)) return parsed;
   }
   return undefined;
@@ -151,7 +154,7 @@ function toOptions(raw: unknown, itemId: string | undefined): Product[] {
       const title = str(p.title) ?? str(p.name);
       const url = str(p.url) ?? str(p.link);
       const priceCents = priceCentsOf(p);
-      if (!title || !url || priceCents === undefined || priceCents < 0) return [];
+      if (!title || !url || priceCents === undefined || !Number.isSafeInteger(priceCents) || priceCents < 0) return [];
       if (!/^https?:\/\//i.test(url)) return [];
       if (seen.has(url)) return [];
       seen.add(url);
@@ -293,11 +296,19 @@ function backendUrl(): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  let body: Body = {};
-  try {
-    body = (await request.json()) as Body;
-  } catch {
-    /* an unreadable body still gets an answer; the sheet is already open */
+  const parsed: unknown = await request.json().catch(() => null);
+  if (!isRequestObject(parsed)) {
+    return Response.json({ error: "A JSON object is required", options: [] }, { status: 400 });
+  }
+  const body = parsed as Body;
+  if (!validRoomContext(body.roomContext) ||
+      [body.request, body.query, body.category, body.itemId].some((value) =>
+        value !== undefined && (typeof value !== "string" || value.length > MAX_QUERY_LENGTH))) {
+    return Response.json({ error: "Invalid search request", options: [] }, { status: 400 });
+  }
+  if (body.budgetRemainingCents !== undefined &&
+      (typeof body.budgetRemainingCents !== "number" || !Number.isSafeInteger(body.budgetRemainingCents))) {
+    return Response.json({ error: "budgetRemainingCents must be integer cents", options: [] }, { status: 400 });
   }
 
   const ask = str(body.request) ?? "";
@@ -311,6 +322,9 @@ export async function POST(request: NextRequest) {
   // the string the sheet is displaying wins, so screen and call cannot diverge
   const query = str(body.query) ?? buildQuery(roomContext, ask);
   const budgetRemainingCents = num(body.budgetRemainingCents);
+  if (!query || query.length > MAX_QUERY_LENGTH) {
+    return Response.json({ error: "query or request must contain 1–500 characters", options: [] }, { status: 400 });
+  }
 
   if (request.nextUrl.searchParams.get("demo") === "1") {
     return Response.json({

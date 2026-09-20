@@ -1,3 +1,4 @@
+import { checkoutOwner } from "@/lib/checkout/request";
 import type { NextRequest } from "next/server";
 
 import { isRunFinished, getRun } from "@/lib/checkout/runs";
@@ -50,7 +51,8 @@ export async function GET(
 ) {
   const { runId } = await context.params;
 
-  if (!getRun(runId)) {
+  const initial = getRun(runId);
+  if (!initial || !initial.ownerId || initial.ownerId !== checkoutOwner(request)) {
     return Response.json(
       { error: "That checkout run is not on this server any more. Press checkout again." },
       { status: 404, headers: { "Cache-Control": "no-store" } }
@@ -59,6 +61,7 @@ export async function GET(
 
   const encoder = new TextEncoder();
 
+  let cancelStream = () => {};
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
@@ -79,6 +82,7 @@ export async function GET(
         closed = true;
         clearInterval(poll);
         clearInterval(keepalive);
+        clearTimeout(deadline);
         request.signal.removeEventListener("abort", stop);
         try {
           controller.close();
@@ -112,12 +116,16 @@ export async function GET(
       const poll = setInterval(tick, POLL_MS);
       const keepalive = setInterval(() => send(": keepalive\n\n"), KEEPALIVE_MS);
 
+      const deadline = setTimeout(stop, 55_000);
+      cancelStream = stop;
       request.signal.addEventListener("abort", stop);
+      if (request.signal.aborted) { stop(); return; }
 
       // the current state goes out immediately, so a client that connects late
       // is not staring at an empty list until the next line moves
       tick();
     },
+    cancel() { cancelStream(); },
   });
 
   return new Response(stream, {

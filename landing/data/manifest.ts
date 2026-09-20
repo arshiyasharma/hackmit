@@ -77,11 +77,11 @@ export const manifest = {
     { index: 0, numeral: "I", name: "ASK", accent: "#2F5BD8", facade: "facade/F_mod_cobalt.avif", flyout: "video/V_flyout_1.mp4" },
     { index: 1, numeral: "II", name: "CHOOSE", accent: "#2F9E4A", facade: "facade/F_mod_moss.avif", flyout: "video/V_flyout_2.mp4" },
     { index: 2, numeral: "III", name: "YOUR ROOM", accent: "#E0462E", facade: "facade/F_mod_tomato.avif", flyout: "video/V_flyout_3.mp4" },
-    { index: 3, numeral: "IV", name: "ABOUT US", accent: "#E2705F", facade: "facade/F_mod_coral.avif", flyout: "video/V_flyout_3.mp4" },
+    { index: 3, numeral: "IV", name: "ABOUT US", entryLabel: "Our story", accent: "#E2705F", facade: "facade/F_mod_coral.avif", flyout: "video/V_flyout_3.mp4" },
   ] as const,
 
   rooms: {
-    R4: "rooms/R4.avif",
+    R4: "about/title-card",
     R1a: "rooms/R1a.avif",
     R1b: "rooms/R1b.avif",
     R2: "rooms/R2.avif",
@@ -170,44 +170,47 @@ export const manifest = {
 
   strings: {
     about: {
-      eyebrow: "Chapter IV",
-      title: "About us",
-      lede: "Four rooms, one weekend, and a question we could not put down: *why is buying the thing you already decided on still the hardest part?*",
-      scrollHint: "Scroll — the pictures come to you",
-      placeholder: "Your words go here. Replace this block with the real story.",
-      problem: {
-        title: "The problem",
-        body: "You can see a room in your head. You cannot see whether *that* sofa fits *this* wall, and you certainly cannot buy four pieces from four shops without four checkouts, four accounts and four chances to give away your card.",
-      },
-      why: {
-        title: "Why we took it on",
-        body: "Every one of us has moved into an empty room with a laptop and a tape measure. The measuring is guesswork and the buying is *paperwork*. Neither has to be.",
-      },
-      solves: {
-        title: "What it solves",
-        points: [
-          "*See it at real size* in your own room before you spend anything.",
-          "*One basket* across shops that never agreed to work together.",
-          "*One approval* — your face or your fingerprint, once, at the end.",
-          "*No shop sees your card*: each gets a stand-in number that works once.",
-        ],
-      },
-      journey: {
-        title: "Our journey",
-        beats: [
-          { when: "Friday night", what: "A whiteboard, a bad idea, and the good one hiding behind it." },
-          { when: "Saturday", what: "The room went up. Everything else fell over." },
-          { when: "Saturday night", what: "Placeholder — tell the story of the thing that broke." },
-          { when: "Sunday", what: "Placeholder — what it felt like when it finally worked." },
-        ],
-      },
-      gallery: {
-        title: "The fun part",
-        body: "Drop the weekend in here — the whiteboards, the snacks, the 3am faces.",
-      },
-      demo: { title: "The demo", slot: "Your demo video goes here" },
-      thanks: "Thank you, HackMIT 2026",
-      closeAria: "Close About us and return to the room",
+      question: "What if shopping started with your room?",
+      problem: "You find a sofa you love. Then come the measurements, the budget, and all the open tabs. We wanted to bring those decisions back into the room.",
+      product: "Tell PIXX-AR what your room needs. Start with a photo, explore real furniture listings, and preview your ideas with your budget in view. One place to see how the pieces could come together.",
+      steps: [
+        { title: "Start with your space", body: "A room photo gives your search a place to begin." },
+        { title: "Explore the possibilities", body: "Turn a simple request into furniture previews and real product options." },
+        { title: "Bring the pieces together", body: "Review choices across stores, with fit and budget in the picture." },
+      ],
+      tracksTitle: "Targeted Tracks",
+      tracksNote: "A space for our final track selections and how PIXX-AR addresses each challenge.",
+      // Replace these placeholders with the final challenge names and write-ups.
+      // The Visa mark is the original image supplied by the team.
+      tracks: [
+        { sponsor: "Visa", logo: "about/visa-logo.png", title: "Challenge to be added", body: "Our selected challenge and project details will go here." },
+        { sponsor: "Track 02", logo: "", title: "Track to be added", body: "Our selected challenge and project details will go here." },
+        { sponsor: "Track 03", logo: "", title: "Track to be added", body: "Our selected challenge and project details will go here." },
+      ],
+      journeyTitle: "One weekend. A whole new perspective.",
+      journey: [
+        { title: "The question", body: "Could shopping feel more connected to the spaces we live in?" },
+        { title: "The build", body: "Room photos, furniture previews, and real listings came together, one piece at a time." },
+        { title: "The next step", body: "A prototype to share, feedback to learn from, and plenty left to explore." },
+      ],
+      galleryTitle: "Fun Moments",
+      galleryNote: "The people behind the prototype. The moments between the commits.",
+      // Add photos under public/assets/about/photos, set each src to
+      // "about/photos/your-file.webp", and write its descriptive alt text.
+      gallery: [
+        { title: "The team", src: "", alt: "" },
+        { title: "At the build table", src: "", alt: "" },
+        { title: "The first prototype", src: "", alt: "" },
+        { title: "Around HackMIT", src: "", alt: "" },
+        { title: "In between the coding", src: "", alt: "" },
+        { title: "A moment together", src: "", alt: "" },
+        { title: "Demo time", src: "", alt: "" },
+        { title: "Behind the scenes", src: "", alt: "" },
+        { title: "One for the memories", src: "", alt: "" },
+      ],
+      photoPlaceholder: "Photo coming soon",
+      signature: "Made at HackMIT 2026.",
+      closeAria: "Back to the rooms",
     },
     intro: {
       name: "PIXX-AR",

@@ -259,17 +259,26 @@ function toRoomContext(raw: unknown): RoomContext | null {
  * empty — so the call is raced against a clock and a slow answer is simply not
  * an answer. The route still returns 200 with the neutral palette.
  */
-function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([
-    work,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
-  ]);
+async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), ms); }),
+    ]);
+  } catch {
+    // A failed first provider must still leave the second provider a chance.
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /** Arshiya's call from 52037d4, mapped onto the RoomContext contract. */
 async function readRoomGemini(
   dataUrl: string,
   key: string,
+  signal: AbortSignal,
 ): Promise<RoomContext | null> {
   const [header, data] = dataUrl.split(",", 2);
   const mimeType = header.match(/^data:(image\/[a-zA-Z+.-]+);base64$/)?.[1];
@@ -290,6 +299,7 @@ async function readRoomGemini(
         },
       ],
       config: {
+        abortSignal: signal,
         responseMimeType: "application/json",
         /*
          * ASK FOR THE SHAPE, DON'T HOPE FOR IT. Without a schema the model
@@ -318,6 +328,7 @@ async function readRoomGemini(
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < models.length; attempt += 1) {
+    if (signal.aborted) return null;
     try {
       const context = await ask(models[attempt]);
       if (context) return context;
@@ -340,6 +351,7 @@ async function readRoomGemini(
 async function readRoomOpenAI(
   dataUrl: string,
   key: string,
+  signal?: AbortSignal,
 ): Promise<RoomContext | null> {
   const res = await fetch(ENDPOINT, {
     method: "POST",
@@ -365,7 +377,7 @@ async function readRoomOpenAI(
         },
       ],
     }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS),
   });
 
   if (!res.ok) return null;
@@ -430,8 +442,8 @@ export async function POST(request: NextRequest) {
     const candidate = text(body, "dataUrl") ?? text(body, "imageBase64");
     if (
       candidate &&
-      candidate.startsWith("data:image/") &&
-      candidate.length < MAX_DATA_URL_CHARS
+      candidate.length < MAX_DATA_URL_CHARS &&
+      /^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/]+={0,2}$/i.test(candidate)
     ) {
       dataUrl = candidate;
     }
@@ -462,11 +474,11 @@ export async function POST(request: NextRequest) {
   const startedAt = Date.now();
   try {
     const context = gemini
-      ? ((await withTimeout(readRoomGemini(dataUrl, gemini), TIMEOUT_MS)) ??
+      ? ((await withTimeout(readRoomGemini(dataUrl, gemini, AbortSignal.any([request.signal, AbortSignal.timeout(TIMEOUT_MS)])), TIMEOUT_MS)) ??
         (openai
-          ? await withTimeout(readRoomOpenAI(dataUrl, openai), TIMEOUT_MS)
+          ? await withTimeout(readRoomOpenAI(dataUrl, openai, request.signal), TIMEOUT_MS)
           : null))
-      : await withTimeout(readRoomOpenAI(dataUrl, openai as string), TIMEOUT_MS);
+      : await withTimeout(readRoomOpenAI(dataUrl, openai as string, request.signal), TIMEOUT_MS);
     if (!context) {
       // a 200 that carries nothing is the one failure that used to be silent
       console.warn(

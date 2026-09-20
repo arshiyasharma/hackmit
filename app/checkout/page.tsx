@@ -161,7 +161,10 @@ export default function CheckoutPage() {
             unit="$"
             size="lg"
             tone={overBudget ? "warn" : "default"}
-            format={{ maximumFractionDigits: 0 }}
+            format={{
+              minimumFractionDigits: subtotalCents % 100 === 0 ? 0 : 2,
+              maximumFractionDigits: subtotalCents % 100 === 0 ? 0 : 2,
+            }}
             label="Basket total"
             source={`${count} ${count === 1 ? "item" : "items"} · ${groups.length} ${
               groups.length === 1 ? "shop" : "shops"

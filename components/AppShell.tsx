@@ -121,14 +121,14 @@ export function AppShell({
 
   if (bare) {
     return (
-      <div className={cn("relative flex min-h-dvh flex-col", className)}>
+      <div data-pixx-product="" className={cn("relative flex min-h-dvh flex-col", className)}>
         {children}
       </div>
     );
   }
 
   return (
-    <div className="relative flex min-h-dvh flex-col">
+    <div data-pixx-product="" className="relative flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-line bg-background/85 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-md items-center gap-2 gutter py-2 pt-[max(8px,env(safe-area-inset-top))]">
           {canGoBack ? (

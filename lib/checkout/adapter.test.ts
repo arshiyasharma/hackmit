@@ -77,6 +77,31 @@ describe("resolveRetailer — the URL wins", () => {
     expect(resolveRetailer(product({ url: "https://www.costco.com/p/1", retailer: "Costco" }))).toBeNull();
   });
 
+  it("keeps an unsupported URL unsupported even with a known name and domain", () => {
+    expect(resolveRetailer(product({
+      url: "https://www.walmart.com/ip/toy/1",
+      retailer: "IKEA",
+      retailerDomain: "ikea.com",
+    }))).toBeNull();
+    expect(resolveRetailer(product({
+      url: "https://ikea.com.evil.example/p/1",
+      retailer: "IKEA",
+      retailerDomain: "ikea.com",
+    }))).toBeNull();
+  });
+
+  it.each(["ftp://www.ikea.com/p/1", "javascript:alert(1)"])(
+    "refuses a non-web product URL: %s",
+    (url) => {
+      expect(resolveRetailer(product({ url, retailerDomain: "ikea.com" }))).toBeNull();
+    }
+  );
+
+  it("accepts supported domain labels from sourcing without adding unsupported shops", () => {
+    expect(resolveRetailer(product({ retailer: "etsy.com", url: "https://www.etsy.com/listing/1" }))).toBe("etsy");
+    expect(resolveRetailer(product({ retailer: "walmart.com", url: "https://www.walmart.com/ip/toy/1" }))).toBeNull();
+  });
+
   it("is not fooled by a lookalike domain", () => {
     expect(
       resolveRetailer(product({ url: "https://ikea.com.evil.example/p/1", retailer: "" }))
@@ -142,6 +167,25 @@ describe("toBasket", () => {
     expect(basket.lines).toHaveLength(0);
     expect(unsupported).toHaveLength(2);
     expect(unsupported.map((u) => u.reason).join(" ")).toMatch(/no link|no price/);
+  });
+
+  it("excludes non-USD prices rather than relabeling their amount as dollars", () => {
+    const euro = cartItem({ id: "euro-lamp", currency: "EUR", priceCents: 16450 });
+    const usd = cartItem({ currency: " usd ", priceCents: 12050 });
+    const { basket, unsupported } = toBasket([euro, usd], 125000);
+
+    expect(basket.lines).toHaveLength(1);
+    expect(basket.lines[0]).toMatchObject({
+      lineId: usd.id,
+      priceMinor: 12050,
+      currency: "USD",
+    });
+    expect(unsupported).toEqual([{
+      line: euro,
+      reason: "A tall lamp is priced in EUR. Checkout currently supports USD only.",
+    }]);
+    expect(euro.product.currency).toBe("EUR");
+    expect(euro.product.priceCents).toBe(16450);
   });
 
   it("an empty basket converts to an empty basket, not a throw", () => {

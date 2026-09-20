@@ -1,3 +1,4 @@
+import { isDirectRetailerUrl } from "./whitelist";
 import {
   parseDimensionsFromText,
   unknownDimensions,
@@ -272,18 +273,28 @@ export async function fetchProductHtml(url: string): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
-      headers: DEFAULT_HEADERS,
-      signal: controller.signal,
-      redirect: "follow",
-    });
-    if (!response.ok) {
-      console.warn(
-        `[scrape] HTTP ${response.status} fetching dimensions from ${url}`
-      );
-      return null;
+    let current = url;
+    for (let redirects = 0; redirects <= 3; redirects++) {
+      if (!isDirectRetailerUrl(current)) return null;
+      const response = await fetch(current, {
+        headers: DEFAULT_HEADERS,
+        signal: controller.signal,
+        redirect: "manual",
+      });
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const next = response.headers.get("location");
+        await response.body?.cancel();
+        if (!next) return null;
+        current = new URL(next, current).toString();
+        continue;
+      }
+      if (!response.ok) {
+        console.warn(`[scrape] HTTP ${response.status} fetching dimensions from ${url}`);
+        return null;
+      }
+      return await response.text();
     }
-    return await response.text();
+    return null;
   } catch (err) {
     console.warn("[scrape] Failed to fetch product page:", err);
     return null;

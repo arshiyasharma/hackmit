@@ -95,6 +95,8 @@ export interface TapLineVerdict {
  * make it true. An authorization is a hold; capture is what moves money.
  */
 export interface PaymentLineResult {
+  /** Set only when this authorization actually consumed that VIC credential. */
+  vicTransactionReferenceId?: string;
   /** "simulated" never appears here — the field is absent instead */
   provider: "acceptance";
   /** straight from Visa: AUTHORIZED, DECLINED, … */
@@ -142,6 +144,12 @@ export interface RunLine {
  */
 export interface CheckoutRun {
   runId: string;
+  /** Opaque guest-session owner; never included in public run responses. */
+  ownerId?: string;
+  startedAt?: number;
+  instructionCancelled?: boolean;
+  /** Server-only locks/results: concurrent retries share one upstream operation. */
+  operations?: Map<string, Promise<Response>>;
   basket: Basket;
   /** keyed by lineId, in the basket's order */
   lines: RunLine[];

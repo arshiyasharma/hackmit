@@ -44,7 +44,7 @@ function mm(value: unknown): number | undefined {
       : typeof value === "string"
         ? Number(value)
         : NaN;
-  return Number.isFinite(n) && n > 0 ? Math.round(n) : undefined;
+  return Number.isFinite(n) && n >= 1 && n <= 100_000 ? Math.round(n) : undefined;
 }
 
 /** Accepts the kernel's short names or types/index.ts's long ones. */
@@ -83,7 +83,8 @@ function toCarton(body: Record<string, unknown>): Carton | null {
 export async function POST(request: NextRequest) {
   let body: Record<string, unknown> = {};
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    const raw: unknown = await request.json();
+    body = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
   } catch {
     return Response.json({
       fit: null,
@@ -100,6 +101,16 @@ export async function POST(request: NextRequest) {
       carton: null,
       checked: false,
       reason: "No dimensions listed — nothing to check against your doorway.",
+    });
+  }
+
+  const rawProfile = body.profile;
+  const fields = ["doorW", "doorWidthMm", "doorH", "doorHeightMm", "hallW", "hallwayWidthMm", "stairW", "landingWidthMm", "stairWidthMm", "ceiling", "ceilingHeightMm"];
+  if (rawProfile != null && (typeof rawProfile !== "object" || Array.isArray(rawProfile) ||
+      fields.some((field) => field in rawProfile && mm((rawProfile as Record<string, unknown>)[field]) === undefined))) {
+    return Response.json({
+      fit: null, carton, checked: false,
+      reason: "Use positive doorway and hallway measurements in millimetres.",
     });
   }
 

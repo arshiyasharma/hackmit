@@ -27,6 +27,7 @@
 import { createHash } from "node:crypto";
 
 import { colourNames } from "@/lib/colour";
+import { fetchPublicImage } from "@/lib/remoteImage";
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -196,7 +197,7 @@ export function normalizeCategory(
   raw: string | null | undefined,
   request?: string | null,
 ): { category: string; silhouette: SilhouetteKey | null } {
-  const text = `${raw ?? ""} ${request ?? ""}`
+  const text = `${(raw ?? "").slice(0, 120)} ${(request ?? "").slice(0, 120)}`
     .toLowerCase()
     .replace(/[^a-z0-9 ]+/g, " ")
     .replace(/\s+/g, " ")
@@ -443,7 +444,7 @@ type Cutout = { png: Buffer; width: number; height: number; keyedRatio: number }
  * is what stops the white fringe you otherwise see against a dark room.
  */
 export async function keyOutAndTrim(input: Buffer): Promise<Cutout | null> {
-  const { data, info } = await sharp(input)
+  const { data, info } = await sharp(input, { limitInputPixels: 16_000_000 })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -648,7 +649,7 @@ async function renderUnknown(category: string, tint: string): Promise<Buffer> {
 
 /** Trim rasterised art to its own alpha bounds, same rule as the cutout. */
 async function trimAlpha(input: Buffer): Promise<Cutout | null> {
-  const { data, info } = await sharp(input)
+  const { data, info } = await sharp(input, { limitInputPixels: 16_000_000 })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -727,12 +728,13 @@ function extractJson(stdout: string): unknown {
   }
 }
 
-function runCli(args: string[], timeoutMs: number): Promise<string> {
+function runCli(args: string[], timeoutMs: number, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     // No shell. Every argument is passed as its own argv entry, so nothing the
     // user typed can be read as a command even if sanitisation is loosened.
     const child = spawn(resolveCli(), args, {
       stdio: ["ignore", "pipe", "pipe"],
+      signal,
     });
     let out = "";
     let err = "";
@@ -794,6 +796,7 @@ async function generate(
       "--json",
     ],
     GENERATION_TIMEOUT_MS,
+    signal,
   );
 
   const parsed = extractJson(stdout);
@@ -810,9 +813,9 @@ async function generate(
     throw new Error(`higgsfield job status ${done.status}`);
   }
 
-  const res = await fetch(done.result_url, { signal });
-  if (!res.ok) throw new Error(`fetching the image returned ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
+  const bytes = await fetchPublicImage(done.result_url, signal);
+  if (!bytes) throw new Error("Could not download the generated image");
+  return bytes;
 }
 
 /**

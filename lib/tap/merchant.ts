@@ -181,6 +181,8 @@ export async function presentToMerchant(opts: {
           requiredTag: opts.tag,
         }),
         cache: "no-store",
+        redirect: "error",
+        signal: AbortSignal.timeout(5_000),
       });
     } catch (error) {
       throw new MerchantUnreachableError(opts.retailer, error);
@@ -201,7 +203,7 @@ export async function presentToMerchant(opts: {
       signed,
       verdict,
       merchant,
-      accepted: body.accepted === true || acceptsTag(verdict, opts.tag),
+      accepted: response.ok && body.accepted === true && acceptsTag(verdict, opts.tag),
       requiredTag: opts.tag,
       via: "http",
     };

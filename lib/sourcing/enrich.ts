@@ -81,23 +81,22 @@ function extractRawPrice(price: SerpVisualMatch["price"]): string | null {
 export function priceToCents(raw: string | null | undefined): number | null {
   if (!raw || typeof raw !== "string") return null;
 
-  const cleaned = raw.replace(/[^\d.,]/g, "").trim();
-  if (!cleaned) return null;
-
-  let normalized = cleaned;
-  if (cleaned.includes(",") && cleaned.includes(".")) {
+  // A range, instalment, negative amount, or non-USD quote is not a USD price.
+  const match = raw.trim().match(/^(?:from\s+)?(?:US\$|USD\s*|\$)?\s*(\d[\d,.]*)(?:\s*USD)?$/i);
+  if (!match) return null;
+  const cleaned = match[1];
+  let normalized: string;
+  if (/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(cleaned)) {
     normalized = cleaned.replace(/,/g, "");
-  } else if (cleaned.includes(",")) {
-    const parts = cleaned.split(",");
-    normalized =
-      parts.at(-1)!.length === 2
-        ? parts.slice(0, -1).join("") + "." + parts.at(-1)
-        : cleaned.replace(/,/g, "");
+  } else if (/^\d+(?:\.\d{1,2})?$/.test(cleaned)) {
+    normalized = cleaned;
+  } else if (/^\d+,\d{2}$/.test(cleaned)) {
+    normalized = cleaned.replace(",", ".");
+  } else {
+    return null;
   }
-
-  const value = Number.parseFloat(normalized);
-  if (!Number.isFinite(value)) return null;
-  return Math.round(value * 100);
+  const cents = Math.round(Number(normalized) * 100);
+  return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
 }
 
 function looksLikeProductPage(url: string, retailer: string): boolean {
@@ -273,11 +272,8 @@ function pickDirectStore(
     }
   }
 
-  for (const store of ranked) {
-    const url = storePurchaseUrl(store);
-    if (url && isDirectRetailerUrl(url)) return { url, store };
-  }
-
+  // A different seller can quote a different price. Keep the Google offer
+  // link instead of attaching the original price to that seller's checkout.
   return null;
 }
 
@@ -333,13 +329,15 @@ function toShoppingCandidate(
         ? { extracted_value: item.extracted_price }
         : null;
 
+  const priceCents = priceToCents(extractRawPrice(price));
+  if (priceCents == null || typeof item.title !== "string" || !item.title.trim()) return null;
   const existing_direct_url = isDirectRetailerUrl(unwrapped) ? unwrapped : null;
 
   return {
     title: typeof item.title === "string" ? item.title : "",
     image_url: typeof item.thumbnail === "string" ? item.thumbnail : "",
     retailer,
-    price_cents: priceToCents(extractRawPrice(price)),
+    price_cents: priceCents,
     source: typeof item.source === "string" ? item.source : "",
     google_product_url: unwrapped,
     immersive_token:
@@ -534,19 +532,18 @@ export async function enrichShoppingResults(
     candidates.push(candidate);
   }
 
-  candidates = applyMaxPriceToCandidates(candidates, options?.maxPrice);
-
   // Drop irrelevant titles before any immersive Serp calls.
   if (options?.designQuery) {
     const filtered = diversifyProductsByQuery(
       filterProductsByDesignQuery(candidates, options.designQuery),
       options.designQuery
     );
-    if (filtered.length > 0) candidates = filtered;
+    candidates = filtered;
   }
 
   // stable sort: candidates arrive affordable-first, and equal scores keep it
   candidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
+  candidates = applyMaxPriceToCandidates(candidates, options?.maxPrice);
 
   /*
    * NINE IMMERSIVE LOOKUPS IS NINE SERPAPI CREDITS FOR ONE QUESTION.
@@ -670,8 +667,7 @@ export async function enrichShoppingResults(
     }
   }
 
-  return rankAndCap(
-    applyMaxPrice(products, options?.maxPrice),
-    maxProducts
-  );
+  // Rank quality first, then affordability, and only then cap the shelf.
+  // Capping before the budget pass could throw away the only affordable item.
+  return applyMaxPrice(rankAndCap(products, products.length), options?.maxPrice).slice(0, maxProducts);
 }

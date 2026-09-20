@@ -9,14 +9,10 @@
  * built to the same standard as the live path: the same sprites, the same real
  * millimetres, the same spring on a relink, the same refusal on a pinch.
  *
- * THE PHOTO IS A PRINT STANDING IN LIGHT. The page gives the scene the whole
- * window and floats its glass over it — the agent panel down the right, the
- * listing tray along the bottom — and says how much each one covers in two CSS
- * variables, `--stage-right` and `--stage-bottom`. The photo is fitted and
- * centred in what is left, whole (the floor is never cropped away), and glides
- * there when either variable changes. Behind it the window is filled with a
- * soft, blurred, lightened copy of the same photo, so the glass has the room's
- * own colours to frost rather than a blank.
+ * THE PHOTO IS THE WORKSPACE'S FOCAL POINT. The host reserves space through
+ * `--stage-top`, `--stage-right` and `--stage-bottom`. The whole photo fits in
+ * the remaining area without cropping the floor, and the scale controls sit
+ * above it on a quiet neutral background.
  *
  * Sprites composite over the photo at true size, measured against a scale
  * reference the user sets by tapping the top and the bottom of a wall, a
@@ -182,7 +178,7 @@ export function labelDimsMm(
 /** Where the numbers came from, in the words shown under them. */
 export function dimsCaption(item: PlacedItem): string {
   const product = item.linkedProduct;
-  if (!product) return "nothing linked yet";
+  if (!product) return "choose a matching product";
   if (!product.dimsMm || product.dimsSource === "missing") {
     return "no dimensions listed";
   }
@@ -229,6 +225,8 @@ export function refusePinch(heightMm: number | null): void {
  */
 export const OPEN_OPTIONS_EVENT = "visa:open-options";
 export const REMOVE_ITEM_EVENT = "visa:remove-item";
+export const ADJUST_ITEM_EVENT = "visa:adjust-item";
+export const PHOTO_REVEALED_EVENT = "visa:photo-revealed";
 
 export function emitItemEvent(name: string, itemId: string): void {
   if (typeof window === "undefined") return;
@@ -305,15 +303,15 @@ type PhotoScale = {
 
 /* =================================================================== stage */
 
-/** breathing room between the print and the window, the panel and the tray */
+/** breathing room between the photo and surrounding workspace controls */
 const STAGE_MARGIN = 24;
-/** the account chip, the palette and the style words own the top of the window */
+/** fallback for hosts that keep their controls within the stage */
 const STAGE_TOP = 76;
 
 /**
- * WHERE THE ROOM MAY STAND. The page says how much of the window its glass
- * covers — `--stage-right` for the agent panel, `--stage-bottom` for the
- * listing tray — and everything the scene draws lives in what those leave.
+ * WHERE THE ROOM MAY STAND. The host reserves room around the photo with
+ * `--stage-top`, `--stage-right` and `--stage-bottom`; everything the scene
+ * draws lives inside the remaining area.
  *
  * The box itself carries the transition, so when the tray opens the free area
  * shrinks over DUR.element and the photo, which is fitted to it in CSS, is
@@ -324,7 +322,7 @@ const STAGE_TOP = 76;
  * which is what that variable was before the tray existed.
  */
 const FREE_AREA: React.CSSProperties = {
-  top: STAGE_TOP,
+  top: `var(--stage-top, ${STAGE_TOP}px)`,
   left: STAGE_MARGIN,
   right: `calc(var(--stage-right, 0px) + ${STAGE_MARGIN}px)`,
   bottom: `calc(var(--stage-bottom, var(--room-bottom-chrome, 0px)) + ${STAGE_MARGIN}px)`,
@@ -338,8 +336,8 @@ const SHADE = "color-mix(in srgb, var(--foreground) 45%, var(--accent))";
 const shade = (percent: number) =>
   `color-mix(in srgb, ${SHADE} ${percent}%, transparent)`;
 
-/** what makes the photo read as a print standing in light */
-const PRINT_SHADOW = `0 2px 6px ${shade(10)}, 0 30px 70px -24px ${shade(42)}`;
+/** a quiet edge lifts the photo just enough from the workspace */
+const PHOTO_SHADOW = "0 0 0 1px rgba(31, 35, 40, 0.1), 0 2px 12px rgba(31, 35, 40, 0.06)";
 /** the same light, falling off a cutout */
 const CUTOUT_SHADOW = `drop-shadow(0 18px 24px ${shade(30)})`;
 
@@ -347,12 +345,11 @@ const CUTOUT_SHADOW = `drop-shadow(0 18px 24px ${shade(30)})`;
 const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-/** a glass capsule you can press; 240ms is DUR.micro, the hover speed */
+/** compact scale controls share the rest of the workspace's simple borders */
 const PILL_BUTTON = cn(
-  "glass-pill tap pointer-events-auto inline-flex min-h-11 cursor-pointer items-center",
-  "whitespace-nowrap px-4 text-[13px] text-foreground",
-  "transition-[transform,color] duration-[240ms] hover:-translate-y-px hover:text-accent",
-  "active:translate-y-0",
+  "pointer-events-auto inline-flex min-h-8 cursor-pointer items-center border border-line bg-surface",
+  "whitespace-nowrap px-3 py-1.5 font-sans text-[12px] leading-tight text-foreground",
+  "transition-colors duration-[240ms] hover:border-accent/30 hover:bg-accent-wash hover:text-accent disabled:cursor-default disabled:opacity-40",
   FOCUS_RING
 );
 
@@ -360,7 +357,7 @@ const PILL_BUTTON = cn(
 
 export type PhotoModeProps = {
   /**
-   * One more thing for the row under the photo. ArScene knows what this browser
+   * One more thing for the controls above the photo. ArScene knows what this browser
    * can do live and PhotoMode knows where things may stand, so the note is
    * handed down once rather than positioned twice against the same edge.
    */
@@ -417,6 +414,7 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
   );
 
   const [scale, setScale] = React.useState<PhotoScale | null>(null);
+  const [measurementsVisible, setMeasurementsVisible] = React.useState(false);
   /**
    * The in-progress measurement: which object, and the first tap if taken. The
    * tap is kept as a FRACTION of the photo's height, so the photo gliding or
@@ -531,19 +529,10 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
 
   if (!roomImage) {
     return (
-      <div className="relative h-full w-full overflow-hidden bg-background">
-        {/* no photo to frost, so the paper gets the cool light instead */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(90% 70% at 28% 0%, var(--accent-wash), transparent 62%)",
-          }}
-        />
+      <div className="room-photo-stage relative h-full w-full overflow-hidden bg-[#faf9f6]">
         <div className="absolute grid place-items-center" style={FREE_AREA}>
-          <div className="glass flex max-w-[34rem] flex-col items-center gap-4 px-8 py-10 text-center desk:px-12 desk:py-14">
-            <p className="font-display text-[32px] font-light leading-none tracking-[0.01em] desk:text-[48px]">
+          <div className="flex max-w-[34rem] flex-col items-center gap-3 px-8 py-10 text-center desk:px-12 desk:py-14">
+            <p className="font-sans text-[24px] font-medium leading-tight tracking-[-0.02em]">
               No room photo yet.
             </p>
             <p className="max-w-[44ch] text-[15px] leading-relaxed text-muted-foreground">
@@ -563,30 +552,14 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
   return (
     <div
       ref={stageRef}
+      role="group"
+      aria-label="Room preview"
       onClick={onStageClick}
       className={cn(
-        "relative h-full w-full touch-none select-none overflow-hidden bg-background",
+        "room-photo-stage relative h-full w-full touch-none select-none overflow-hidden bg-[#faf9f6]",
         measuring ? "cursor-crosshair" : undefined
       )}
     >
-      {/*
-       * THE ROOM'S OWN LIGHT. The same photo, blurred until it is only colour,
-       * drained and lifted towards the paper, filling the window. It is what
-       * the agent panel and the tray frost, so the glass is tinted by the room
-       * the shopper is standing in. The blur is static; nothing here animates.
-       */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={roomImage.dataUrl}
-          alt=""
-          draggable={false}
-          className="h-full w-full scale-125 object-cover"
-          style={{ filter: "blur(48px) saturate(0.45) brightness(1.12)" }}
-        />
-        <div className="absolute inset-0 bg-background/50" />
-      </div>
-
       <div className="absolute flex flex-col gap-3" style={FREE_AREA}>
         {/*
          * THE FIT IS CSS. The photo takes the largest size of its own shape
@@ -600,21 +573,16 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
         >
           <div
             ref={attachPhoto}
-            className="relative"
+            className="room-photo-frame relative"
             style={{
               aspectRatio: `${roomImage.width} / ${roomImage.height}`,
               width: `min(100cqw, calc(100cqh * ${photoRatio}))`,
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <PhotoReveal
+              key={`${roomImage.capturedAt}:${roomImage.dataUrl}`}
               src={roomImage.dataUrl}
-              alt="The room you photographed"
-              draggable={false}
-              className="pointer-events-none absolute inset-0 h-full w-full select-none rounded-[20px]"
-              style={{ boxShadow: PRINT_SHADOW }}
-            />
-
+            >
             {/* the sprites */}
             {box && pxPerMm
               ? items.map((item, index) => (
@@ -624,6 +592,7 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
                     index={index}
                     count={placeableCount}
                     active={item.id === activeItemId}
+                    showMeasurements={measurementsVisible}
                     box={box}
                     pxPerMm={pxPerMm}
                     spot={spots[item.id] ?? null}
@@ -669,19 +638,15 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
                 <span className="eyebrow">{binHot ? "release" : "drag here"}</span>
               </div>
             </div>
+            </PhotoReveal>
           </div>
         </div>
 
-        {/*
-         * THE ROW UNDER THE PRINT: the honest caption, the scale controls and
-         * whatever ArScene has to say about live AR. It sits under the photo
-         * rather than on it, so nothing here ever covers the floor line where
-         * the things stand — and it rides the same free area, so it clears the
-         * panel and lifts with the tray.
-         */}
-        <div className="pointer-events-none flex flex-none flex-wrap items-center justify-center gap-2">
+        {/* Scale controls stay above the photo, clear of furniture placement. */}
+        <div className="room-photo-controls pointer-events-none order-first flex flex-none flex-wrap items-center gap-x-2 gap-y-2">
+          <p className="room-photo-title mr-auto font-sans text-[13px] font-medium text-foreground">Room preview</p>
           {measuring ? (
-            <div className="glass-thick pointer-events-auto flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2.5">
+            <div className="pointer-events-auto flex flex-wrap items-center gap-x-3 gap-y-1 border border-line bg-surface px-3 py-2">
               <StatusLine
                 paused
                 messages={[SCALE_CHOICES[measuring.index].hint]}
@@ -709,20 +674,13 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
             </div>
           ) : (
             <>
-              {/*
-               * The honest label and the scale it is honest about, in one
-               * line: "Placed to scale in your photo — scale assumed from a
-               * 2,438 mm ceiling". The figure is set in mono like every other.
-               */}
-              <p className="glass-pill pointer-events-auto px-4 py-2 text-[12px] text-muted-foreground">
+              <p className="pointer-events-auto mr-1 py-1.5 font-sans text-[12px] leading-normal text-muted-foreground">
                 {scale ? (
-                  <>Placed to scale in your photo — scale from {scale.label}</>
+                  <>Scale set · {scale.label}</>
                 ) : (
                   <>
-                    Placed to scale in your photo — scale assumed from a{" "}
-                    <span className="tabular font-mono text-foreground">
-                      {formatMm(ceilingHeightMm)}
-                    </span>{" "}
+                    Scale estimated ·{" "}
+                    <span className="tabular-nums">{formatMm(ceilingHeightMm)}</span>{" "}
                     ceiling
                   </>
                 )}
@@ -735,7 +693,7 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
                   setMeasuring({ index: 0, firstY: null });
                 }}
               >
-                {scale ? "Measure again" : "Set the scale"}
+                {scale ? "Measure again" : "Set scale"}
               </button>
 
               {/* the measured thing's real size, which is the part we guessed */}
@@ -758,13 +716,29 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
                     setMeasuring({ index: 1, firstY: null });
                   }}
                 >
-                  Use a door
+                  Use door
                 </button>
               )}
+              <button
+                type="button"
+                aria-pressed={measurementsVisible}
+                disabled={!activeItem}
+                className={cn(PILL_BUTTON, measurementsVisible && "border-accent/40 bg-accent-wash text-accent")}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMeasurementsVisible((visible) => !visible);
+                }}
+              >
+                Measurements
+              </button>
             </>
           )}
 
-          {footnote}
+          {footnote ? (
+            <div className="room-photo-footnote font-sans text-[11px] text-muted-foreground">
+              {footnote}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -772,6 +746,46 @@ export function PhotoMode({ footnote }: PhotoModeProps = {}) {
 }
 
 export default PhotoMode;
+
+/** Reveal only pixels; the measured photo box and its placement maths stay still. */
+function PhotoReveal({ src, children }: { src: string; children: React.ReactNode }) {
+  const reduced = useReducedMotion() ?? false;
+  const [loaded, setLoaded] = React.useState(false);
+
+  return (
+    <div
+      className="room-photo-reveal absolute inset-0"
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget && event.animationName === "pixx-photo-reveal") {
+          window.dispatchEvent(new Event(PHOTO_REVEALED_EVENT));
+        }
+      }}
+      data-photo-loaded={loaded}
+      data-reduced-motion={reduced}
+      style={{
+        clipPath: !loaded && !reduced ? "inset(calc(50% - 8px))" : undefined,
+        // No forwards fill: after revealing, handles may extend past the photo.
+        animation: loaded && !reduced
+          ? "pixx-photo-reveal 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards"
+          : "none",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="The room you photographed"
+        draggable={false}
+        onLoad={() => {
+          setLoaded(true);
+          if (reduced) window.dispatchEvent(new Event(PHOTO_REVEALED_EVENT));
+        }}
+        className="pointer-events-none absolute inset-0 h-full w-full select-none"
+        style={{ boxShadow: PHOTO_SHADOW }}
+      />
+      {children}
+    </div>
+  );
+}
 
 /* ============================================================ one sprite */
 
@@ -830,7 +844,7 @@ function MmChip({
   return (
     <span
       className={cn(
-        "glass-pill tabular block whitespace-nowrap px-2 py-0.5 font-mono text-[11px] leading-4",
+        "tabular block whitespace-nowrap border border-line bg-surface px-2 py-0.5 font-sans text-[11px] leading-4",
         warn ? "text-warn" : "text-foreground"
       )}
     >
@@ -845,6 +859,7 @@ type PhotoSpriteProps = {
   index: number;
   count: number;
   active: boolean;
+  showMeasurements: boolean;
   /** the fitted photo's size on screen — the sprite is a child of that box */
   box: Box;
   pxPerMm: number;
@@ -871,6 +886,7 @@ function PhotoSprite({
   index,
   count,
   active,
+  showMeasurements,
   box,
   pxPerMm,
   spot,
@@ -900,6 +916,16 @@ function PhotoSprite({
    * on it brings the handles out.
    */
   const [handles, setHandles] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!active) return;
+    const onAdjust = (event: Event) => {
+      const detail = (event as CustomEvent<{ itemId?: unknown }>).detail;
+      if (detail?.itemId === item.id) setHandles((visible) => !visible);
+    };
+    window.addEventListener(ADJUST_ITEM_EVENT, onAdjust);
+    return () => window.removeEventListener(ADJUST_ITEM_EVENT, onAdjust);
+  }, [active, item.id]);
 
   /* handing focus to another item puts them away */
   const [hadFocus, setHadFocus] = React.useState(active);
@@ -1031,15 +1057,7 @@ function PhotoSprite({
     return () => node.removeEventListener("pointerdown", stop);
   }, []);
 
-  /*
-   * Two honest tones, because they can differ. The caption speaks for the
-   * listing under the pointer — including one with no size, which is tried on
-   * in name only. The figures speak for the listing whose millimetres they
-   * actually are.
-   */
-  const spokenFor: PlacedItem = preview ? { ...item, linkedProduct: preview } : item;
-  const caption = dimsCaption(spokenFor);
-  const tone = dimsTone(spokenFor);
+  // Optional rulers describe the listing currently being previewed.
   const figuresWarn = dimsTone(shown) === "warn";
   const arrive = reduced ? REDUCED : ENTER;
   const counter = { rotate: `${-item.rotationY}deg` };
@@ -1089,7 +1107,7 @@ function PhotoSprite({
         role="button"
         tabIndex={0}
         aria-label={`${item.category}${
-          item.linkedProduct ? `, ${item.linkedProduct.title}` : ", nothing linked yet"
+          item.linkedProduct ? `, ${item.linkedProduct.title}` : ", choose a matching product"
         }`}
         className={cn(
           "group absolute bottom-0 left-0 cursor-grab touch-none rounded-lg active:cursor-grabbing",
@@ -1175,7 +1193,7 @@ function PhotoSprite({
          * change when the LISTING does, and then they count there on the same
          * spring that resizes the object. They arrive a beat after it.
          */}
-        {active ? (
+        {active && showMeasurements ? (
           <motion.div
             className="pointer-events-none absolute inset-0"
             initial={{ opacity: 0 }}
@@ -1211,47 +1229,6 @@ function PhotoSprite({
               </span>
             </div>
 
-            {/* where those numbers came from, what the picture is, and the
-                kernel's verdict if it refused */}
-            <div
-              style={counter}
-              className={cn(
-                "absolute bottom-full left-1/2 -translate-x-1/2",
-                handles ? "mb-9" : "mb-3"
-              )}
-            >
-              <div className="glass-thick flex flex-col items-center gap-0.5 px-3.5 py-2 text-center text-[11px] leading-4">
-                <span
-                  className={cn(
-                    "whitespace-nowrap",
-                    tone === "warn" ? "text-warn" : "text-muted-foreground"
-                  )}
-                >
-                  {preview ? <span className="text-accent">trying on · </span> : null}
-                  {caption}
-                </span>
-
-                {/* the kernel's verdict, printed exactly as lib/fit.ts returned
-                    it — and only for the listing it was run on, never for one
-                    that is merely being tried on */}
-                {!preview && item.fit && item.fit.verdict !== "pass" ? (
-                  <span
-                    className={cn(
-                      "max-w-[15rem] whitespace-normal",
-                      item.fit.verdict === "fail" ? "text-warn" : "text-muted-foreground"
-                    )}
-                  >
-                    {item.fit.reason}
-                  </span>
-                ) : null}
-
-                <span className="max-w-[15rem] whitespace-normal text-muted-foreground">
-                  {isShopPhoto
-                    ? `${item.linkedProduct?.retailer ?? "the shop"}'s own photo`
-                    : "Stand-in image — the product you pick is linked."}
-                </span>
-              </div>
-            </div>
           </motion.div>
         ) : null}
 
@@ -1514,7 +1491,7 @@ function WallHeightField({
         e.stopPropagation();
         setOpen(false);
       }}
-      className="glass-thick pointer-events-auto flex flex-wrap items-center gap-1.5 px-2 py-1.5"
+      className="pointer-events-auto flex flex-wrap items-center gap-1.5 rounded-xl border border-line bg-surface px-2 py-1.5"
     >
       {WALL_PRESETS.map((preset) => (
         <button

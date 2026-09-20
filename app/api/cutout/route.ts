@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const cut = await cutoutFromListing(imageUrl);
+    const cut = await cutoutFromListing(imageUrl, request.signal);
     if (!cut) {
       // a refusal is a decision, and a silent one looks like a broken feature
       console.info(`[cutout] refused ${imageUrl.slice(0, 90)}`);

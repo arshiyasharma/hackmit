@@ -69,7 +69,12 @@ type Body = {
 export async function POST(request: NextRequest) {
   let body: Body;
   try {
-    body = (await request.json()) as Body;
+    const raw: unknown = await request.json();
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Invalid body");
+    body = raw as Body;
+    const category = typeof body.category === "string" ? body.category.trim() : "";
+    const ask = typeof body.request === "string" ? body.request.trim() : "";
+    if ((!category && !ask) || category.length > 120 || ask.length > 120) throw new Error("Invalid category");
   } catch {
     return Response.json(
       { error: "Send a category and the room context as JSON." },

@@ -203,16 +203,20 @@ export function CheckoutRun({
     phaseChanged.current?.(phase);
   }, [phase]);
 
-  const count = lines.reduce((n, l) => n + l.quantity, 0);
-  const totalCents = lines.reduce(
-    (sum, l) => sum + l.product.priceCents * l.quantity,
+  // Review the same conversion the server receives so the button never
+  // promises items or money that the run will silently leave behind.
+  const review = React.useMemo(
+    () => toBasket(lines, budgetCents, "review"),
+    [lines, budgetCents]
+  );
+  const eligibleLines = review.basket.lines;
+  const count = eligibleLines.reduce((n, line) => n + line.quantity, 0);
+  const totalCents = eligibleLines.reduce(
+    (sum, line) => sum + line.priceMinor * line.quantity,
     0
   );
-  const currency = lines[0]?.product.currency ?? "USD";
-  const shops = React.useMemo(
-    () => new Set(lines.map((l) => l.product.retailer)).size,
-    [lines]
-  );
+  const currency = eligibleLines[0]?.currency ?? "USD";
+  const shops = new Set(eligibleLines.map((line) => line.retailer)).size;
 
   /** One place that writes a line, so no update can miss one. */
   const applyLine = React.useCallback(
@@ -311,7 +315,7 @@ export function CheckoutRun({
   /* ------------------------------------------------------------ the start */
 
   const start = React.useCallback(async () => {
-    if (lines.length === 0) return;
+    if (review.basket.lines.length === 0) return;
     cancelled.current = false;
     settled.current = false;
     setProblem(null);
@@ -319,7 +323,7 @@ export function CheckoutRun({
     setMandateCap(null);
 
     const { basket, unsupported } = toBasket(lines, budgetCents);
-    setSkipped(unsupported.map((u) => u.reason));
+    setSkipped(unsupported.map((u) => `${u.line.product.title}: ${u.reason}`));
 
     if (basket.lines.length === 0) {
       setProblem(
@@ -431,7 +435,7 @@ export function CheckoutRun({
     } catch {
       void poll();
     }
-  }, [applyLine, budgetCents, closeStream, lines, readRun, requestMandate, settle, writeViews]);
+  }, [applyLine, budgetCents, closeStream, lines, readRun, requestMandate, review.basket.lines.length, settle, writeViews]);
 
   /* ------------------------------------------------------------- the copy */
 
@@ -467,15 +471,60 @@ export function CheckoutRun({
     <section className={cn("mt-6", className)}>
       {phase === "idle" ? (
         <>
-          <Button className="h-[52px] w-full rounded-2xl text-base" onClick={start}>
-            Buy all {count} — {formatMoney(totalCents, currency)} across {shops}{" "}
-            {shops === 1 ? "shop" : "shops"}
-          </Button>
+          {review.unsupported.length > 0 ? (
+            <div className="mb-4 border border-line bg-muted/30 p-4">
+              <h3 className="text-sm font-medium">Not included in checkout</h3>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                These items are excluded from this test run. You can still view
+                them at the store.
+              </p>
+              <ul className="mt-3 divide-y divide-line">
+                {review.unsupported.map(({ line, reason }) => {
+                  const href = storeLink(line.product.url);
+                  return (
+                    <li key={line.id} className="py-3 first:pt-0 last:pb-0">
+                      <p className="text-sm font-medium">{line.product.title}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        {reason}
+                      </p>
+                      {href ? (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-accent underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+                        >
+                          View at {line.product.retailer || "the store"}
+                          <ExternalLink className="size-3.5" aria-hidden />
+                        </a>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+
+          {count > 0 ? (
+            <Button
+              className="min-h-[52px] w-full whitespace-normal rounded-none px-4 py-3 text-base"
+              onClick={start}
+            >
+              {review.unsupported.length > 0
+                ? `Buy ${count} available ${count === 1 ? "item" : "items"}`
+                : `Buy all ${count}`} — {formatMoney(totalCents, currency)} across {shops}{" "}
+              {shops === 1 ? "shop" : "shops"}
+            </Button>
+          ) : (
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Choose an item from a supported shop to run checkout here.
+            </p>
+          )}
 
           <p className="mt-2 text-center text-xs leading-relaxed text-muted-foreground">
             {mode === "test"
-              ? "Test mode. The agent proves its identity to each shop and places a test order. Nothing is bought and no card is charged."
-              : "The real-order switch is on here — and the server still refuses. Live ordering needs two server-side flags and the branch throws rather than buying."}
+              ? "Test mode. This run simulates checkout. Nothing is bought and no card is charged."
+              : "Real orders are unavailable in this version. Nothing is bought and no card is charged."}
           </p>
 
           {problem ? (
@@ -532,8 +581,8 @@ export function CheckoutRun({
 
           {skipped.length > 0 ? (
             <ul className="mt-2 space-y-0.5">
-              {skipped.map((reason) => (
-                <li key={reason} className="text-xs text-warn">
+              {skipped.map((reason, index) => (
+                <li key={`${index}-${reason}`} className="text-xs text-warn">
                   {reason}
                 </li>
               ))}
@@ -568,14 +617,24 @@ export function CheckoutRun({
           </div>
 
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            The retailer walk is simulated per shop — no shop exposes an API we
-            could buy through. The signature check and the order references are
-            the server&rsquo;s own, not this screen&rsquo;s.
+            {phase === "running"
+              ? "This test checkout runs on the server. No order is placed."
+              : "This test checkout ran on the server. No order was placed."}
           </p>
         </>
       ) : null}
     </section>
   );
+}
+
+/** Only navigable store pages become links in the review. */
+function storeLink(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch {
+    return null;
+  }
 }
 
 /* -------------------------------------------------------------- one line */

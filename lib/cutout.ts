@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import sharp from "sharp";
+import { fetchPublicImage } from "@/lib/remoteImage";
 
 import {
   keyOutAndTrim,
@@ -46,9 +47,6 @@ const MIN_KEYED_RATIO = 0.15;
  */
 const MAX_TRIMMED_RATIO = 0.85;
 
-const FETCH_TIMEOUT_MS = 8_000;
-/** A listing photo over this is not a listing photo. */
-const MAX_BYTES = 12_000_000;
 
 export type CutoutResult = {
   url: string;
@@ -87,22 +85,8 @@ export async function cutoutFromListing(
     };
   }
 
-  let bytes: Buffer;
-  try {
-    const res = await fetch(imageUrl, {
-      signal: signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      // a retailer CDN that refuses an unknown agent is a miss, not a crash
-      headers: { accept: "image/*" },
-    });
-    if (!res.ok) return null;
-    if (!(res.headers.get("content-type") ?? "").startsWith("image/")) return null;
-
-    const buffer = await res.arrayBuffer();
-    if (buffer.byteLength > MAX_BYTES) return null;
-    bytes = Buffer.from(buffer);
-  } catch {
-    return null;
-  }
+  const bytes = await fetchPublicImage(imageUrl, signal);
+  if (!bytes) return null;
 
   const cut = await keyOutAndTrim(bytes);
   if (!cut) return null;

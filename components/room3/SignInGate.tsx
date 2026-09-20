@@ -1,122 +1,103 @@
 "use client";
 
-/**
- * The door to room III: sign in, on glass.
- *
- * "Continue with Google" is the real thing — Supabase OAuth, through
- * lib/auth/session.ts. The browser leaves for Google and comes back to
- * `/landing?product`, which opens this room again with the session in place.
- * On a machine without the Supabase keys the button says so, in words, and
- * "Continue as guest" is the way in. Nobody's name is ever made up.
- *
- * There is no spinner anywhere in the product. The wait is a line of light
- * along the foot of the button and a sentence that says what is happening.
- */
-
 import * as React from "react";
 import { ChevronLeft } from "lucide-react";
 
-import { continueAsGuest, signInWithGoogle } from "@/lib/auth/session";
+import { continueAsGuest, signInWithGoogle, useSession } from "@/lib/auth/session";
 
-/** room III itself — the red room the shopper just walked into — so the door matches it */
-const ROOM = "/assets/rooms/R3.avif";
-
-const STEPS = [
-  { n: "01", t: "Photograph your room" },
-  { n: "02", t: "Ask for one thing" },
-  { n: "03", t: "Approve once" },
-] as const;
+import "./sign-in-glass.css";
 
 type Status = "idle" | "connecting" | "failed" | "leaving";
 
-/** `/auth/callback` sends a failed exchange back with `?error=auth`. */
+/** The real Supabase callback reports a failed exchange with `?error=auth`. */
 function cameBackFailed(): boolean {
   return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("error") === "auth";
 }
 
-export default function SignInGate({ onLeave }: { onLeave: () => void }) {
+type Props = {
+  onLeave: () => void;
+  onContinue?: () => void;
+};
+
+export default function SignInGate({ onLeave, onContinue }: Props) {
+  const session = useSession();
   const [status, setStatus] = React.useState<Status>(() => (cameBackFailed() ? "failed" : "idle"));
   const [problem, setProblem] = React.useState<string | null>(() =>
-    cameBackFailed() ? "Google sign-in didn't complete. Try again, or continue as a guest." : null
+    cameBackFailed() ? "Google sign-in didn’t complete. Please try again." : null
   );
+  const [previewAvailable, setPreviewAvailable] = React.useState(false);
   const busy = status === "connecting" || status === "leaving";
 
   const google = React.useCallback(async () => {
     if (busy) return;
     setStatus("connecting");
     setProblem(null);
-    const result = await signInWithGoogle();
-    if (result.ok) return; // the page is on its way to Google; keep the wait up
-    setProblem(result.message);
+    setPreviewAvailable(false);
+
+    try {
+      const result = await signInWithGoogle();
+      if (result.ok) return; // Keep the pending state while the browser leaves for Google.
+      const unavailable = result.reason === "not-configured";
+      setProblem(
+        unavailable
+          ? "Google sign-in isn’t connected in this local preview. You can explore without signing in."
+          : "Google sign-in couldn’t connect. Please try again."
+      );
+      setPreviewAvailable(unavailable);
+    } catch {
+      setProblem("Google sign-in couldn’t connect. Please try again.");
+    }
     setStatus("failed");
   }, [busy]);
 
-  const guest = React.useCallback(() => {
+  const preview = React.useCallback(() => {
     if (busy) return;
     setStatus("leaving");
     continueAsGuest();
-  }, [busy]);
+    onContinue?.();
+  }, [busy, onContinue]);
 
   return (
-    <section className="pixx-gate" aria-labelledby="pixx-gate-name">
-      <div className="pixx-gate-room" style={{ backgroundImage: `url(${ROOM})` }} aria-hidden />
-      <i className="pixx-gate-light a" aria-hidden />
-      <i className="pixx-gate-light b" aria-hidden />
-
-      <button type="button" className="pixx-back glass-pill" onClick={onLeave}>
-        <ChevronLeft size={18} aria-hidden />
-        The rooms
+    <section className="pixx-gate pixx-entry" aria-labelledby="pixx-gate-name">
+      <button type="button" className="pixx-back" onClick={onLeave}>
+        <ChevronLeft size={17} aria-hidden />
+        Back to rooms
       </button>
 
-      <div className="pixx-gate-grid" data-leaving={status === "leaving"}>
-        <div className="pixx-gate-hero">
-          <p className="eyebrow pixx-gate-eyebrow">Room III — the product</p>
-          <h1 id="pixx-gate-name" className="pixx-gate-name">
-            <span className="pixx-line">
-              <span>PIXX-AR</span>
-            </span>
-          </h1>
-          <p className="pixx-gate-deck">
-            Shop for the room you are standing in. Real furniture, at real size, bought with one approval.
-          </p>
-        </div>
+      <div className="pixx-gate-content">
+        <h1 id="pixx-gate-name" className="pixx-gate-name">Your room, reimagined.</h1>
+        <p className="pixx-gate-deck">
+          {session
+            ? "Continue designing, right here in your room."
+            : "Sign in to start designing, right here in your room."}
+        </p>
 
-        <div className="pixx-gate-card glass glass-sheen">
-          <h2>Step inside</h2>
-          <p className="sub">One tap, then show us your room.</p>
+        <button
+          type="button"
+          className="pixx-google"
+          onClick={session ? onContinue : google}
+          disabled={busy}
+          aria-busy={status === "connecting"}
+          aria-describedby={problem ? "pixx-gate-error" : undefined}
+        >
+          {!session ? <span className="pixx-google-mark"><GoogleMark /></span> : null}
+          <span aria-live="polite">
+            {session
+              ? "Continue to studio"
+              : status === "connecting"
+                ? "Connecting to Google…"
+                : "Continue with Google"}
+          </span>
+        </button>
 
-          <button
-            type="button"
-            className="pixx-google"
-            onClick={google}
-            disabled={status === "leaving"}
-            aria-busy={status === "connecting"}
-          >
-            <GoogleMark />
-            <span aria-live="polite">
-              {status === "connecting" ? "Connecting to Google…" : "Continue with Google"}
-            </span>
+        {problem ? (
+          <p id="pixx-gate-error" className="pixx-gate-error" role="alert">{problem}</p>
+        ) : null}
+        {previewAvailable && !session ? (
+          <button type="button" className="pixx-gate-preview" onClick={preview} disabled={busy}>
+            Explore without signing in
           </button>
-
-          <button type="button" className="pixx-guest" onClick={guest} disabled={busy}>
-            Continue as guest
-          </button>
-
-          {status === "failed" && problem ? (
-            <p className="pixx-gate-error" role="alert">
-              {problem}
-            </p>
-          ) : null}
-        </div>
-
-        <ol className="pixx-steps" aria-label="What happens next">
-          {STEPS.map((step) => (
-            <li key={step.n}>
-              <span className="eyebrow n">{step.n}</span>
-              <span className="t">{step.t}</span>
-            </li>
-          ))}
-        </ol>
+        ) : null}
       </div>
     </section>
   );

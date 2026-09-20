@@ -1,3 +1,4 @@
+import { readObject } from "@/lib/checkout/request";
 import type { NextRequest } from "next/server";
 
 import { isRetailer } from "@/lib/checkout/retailers";
@@ -57,15 +58,9 @@ export async function POST(
     );
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return Response.json(
-      { error: "We could not read that request." },
-      { status: 400, headers: { "Cache-Control": "no-store" } }
-    );
-  }
+  const body = await readObject(request);
+  if (!body) return Response.json({ error: "We could not read that request." },
+    { status: 400, headers: { "Cache-Control": "no-store" } });
 
   const targetUrl = typeof body.targetUrl === "string" ? body.targetUrl.trim() : "";
   if (!targetUrl) {

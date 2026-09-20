@@ -39,7 +39,7 @@ import {
 } from "@/lib/visaAcceptance/payments";
 
 import { lineTotalMinor } from "./basket";
-import { getRun, updateLine } from "./runs";
+import { getRun, isTerminal, updateLine } from "./runs";
 import type {
   BasketLine,
   PaymentLineResult,
@@ -275,16 +275,23 @@ export async function runCheckout(
   }
 
   const run = getRun(runId);
-  if (!run) return;
+  if (!run || run.startedAt !== undefined || run.finishedAt !== null) return;
+  run.startedAt = Date.now();
 
   const stepMs = options.stepMs ?? STEP_MS;
+  const deadline = Date.now() + 40_000;
 
   for (const group of groupByRetailer(run.basket.lines)) {
     for (const line of group.lines) {
       // the run can go away under us — a dev-server reload empties the store.
       // Stop rather than writing states nobody will ever read.
       if (!getRun(runId)) return;
+      if (isTerminal(run.lines.find((entry) => entry.lineId === line.lineId)!.status)) continue;
 
+      if (Date.now() >= deadline) {
+        updateLine(runId, line.lineId, { state: "failed", reason: "Checkout timed out before reaching this item. No order was placed." });
+        continue;
+      }
       await sleep(stepMs);
       updateLine(runId, line.lineId, { state: "walking" });
 

@@ -9,8 +9,8 @@ export async function GET(req: NextRequest) {
 
   let maxPriceCents: number | undefined;
   if (maxPriceRaw != null && maxPriceRaw !== "") {
-    const parsed = Number.parseInt(maxPriceRaw, 10);
-    if (!Number.isFinite(parsed)) {
+    const parsed = Number(maxPriceRaw);
+    if (!/^\d+$/.test(maxPriceRaw) || !Number.isSafeInteger(parsed)) {
       return NextResponse.json(
         { error: "max_price must be an integer (cents)", products: [] },
         { status: 400 }

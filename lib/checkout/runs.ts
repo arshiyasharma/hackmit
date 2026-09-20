@@ -39,10 +39,11 @@ function store(): RunStore {
  * the agent walks, and a settled run has to report the numbers it actually ran
  * on rather than whatever the basket drifted to afterwards.
  */
-export function createRun(basket: Basket): CheckoutRun {
+export function createRun(basket: Basket, ownerId?: string): CheckoutRun {
   const run: CheckoutRun = {
     runId: crypto.randomUUID(),
-    basket: { ...basket, lines: basket.lines.map((line) => ({ ...line })) },
+    ownerId,
+    basket: structuredClone(basket),
     lines: basket.lines.map(
       (line): RunLine => ({ lineId: line.lineId, status: { state: "pending" } })
     ),
@@ -81,6 +82,7 @@ export function updateLine(
   const at = run.lines.findIndex((line) => line.lineId === lineId);
   if (at === -1) return undefined;
 
+  if (isTerminal(run.lines[at].status)) return run;
   run.lines[at] = { lineId, status };
   if (run.finishedAt === null && run.lines.every((line) => isTerminal(line.status))) {
     run.finishedAt = Date.now();
@@ -96,10 +98,10 @@ export function updateLine(
  * than from whatever the room screen has drifted to since. The newest matching
  * run wins, because pressing checkout twice should mandate the second basket.
  */
-export function findRunByBasketId(basketId: string): CheckoutRun | undefined {
+export function findRunByBasketId(basketId: string, ownerId?: string): CheckoutRun | undefined {
   let newest: CheckoutRun | undefined;
   for (const run of store().values()) {
-    if (run.basket.basketId !== basketId) continue;
+    if (run.basket.basketId !== basketId || (ownerId !== undefined && run.ownerId !== ownerId)) continue;
     if (!newest || run.createdAt > newest.createdAt) newest = run;
   }
   return newest;
@@ -148,4 +150,30 @@ export function getLineStatus(runId: string, lineId: string): LineStatus | undef
 /** Has every line stopped moving? */
 export function isRunFinished(run: CheckoutRun): boolean {
   return run.lines.every((line) => isTerminal(line.status));
+}
+
+/** Scope cancellation to the same browser that created the mandate. */
+export function findRunByInstructionId(instructionId: string, ownerId: string): CheckoutRun | undefined {
+  for (const run of store().values()) {
+    if (run.instructionId === instructionId && run.ownerId === ownerId) return run;
+  }
+  return undefined;
+}
+
+/** Collapse concurrent retries and retain a successful safe response per run. */
+export async function runOnce(run: CheckoutRun, key: string, operation: () => Promise<Response>): Promise<Response> {
+  run.operations ??= new Map();
+  let pending = run.operations.get(key);
+  if (!pending) {
+    pending = Promise.resolve().then(operation);
+    run.operations.set(key, pending);
+  }
+  try {
+    const response = await pending;
+    if (!response.ok) run.operations.delete(key);
+    return response.clone();
+  } catch (error) {
+    run.operations.delete(key);
+    throw error;
+  }
 }
