@@ -1,0 +1,22 @@
+[
+  {
+    "created_at": "2026-09-20T02:17:12.093929Z",
+    "display_name": "Seed Audio 1.0",
+    "id": "afc0cbfc-0565-4b3f-8e85-43e5427b615e",
+    "job_type": "seed_audio",
+    "min_result_url": null,
+    "params": {
+      "batch_size": 1,
+      "expression_intensity": 5,
+      "format": "wav",
+      "loudness_rate": 0,
+      "mood": 0,
+      "pitch_rate": 0,
+      "prompt": "One instant camera shutter click followed by a soft card flick, short, mechanical, close microphone, no music",
+      "sample_rate": 44100,
+      "speech_rate": 0
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021712_afc0cbfc-0565-4b3f-8e85-43e5427b615e.wav",
+    "status": "completed"
+  }
+]

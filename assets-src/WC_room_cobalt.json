@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T05:07:18.697334Z",
+    "display_name": "Nano Banana Pro",
+    "id": "ad422cab-6e82-4233-bb8e-9f7f8f2cf508",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_050718_ad422cab-6e82-4233-bb8e-9f7f8f2cf508_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "ee71f4fb-de60-4e40-9dbc-dd004216d280",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/ee71f4fb-de60-4e40-9dbc-dd004216d280_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep every black contour line exactly where it is, unchanged and still visible, and keep the composition identical. Fill the drawing with soft loose watercolour washes that stay roughly inside the lines with a few natural bleeds just past them. Colours: warm white plaster walls, pale oak floor, a warm oat coloured sofa, an off-white rug, and a brass floor lamp with a white shade. The large rough rectangular paint patch on the back wall is a deep rich cobalt blue, a strong ultramarine navy blue like fresh cobalt paint, clearly saturated and darker than the walls. The lounge armchair's seat and back cushions are that same deep cobalt blue. No red, no pink, and no pale washed out baby blue anywhere. Light cold-pressed paper texture, gentle pigment pooling at the edges of each wash, clean white paper showing through in places. No new objects, no text.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_050718_ad422cab-6e82-4233-bb8e-9f7f8f2cf508.png",
+    "status": "completed"
+  }
+]

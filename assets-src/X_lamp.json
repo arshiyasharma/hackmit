@@ -1,0 +1,23 @@
+[
+  {
+    "created_at": "2026-09-20T04:05:49.636034Z",
+    "display_name": "Nano Banana Pro",
+    "id": "3ba101f6-2c84-4324-943e-1d13a44dd1ce",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_040549_3ba101f6-2c84-4324-943e-1d13a44dd1ce_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "4:3",
+      "batch_size": 1,
+      "height": 1792,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Studio product photograph of a small articulated desk lamp with a slender brushed brass arm made of two jointed segments with visible pivot screws, a round weighted brass base, and a smooth white enamel cone shade, seen exactly from the side in a clean side profile, standing upright and level, switched off, soft even light from the top left, flat solid mid-gray backdrop, no shadow on the backdrop, no text, no logos, no reflections.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2400
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_040549_3ba101f6-2c84-4324-943e-1d13a44dd1ce.png",
+    "status": "completed"
+  }
+]

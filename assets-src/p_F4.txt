@@ -1,0 +1,1 @@
+Use the reference image as the exact base and keep the wall, stains, cracks, sill, plant, geometry, light, and grain pixel-identical. Change only the paint colour of the window frame, the two open window shutters, and the coloured stripes of the awning from cobalt blue to a warm coral pink, a soft salmon red. The black opening stays pure black.

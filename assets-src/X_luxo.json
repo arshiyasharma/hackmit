@@ -1,0 +1,23 @@
+[
+  {
+    "created_at": "2026-09-20T04:26:41.35685Z",
+    "display_name": "Nano Banana Pro",
+    "id": "d1ffa4db-d171-43c8-8df5-669da9f7b3b2",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_042641_d1ffa4db-d171-43c8-8df5-669da9f7b3b2_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "4:3",
+      "batch_size": 1,
+      "height": 1792,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Studio product photograph of a classic articulated angle-poise desk lamp, seen exactly from the side in a clean side profile. It has a round weighted disc base, an arm built from two sections of jointed parallel linkages with two visible tension springs along them, chunky exposed pivot screws, and a bell shaped shade with a row of narrow vent slots near its neck. Everything is brushed silver aluminium with soft specular highlights. The lamp stands upright and level, switched off, lit by soft even studio light from the top left, on a flat solid mid grey backdrop with no shadow falling on the backdrop. No text, no logos, no branding, no reflections on the floor.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2400
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_042641_d1ffa4db-d171-43c8-8df5-669da9f7b3b2.png",
+    "status": "completed"
+  }
+]

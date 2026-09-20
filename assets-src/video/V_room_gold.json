@@ -1,0 +1,41 @@
+[
+  {
+    "created_at": "2026-09-20T02:25:06.923281Z",
+    "display_name": "Seedance 2.5",
+    "id": "4dcdc51b-f6dc-4967-91a8-5cb96eaa08f6",
+    "job_type": "seedance_2_5",
+    "min_result_url": null,
+    "params": {
+      "aspect_ratio": "16:9",
+      "bitrate_mode": "standard",
+      "duration": 8,
+      "extension_mode": null,
+      "generate_audio": false,
+      "genre": "auto",
+      "height": 1080,
+      "medias": [
+        {
+          "data": {
+            "id": "39187a98-db5c-403b-af7e-ead3a999aa19",
+            "type": "media_input",
+            "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/39187a98-db5c-403b-af7e-ead3a999aa19.png"
+          },
+          "role": "start_image"
+        }
+      ],
+      "model": "default",
+      "multi_prompt": [],
+      "multi_shot_mode": "custom",
+      "multi_shots": false,
+      "prompt": "Very slow, perfectly smooth push in toward the sofa. The sheer curtain breathes in a light breeze, dust motes drift through the light, and the daylight warms gradually toward golden hour. No people. Nothing else moves. Locked composition, no handheld shake, no new objects.",
+      "prompt_language": "en",
+      "reference_elements": [],
+      "resolution": "1080p",
+      "speedramp": "auto",
+      "width": 1920
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_022506_4dcdc51b-f6dc-4967-91a8-5cb96eaa08f6.mp4",
+    "status": "completed",
+    "thumbnail_url": "https://cdn.higgsfield.ai/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_022506_4dcdc51b-f6dc-4967-91a8-5cb96eaa08f6_thumbnail.webp"
+  }
+]

@@ -1,0 +1,23 @@
+[
+  {
+    "created_at": "2026-09-20T02:13:14.809274Z",
+    "display_name": "Nano Banana Pro",
+    "id": "81c2d68f-3d79-4773-ae96-c5c0e622ad30",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021314_81c2d68f-3d79-4773-ae96-c5c0e622ad30_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 2048,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Square macro photograph of an off-white flat-woven wool rug's weave with a thin tomato red border line, raking light from the left showing the wool texture, shallow depth of field, film print finish. No text, no logos.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2048
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021314_81c2d68f-3d79-4773-ae96-c5c0e622ad30.png",
+    "status": "completed"
+  }
+]

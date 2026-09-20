@@ -1,0 +1,23 @@
+[
+  {
+    "created_at": "2026-09-20T02:13:14.395847Z",
+    "display_name": "Nano Banana Pro",
+    "id": "9a72f053-788c-4c67-af68-b9a1ba086e25",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021314_9a72f053-788c-4c67-af68-b9a1ba086e25_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 2048,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Square top-down photograph of an off-white flat-woven wool rug with a thin moss green border line lying on pale oak floor, one corner folded back to show the weave underside, soft daylight, painterly film print finish. No text, no logos.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2048
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021314_9a72f053-788c-4c67-af68-b9a1ba086e25.png",
+    "status": "completed"
+  }
+]

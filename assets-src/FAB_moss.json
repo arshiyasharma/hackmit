@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T02:14:14.598489Z",
+    "display_name": "Nano Banana Pro",
+    "id": "b92d964d-617a-4941-bc25-51eff8d0d2a1",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021414_b92d964d-617a-4941-bc25-51eff8d0d2a1_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "1961a43e-0238-4fd6-ab47-155d628b0819",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/1961a43e-0238-4fd6-ab47-155d628b0819_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep the sofa shape, every cushion fold, the oak frame, the rug, the mug, the floor, the framing, the light, and the grain pixel-identical. Change only three colors. Sofa upholstery becomes moss green boucle. The paint patch on the wall becomes warm oat. The knitted throw and the three book covers become warm oat. Do not add or remove any object.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021414_b92d964d-617a-4941-bc25-51eff8d0d2a1.png",
+    "status": "completed"
+  }
+]

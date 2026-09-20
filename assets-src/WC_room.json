@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T04:06:41.420279Z",
+    "display_name": "Nano Banana Pro",
+    "id": "d12dc462-09a6-43ec-9d41-3386e549ecfd",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_040641_d12dc462-09a6-43ec-9d41-3386e549ecfd_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "c070ee05-4319-4e7c-9c26-8469b5902c94",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/c070ee05-4319-4e7c-9c26-8469b5902c94_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep every black contour line exactly where it is, unchanged and still visible. Fill the drawing with soft loose watercolor washes that stay roughly inside the lines with a few natural bleeds just past them: warm white plaster walls, pale oak floor, a warm oat coloured sofa, tomato red armchair cushions, a brass lamp with a white shade, an off-white rug, and a tomato red paint patch on the back wall. Light cold-pressed paper texture, gentle pigment pooling at the edges of each wash, clean white paper showing through in places. No new objects, no shading beyond the washes, no text.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_040641_d12dc462-09a6-43ec-9d41-3386e549ecfd.png",
+    "status": "completed"
+  }
+]

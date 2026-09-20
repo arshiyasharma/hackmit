@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T04:05:55.568073Z",
+    "display_name": "Nano Banana Pro",
+    "id": "9fa960e3-3b8c-4323-9f27-912504e24564",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_040555_9fa960e3-3b8c-4323-9f27-912504e24564_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "05296129-5d98-40e6-bb30-ba6da1cbcf68",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/05296129-5d98-40e6-bb30-ba6da1cbcf68_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base and keep the exact same composition, camera, perspective, proportions, and every object in exactly the same position. Convert it into a clean contour line drawing: single-weight black ink outlines on a pure white background, architectural illustration style, confident continuous lines. Draw only the outlines of the walls, ceiling line, floor boards, the window reveal with its curtain, the windowsill, the arc floor lamp, the sofa with its cushion seams, the rug, the armchair, and the rectangular paint patch on the back wall. No shading, no hatching, no gray tones, no color, no fill, no texture, no text. Pure white background.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_040555_9fa960e3-3b8c-4323-9f27-912504e24564.png",
+    "status": "completed"
+  }
+]

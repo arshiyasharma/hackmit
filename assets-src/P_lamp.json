@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T02:13:20.916535Z",
+    "display_name": "Nano Banana Pro",
+    "id": "62ca3ebf-7938-4f45-be3c-1a589018f3f7",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021320_62ca3ebf-7938-4f45-be3c-1a589018f3f7_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 2048,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "dbe6c787-1851-4b24-98a0-b776abd049e3",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/dbe6c787-1851-4b24-98a0-b776abd049e3_resize.jpg"
+        }
+      ],
+      "prompt": "Square photograph of the same room as the reference image. The brass arc lamp with white linen shade glowing in the corner at dusk-blue hour, warm pool of light on the plaster wall, a slice of cobalt blue paint patch at the right edge. Soft painterly film print finish, subtle grain. No text, no logos.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2048
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021320_62ca3ebf-7938-4f45-be3c-1a589018f3f7.png",
+    "status": "completed"
+  }
+]

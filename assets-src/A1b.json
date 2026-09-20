@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T02:16:17.652004Z",
+    "display_name": "Nano Banana Pro",
+    "id": "ac93a03a-c5fc-40ee-9cdf-e65d35b1cbba",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021617_ac93a03a-c5fc-40ee-9cdf-e65d35b1cbba_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "62ae951d-e1f5-421a-a7cb-dbb6e3b6c2fd",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/62ae951d-e1f5-421a-a7cb-dbb6e3b6c2fd_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep the camera, framing, walls, floor, curtain, paint patch, light, and film grain pixel-identical. Add only one object: a slim brass arc floor lamp with a thin curved arm and a white linen drum shade, standing in the empty corner with its round brass base on the oak floor at 40% from the left edge of the image. The lamp is 152 cm tall in a room with a 270 cm ceiling, so the top of its arc reaches a little over half the wall height. The lamp is switched on, with a warm glow on both walls behind it and a faint shadow to the right. Do not change anything else.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021617_ac93a03a-c5fc-40ee-9cdf-e65d35b1cbba.png",
+    "status": "completed"
+  }
+]

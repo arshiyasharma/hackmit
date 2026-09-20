@@ -1,0 +1,22 @@
+[
+  {
+    "created_at": "2026-09-20T02:16:48.958519Z",
+    "display_name": "Seed Audio 1.0",
+    "id": "77016db3-190d-4dd1-8087-5c03fb0eb15b",
+    "job_type": "seed_audio",
+    "min_result_url": null,
+    "params": {
+      "batch_size": 1,
+      "expression_intensity": 5,
+      "format": "wav",
+      "loudness_rate": 0,
+      "mood": 0,
+      "pitch_rate": 0,
+      "prompt": "A single short paper page being pulled away and flicked, quick soft tear, close microphone, no music",
+      "sample_rate": 44100,
+      "speech_rate": 0
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021648_77016db3-190d-4dd1-8087-5c03fb0eb15b.wav",
+    "status": "completed"
+  }
+]
