@@ -39,7 +39,7 @@ export async function retryListingCutout(itemId: string): Promise<void> {
   const store = useStore.getState();
   const item = itemById(store.items, itemId);
   const product = item?.linkedProduct;
-  if (!product || item.listingCutoutStatus === "pending" || item.listingCutoutStatus === "ready") return;
+  if (!product || item.listingCutoutStatus === "pending" || (item.listingCutoutUrl && item.listingCutoutStatus !== "failed")) return;
   const requestId = store.startListingCutout(itemId);
   if (requestId === null) return;
 

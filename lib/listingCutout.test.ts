@@ -124,6 +124,15 @@ describe("listing photo replacement", () => {
     expect(current().listingCutoutNote).toBeTruthy();
   });
 
+  it("can extract a legacy linked item with no status or cutout fields", async () => {
+    useStore.setState((state) => ({ items: state.items.map((item) => ({
+      ...item, listingCutoutStatus: undefined, listingCutoutUrl: undefined,
+    })) as unknown as typeof state.items }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ url: "/legacy.png", widthRatio: 0.8 })));
+    await retryListingCutout(id);
+    expect(current()).toMatchObject({ listingCutoutStatus: "ready", listingCutoutUrl: "/legacy.png" });
+  });
+
   it("explains a missing listing photo without a network request", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

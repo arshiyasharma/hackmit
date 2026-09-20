@@ -186,7 +186,7 @@ function useLinking(product: Product) {
   const linked = item?.linkedProduct?.id === product.id;
   const linking = linked && item?.listingCutoutStatus === "pending";
   const failed = linked && item?.listingCutoutStatus === "failed";
-  const needsPhoto = linked && item?.listingCutoutStatus === "idle";
+  const needsPhoto = linked && !item?.listingCutoutUrl && !linking && !failed;
 
   const link = React.useCallback(() => {
     if (!itemId || (linked && !failed && !needsPhoto)) return;
