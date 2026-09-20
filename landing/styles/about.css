@@ -120,14 +120,14 @@
 .pitch-stack > .pitch-small-link { display: inline-block; margin-top: 27px; }
 .pitch-depth { background: var(--about-indigo); color: #f5efdc; --pitch-line: #f4dfa331; }
 .pitch-depth > h2 em { color: var(--about-butter); }
-.pitch-depth-grid { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 45px; row-gap: 50px; margin-top: 56px; }
+.pitch-depth-grid { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 45px; row-gap: 36px; margin-top: 42px; }
 .pitch-depth-grid article { border-top: 1px solid var(--pitch-line); padding-top: 21px; }
 .pitch-detail-number { float: right; font: 11px var(--font-mono); color: #b9bedb; }
 .pitch-depth-grid .pitch-eyebrow { color: #c1c6e1; padding-right: 28px; font-size: 9px; }
-.pitch-depth-grid h3 { margin: 24px 0 17px !important; font: 500 33px/1.13 var(--font-title); }
+.pitch-depth-grid h3 { margin: 0 0 12px !important; font: 500 30px/1.13 var(--font-title); color: var(--about-butter); }
 .pitch-depth-grid article > p:last-child { font-size: 13px; line-height: 1.85; color: #d7daeb; }
 .pitch-future { background: #e5e9df; }
-.pitch-roadmap { display: grid; grid-template-columns: repeat(3,1fr); gap: 42px; }
+.pitch-roadmap { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 60px; }
 .pitch-roadmap article { padding-top: 24px; border-top: 1px solid var(--pitch-line); }
 .pitch-roadmap article > span { font: 11px var(--font-mono); }
 .pitch-roadmap h3 { font: 500 34px/1.1 var(--font-title); margin: 22px 0 17px !important; }
@@ -250,14 +250,13 @@
 }
 @media(prefers-reduced-motion: reduce) { .sense .pitch-button, .pitch-photo img, .about-nav a::after, .pitch-expand { transition: none; } }
 
-/* Trust is the featured additional capability for the Visa presentation. */
-.pitch-auth { margin-top: 48px; padding: 34px 36px; border: 1px solid #f4dfa347; background: #ffffff05; }
-.pitch-auth-heading { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 28px; align-items: end; }
-.pitch-auth-heading .pitch-eyebrow { grid-column: 1/-1; color: #c1c6e1; }
-.pitch-auth-heading h3 { font: 500 48px/1.1 var(--font-title); color: var(--about-butter); }
-.pitch-auth-heading > p:last-child { font-size: 13px; color: #d7daeb; }
-.pitch-auth-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 35px; margin-top: 30px; padding-top: 25px; border-top: 1px solid var(--pitch-line); }
-.pitch-auth-grid h4 { font: 500 16px/1.3 var(--font-ui); margin-bottom: 12px !important; }
-.pitch-auth-grid p { font-size: 13px; line-height: 1.85; color: #d7daeb; }
-.pitch-auth-note { margin-top: 25px !important; font-size: 11px; color: #bcc3e2; }
-@media(max-width:760px) { .pitch-auth { padding: 25px; margin-top: 32px; }.pitch-auth-heading { grid-template-columns: 1fr; gap: 14px; }.pitch-auth-heading h3 { font-size: 42px; }.pitch-auth-grid { grid-template-columns: 1fr; gap: 24px; }.pitch-auth-note { line-height: 1.75; } }
+/* Original transparent sponsor marks keep the page's cream surface visible. */
+.pitch-sponsor-identity { display: flex; align-items: center; gap: 30px; min-height: 76px; margin: 16px 0 22px !important; }
+.pitch-sponsor-identity img { object-fit: contain; object-position: left center; width: auto; max-width: 210px; max-height: 46px; }
+.pitch-sponsor-identity .pitch-logo-elastic { width: 150px; height: auto; max-height: 52px; }
+.pitch-sponsor-identity .pitch-logo-ramp { width: 126px; max-height: 40px; }
+.pitch-sponsor-identity .pitch-logo-long-lake { width: 210px; height: auto; }
+.pitch-sponsor-identity .pitch-logo-openai { width: 150px; height: auto; }
+.pitch-sponsor-identity .pitch-logo-cursor { width: 157px; height: auto; }
+.pitch-sponsor-identity .pitch-logo-spacexai { width: 94px; height: auto; }
+@media(max-width:470px) { .pitch-sponsor-identity { gap: 22px; flex-wrap: wrap; }.pitch-sponsor-identity .pitch-logo-cursor { width: 140px; }.pitch-sponsor-identity .pitch-logo-spacexai { width: 76px; } }

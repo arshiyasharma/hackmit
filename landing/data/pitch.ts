@@ -24,25 +24,18 @@ export const gallery = [
   { file: "hackmit-meetup.webp", title: "And the people we met along the way.", alt: "Four people in front of the colorful HackMIT backdrop and balloons.", width: 1600, height: 1200, shape: "panorama" },
 ];
 
-export const authFeatures = [
-  { title: "Shopper identity", body: "Google OAuth through Supabase provides account sign-in when configured. A clearly identified guest path keeps the demo accessible." },
-  { title: "Checkout ownership", body: "An HttpOnly, SameSite cookie binds each checkout run to the browser that created it. Other sessions cannot read its status or payment progress." },
-  { title: "Payment integrity", body: "Signed Visa Acceptance requests authenticate the sandbox payment. A local Trusted Agent Protocol demo verifies the agent’s identity and request scope." },
-];
-
 export const details = [
-  { number: "01", title: "The room writes the search.", body: "Palette, lighting, style, and your own edits travel with each request. Explicit preferences take priority, and a simpler search can recover when a styled query is too narrow.", tag: "Context-aware discovery" },
-  { number: "02", title: "Original pixels. Honest previews.", body: "We isolate the actual listing image for placement. When extraction fails, a clearly labeled illustration stays in the room. Estimated dimensions never become a verified measurement.", tag: "Product image extraction" },
-  { number: "03", title: "A fit check has to earn its green light.", body: "Doorway, right-angle turn, and headroom are checked separately. Missing measurements stay unknown; tight clearance stays a warning. The geometry is a model, not a delivery guarantee.", tag: "Spatial geometry" },
-  { number: "04", title: "Changing your mind is a first-class action.", body: "Searches respond to budget edits. Replacing a piece releases its own budget, and late results from an older photo or request cannot overwrite your newer choices.", tag: "State & concurrency" },
-  { number: "05", title: "One review. A traceable checkout.", body: "A reviewed basket becomes a fixed server snapshot. Session ownership, duplicate protection, progress events, and bounded retries keep the agent’s work tied to that approval.", tag: "Checkout orchestration" },
-  { number: "06", title: "A payment result you can point to.", body: "A signed request reaches Visa Acceptance’s sandbox and returns a real authorization reference. The demo exposes that result, keeps capture disabled, and labels retailer orders as simulated.", tag: "Verified sandbox payments" },
+  { title: "Auth & trust", body: "Optional Google sign-in, protected checkout sessions, and signed sandbox payments." },
+  { title: "Budget control", body: "Set your limit. Keep product searches and your basket within budget." },
+  { title: "Room-aware search", body: "Find real products using your room’s colors, style, and your request." },
+  { title: "Product previews", body: "Place real product images in your room before you choose." },
+  { title: "Fit checks", body: "Check dimensions, doorways, turns, and headroom. Estimates stay labeled." },
+  { title: "One basket", body: "Review products from multiple retailers in one place." },
 ];
 
 export const roadmap = [
-  { title: "From a photo to a home.", body: "Floor plans, automatic depth and geometry, and a persistent digital twin that remembers the spaces and pieces you already own." },
-  { title: "A budget for the whole room.", body: "Optimize combinations of products across retailers, compare alternatives, and balance style, size, and price together." },
-  { title: "From sandbox to ownership.", body: "Complete VIC enrollment and passkey consent, connect retailer fulfillment, and bring order tracking and cross-brand rewards into one place." },
+  { title: "Live AR", body: "Move around your space and preview furniture through your phone’s camera." },
+  { title: "3D room models", body: "Turn a room scan into an editable 3D model. Arrange furniture and compare layouts." },
 ];
 
 export const visaStages = [
@@ -57,9 +50,9 @@ export const visaStages = [
 
 /** Track titles supplied by the team. These are project alignments, not award claims. */
 export const sponsorTracks = [
-  { sponsor: "Elastic", title: "Find the Signal", body: "Turn scattered product results into a reusable catalog. Elasticsearch supports filtered discovery; fresh shopping results can enrich that index for the next query.", tag: "Search & retrieval" },
-  { sponsor: "Ramp", title: "Save Time. Save Money.", body: "Keep the room budget visible, constrain product searches, and review the whole basket together. Room-wide budget optimization is the next step.", tag: "Product impact" },
-  { sponsor: "Long Lake", title: "Convince a Non-Believer", body: "Start with something personal: a photo of their own room. Let a skeptic describe a feeling, find a real product, and see the idea take shape in that space.", tag: "An experience you can try" },
-  { sponsor: "OpenAI", title: "OpenAI Challenge (5th Teammate)", body: "OpenAI vision provides an alternate room-analysis path. Codex supported implementation, debugging, and verification, including fixing stale budget results and checking the checkout flow.", tag: "Generation & development" },
-  { sponsor: "Cursor / SpaceXAI", title: "Make it Legendary with SpaceXAI", body: "Track eligibility is under review. The brief requires Cursor and Grok Imagine or Voice API in a space-data project; that integration is not demonstrated in the current build.", tag: "Eligibility to confirm" },
+  { sponsor: "Elastic", logos: [{ file: "elastic.png", label: "Elastic", width: 501, height: 172 }], title: "Find the Signal", body: "Turn scattered product results into a reusable catalog. Elasticsearch supports filtered discovery; fresh shopping results can enrich that index for the next query.", tag: "Search & retrieval" },
+  { sponsor: "Ramp", logos: [{ file: "ramp.svg", label: "Ramp", width: 71, height: 20 }], title: "Save Time. Save Money.", body: "Keep the room budget visible, constrain product searches, and review the whole basket together. Room-wide budget optimization is the next step.", tag: "Product impact" },
+  { sponsor: "Long Lake", logos: [{ file: "long-lake.png", label: "Long Lake", width: 1024, height: 103 }], title: "Convince a Non-Believer", body: "Start with something personal: a photo of their own room. Let a skeptic describe a feeling, find a real product, and see the idea take shape in that space.", tag: "An experience you can try" },
+  { sponsor: "OpenAI", logos: [{ file: "openai.png", label: "OpenAI", width: 960, height: 264 }], title: "OpenAI Challenge (5th Teammate)", body: "OpenAI vision provides an alternate room-analysis path. Codex supported implementation, debugging, and verification, including fixing stale budget results and checking the checkout flow.", tag: "Generation & development" },
+  { sponsor: "Cursor / SpaceXAI", logos: [{ file: "cursor.svg", label: "Cursor", width: 2239, height: 532 }, { file: "spacexai.svg", label: "SpaceXAI", width: 834, height: 318 }], title: "Make it Legendary with SpaceXAI", body: "Track eligibility is under review. The brief requires Cursor and Grok Imagine or Voice API in a space-data project; that integration is not demonstrated in the current build.", tag: "Eligibility to confirm" },
 ];
