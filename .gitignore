@@ -40,5 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local placeholder generation cache
-.placeholder-cache/
+# cloned reference repos — read-only, never shipped
+ref/
+
+# generated placeholder sprites — content-addressed cache, rebuilt on demand
+/.placeholder-cache/
+
+# local agent checkouts
+/.claude/worktrees/

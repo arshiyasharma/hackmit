@@ -1,0 +1,71 @@
+/* Spec Part C tokens, scoped to the landing root so the product app is untouched. */
+.sense {
+  /* color roles */
+  --field: #0D1457;
+  --paper-card: #FBF4E4;
+  --paper-page: #EFE8CF;
+  --paper-tile: #FFFFFF;
+  --paper-white: #FAF7F0;   /* the intro sheet, matched to the watercolour paper */
+  --cover: #8C9AE8;
+  --ink: #111111;
+  /* the product blue, taken from the phone in the pitch: the pale #B2C2D9 is
+     the fill colour (furniture, washes), deepened here to the same hue at a
+     readable weight, since the pale one is only 1.7:1 on paper */
+  --highlight: #265EB0;
+  --highlight-pale: #B2C2D9;
+  --subtitle: #FFE14A;
+  --veil-top: rgba(0, 0, 0, 0.25);
+  --veil-bottom: rgba(0, 0, 0, 0.5);
+  --accent-ask: #2F5BD8;
+  --accent-choose: #2F9E4A;
+  --accent-approve: #E0462E;
+  --fabric-rust: #C4552D;
+  --fabric-cobalt: #2F5BD8;
+  --fabric-moss: #2F9E4A;
+  --fabric-oat: #D9C9A8;
+
+  /* type */
+  /* the same voices the product app uses, so the landing leads into it.
+     next/font sets --font-display and --font-body on the wrapper, so these
+     tokens are named apart from them to avoid a self-referencing cycle */
+  --font-title: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  --font-ui: var(--font-body), "Instrument Sans", system-ui, sans-serif;
+  --font-script: var(--font-reenie), "Reenie Beanie", "Caveat", cursive;
+  --font-mono: var(--font-sometype), "Sometype Mono", ui-monospace, monospace;
+  --track-title: 4px;
+  --track-eyebrow: 9px;
+
+  /* safe areas and screen edges.
+     The route sets viewportFit "cover", so the page runs under the notch and the
+     home indicator. These name the insets once; a device without either reports
+     0px, so every expression below is a no-op on a desktop screen. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  /* where anything pinned to a corner sits: the 17px HUD inset, pushed in by the
+     notch when there is one (landscape puts a 59px inset on one side) */
+  --edge-t: max(17px, var(--sat));
+  --edge-r: max(17px, var(--sar));
+  --edge-b: max(17px, var(--sab));
+  --edge-l: max(17px, var(--sal));
+  /* the bottom HUD row is a 50px tile at --edge-b; anything centred that must
+     not land on top of it (cards, subtitles) measures from here */
+  --over-hud: calc(var(--edge-b) + 60px);
+  /* widest a centred card may be: 88vw, but never into a landscape notch */
+  --card-max: min(88vw, calc(100vw - var(--sal) - var(--sar) - 32px));
+
+  /* motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-slide: cubic-bezier(0.55, 0, 0.1, 1);
+  --ease-pop: cubic-bezier(0.19, 1.51, 0.29, 0.99);
+  --ease-exit: cubic-bezier(0.71, 0.01, 0.81, -0.51);
+  --ease-shake: cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  /* trimmed from the spec's values to match the 1.35x motion speed in main.ts */
+  --t-fast: 0.22s;
+  --t-base: 0.37s;
+  --t-slow: 0.74s;
+  --t-page: 0.9s;
+  --t-truck: 1.2s;
+}

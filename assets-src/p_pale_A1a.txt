@@ -1,0 +1,1 @@
+Use the reference image as the exact base. Keep the camera, walls, floor, curtain, corner, lighting, shadows and film grain pixel-identical. Change one thing only: the slice of deep cobalt blue paint patch visible at the right edge becomes a soft pale sky blue, a gentle periwinkle blue like a clear morning sky. Do not change anything else.

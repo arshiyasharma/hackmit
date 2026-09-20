@@ -1,0 +1,23 @@
+[
+  {
+    "created_at": "2026-09-20T07:07:18.164456Z",
+    "display_name": "Nano Banana Pro",
+    "id": "eeec1c2e-7015-46b6-a23a-9f06f49d179c",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_070718_eeec1c2e-7015-46b6-a23a-9f06f49d179c_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "STYLE: Interior photograph with a soft painterly finish, like a scanned medium format film print. Soft overcast daylight enters from a large window on the left wall, with long gentle shadows falling to the right and no hard sun patches. Warm white matte plaster walls with a slight hand-troweled texture, pale oak plank floor running toward the back wall, tall plain white baseboard. Straight-on one-point perspective with the back wall perfectly parallel to the camera, camera height 1.2 meters, 28mm lens look, everything in focus, subtle film grain, slightly lifted blacks. No people, no text, no letters, no numbers, no logos, no brand marks, no watermark. Aspect ratio 16:9.\n\nAn open plan hackathon workroom on the last night, composed with generous bleed: everything important sits inside the central 64% of the image width and the central 70% of its height, and the outer margins show only more wall, ceiling and floor. Two long plain oak trestle tables run across the room, covered with closed laptops, tangled charger cables, paper cups, sticky notes and a couple of open notebooks. Mismatched chairs are pushed in at angles. A large whiteboard on the back wall is covered in faint blue diagram scribbles and boxes, too small and soft to read as words. A string of small warm fairy lights is taped along the top of the back wall and glows gently. One cardboard box of snacks sits on the floor at the right. A rolled sleeping bag leans in the far corner. Warm, lived-in, a little messy, but calm and empty of people.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_070718_eeec1c2e-7015-46b6-a23a-9f06f49d179c.png",
+    "status": "completed"
+  }
+]

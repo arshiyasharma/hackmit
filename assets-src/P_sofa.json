@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T02:13:21.21771Z",
+    "display_name": "Nano Banana Pro",
+    "id": "fa268143-2f63-4210-a026-c76fbb530d2a",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021321_fa268143-2f63-4210-a026-c76fbb530d2a_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 2048,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "67fc9228-c040-473c-aa4e-6b1503a8692c",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/67fc9228-c040-473c-aa4e-6b1503a8692c_resize.jpg"
+        }
+      ],
+      "prompt": "Square photograph, three-quarter view of the same oak-framed sofa in warm oat boucle as in the reference image, against the plaster wall with the moss green paint patch behind it, knitted throw on the arm, soft daylight from the left, film print finish. No text, no logos.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2048
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021321_fa268143-2f63-4210-a026-c76fbb530d2a.png",
+    "status": "completed"
+  }
+]

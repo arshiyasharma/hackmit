@@ -1,0 +1,253 @@
+/* Components from spec C1 to C3. Looping animations always run on inner
+   wrappers, never on an element that carries a position or rest rotation. */
+
+@property --peel { syntax: "<length>"; inherits: true; initial-value: 0px; }
+
+@keyframes ringPulse { from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                       to   { opacity: 0; transform: translate(-50%, -50%) scale(2.2); } }
+@keyframes lineBoil  { 0%, 100% { opacity: 1;   transform: translate(0, 0) rotate(0deg); }
+                       25%      { opacity: 0.8; transform: translate(-0.2px, 0.2px) rotate(-1deg); }
+                       50%      { opacity: 0.9; transform: translate(0.2px, -0.2px) rotate(1deg); }
+                       75%      { opacity: 0.7; transform: translate(-0.2px, -0.2px) rotate(0deg); } }
+@keyframes slowZoom  { from { transform: scale(1); } to { transform: scale(1.1); } }
+@keyframes underlineDraw { from { background-size: 0% 2px; } to { background-size: 100% 2px; } }
+@keyframes wiggle    { 0%, 20%, 100% { transform: rotate(-0.59deg); }
+                       5%, 15% { transform: rotate(-5deg); } 10% { transform: rotate(5deg); } }
+@keyframes shakeX    { 10%, 90% { transform: translateX(-0.5px); } 20%, 80% { transform: translateX(1px); }
+                       30%, 50%, 70% { transform: translateX(-2px); } 40%, 60% { transform: translateX(2px); } }
+@keyframes tileEnter { from { opacity: 0; transform: translate(var(--enter-x, 0), var(--enter-y, -120%)) rotate(var(--rest, 0deg)); }
+                       to   { opacity: 1; transform: translate(0, 0) rotate(var(--rest, 0deg)); } }
+@keyframes tileLeave { from { opacity: 1; transform: translate(0, 0) rotate(var(--rest, 0deg)); }
+                       to   { opacity: 0; transform: translate(var(--enter-x, 0), var(--enter-y, -120%)) rotate(var(--rest, 0deg)); } }
+@keyframes spin      { to { transform: rotate(360deg); } }
+
+.sense .hl { color: var(--highlight); font-weight: 400; }
+.sense .ui.no-cursor, .sense .ui.no-cursor * { cursor: none !important; }
+
+/* ---- title card (A2, C1) ---- */
+.title-card {
+  position: absolute; inset: 0; z-index: 60; background: var(--field); color: #fff;
+  display: grid; place-items: center; text-transform: uppercase;
+}
+/* every size here is capped against the short axis as well as the tall one:
+   6vh of type is 51px on a phone held upright and 24px on its side */
+.title-notice {
+  position: absolute; top: max(5vh, calc(var(--sat) + 12px)); left: 50%; transform: translateX(-50%);
+  display: flex; gap: 12px; align-items: center; max-width: var(--card-max);
+  font-size: max(11px, min(1.9vh, 3.4vw)); line-height: 1.35; letter-spacing: 1px; opacity: 0;
+}
+.title-notice span { display: block; }
+.title-column { width: clamp(280px, 40vw, 560px); max-width: var(--card-max); }
+.title-row { display: flex; justify-content: space-between; font-weight: 700; letter-spacing: var(--track-title); opacity: 0; }
+/* tracking adds a trailing gap after the last letter; pull it back so rows end flush */
+.title-row span:last-child { margin-right: calc(var(--track-title) * -1); }
+.title-eyebrow { font-size: clamp(14px, min(3vh, 4.4vw), 34px); height: min(12vh, 84px); align-items: center; }
+.title-main { font-size: clamp(22px, min(6vh, 8.4vw), 68px); height: min(12vh, 84px); align-items: center; line-height: 1; }
+.title-body { margin-top: min(5vh, 32px); text-align: center; font-size: max(14px, min(1.9vh, 3.6vw)); line-height: 1.5; text-transform: none; opacity: 0; }
+.title-body span { display: block; }
+.title-enter { margin: min(5vh, 32px) auto 0; display: flex; justify-content: center; height: 48px; position: relative; }
+.title-enter .tile { position: relative; }
+.title-spinner {
+  position: absolute; top: 14px; left: 50%; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.25); border-top-color: #fff; animation: spin 0.9s linear infinite;
+}
+
+/* ---- paper tile (C2) ---- */
+.tile {
+  --peel: 0px; position: absolute; display: block; opacity: 0; pointer-events: none;
+  transform: translate(var(--enter-x, 0), var(--enter-y, -120%)) rotate(var(--rest, 0deg));
+}
+.tile[data-state="in"] { animation: tileEnter 0.5s var(--ease-pop) both; pointer-events: auto; }
+.tile[data-state="out"] { animation: tileLeave 0.3s var(--ease-out) both; }
+.tile-body {
+  position: relative; display: flex; align-items: center; gap: 10px; height: 48px; min-width: 48px; padding: 0 18px;
+  background: var(--paper-tile); color: var(--ink); border-radius: 4px; font-size: 14px; white-space: nowrap;
+  clip-path: polygon(0 0, calc(100% - var(--peel)) 0, 100% var(--peel), 100% 100%, 0 100%);
+  transition: --peel var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out), background-color var(--t-base) var(--ease-out), color var(--t-base);
+}
+.tile-body:has(.tile-icon:only-of-type):not(:has(.tile-label)) { padding: 0; justify-content: center; width: 50px; height: 50px; }
+.tile-icon { display: grid; place-items: center; width: 24px; height: 24px; }
+.tile-peel {
+  position: absolute; top: 0; right: 0; width: var(--peel); height: var(--peel);
+  background: linear-gradient(45deg, #d9d9d9 0%, #f4f4f4 45%, #bdbdbd 50%, transparent 50%);
+  filter: drop-shadow(-1px 2px 2px rgba(0, 0, 0, 0.3)); transition: inherit; pointer-events: none;
+}
+/* the peel is a pointer flourish. A tap on iOS leaves :hover stuck on the tile
+   until you tap something else, so it is gated and the press answers instead. */
+@media (hover: hover) and (pointer: fine) {
+  .tile:hover .tile-body { --peel: 14px; transform: rotate(1deg); }
+}
+.tile:focus-visible .tile-body { --peel: 14px; transform: rotate(1deg); }
+.tile:active .tile-body { transform: scale(0.96); transition-duration: 0.1s; }
+.tile:focus-visible { outline: none; }
+.tile:focus-visible .tile-body { box-shadow: 0 0 0 2px var(--highlight); clip-path: none; }
+
+.hud-counter { top: var(--edge-t); left: var(--edge-l); }
+.hud-basket { top: var(--edge-t); right: var(--edge-r); }
+/* the bottom right is the forward corner, so Skip takes it and sound moves left */
+.hud-sound { bottom: var(--edge-b); left: var(--edge-l); }
+.hud-skip { bottom: var(--edge-b); right: var(--edge-r); z-index: 41; }
+.hud-skip .tile-body { background: var(--ink); color: #fff; padding: 0 20px; }
+@keyframes skipNudge {
+  0%, 70%, 100% { box-shadow: 0 0 0 0 rgba(38, 94, 176, 0); }
+  35% { box-shadow: 0 0 0 7px rgba(38, 94, 176, 0.22); }
+}
+/* someone who has already taken the tour gets one quiet nudge toward Skip */
+.hud-skip.seen-before .tile-body { animation: skipNudge 2.6s var(--ease-out) 3; }
+.hud-skip .tile-peel { background: linear-gradient(45deg, #3a3a3a 0%, #555 45%, #222 50%, transparent 50%); }
+/* room III's one control: the same corner as Skip, in room III's own red,
+   so the way into the product is where the way to it was */
+.hud-open .tile-peel { background: linear-gradient(45deg, #a8301c 0%, #ee6a52 45%, #8f2716 50%, transparent 50%); }
+.hud-rooms { bottom: var(--edge-b); left: 50%; margin-left: -78px; }
+.hud-back { top: var(--edge-t); left: var(--edge-l); }
+.hud-close { bottom: var(--edge-b); left: 50%; margin-left: -25px; }
+
+/* ---- cards: toast and reward (C2) ---- */
+.card {
+  position: absolute; left: 50%; bottom: calc(var(--sab) + 24px); z-index: 40; max-width: var(--card-max);
+  background: var(--paper-card); border-radius: 4px; padding: 12px 27px; box-shadow: 0 0 4px rgba(0, 0, 0, 0.25);
+  font-size: 16px; line-height: 19.2px;
+}
+.card-icon {
+  display: grid; place-items: center; flex: none; width: 62px; height: 62px; border-radius: 50%; background: #fff;
+  box-shadow: 0.7px 0.7px 1.41px rgba(0, 0, 0, 0.25);
+}
+.toast { display: flex; align-items: center; gap: 16px; white-space: nowrap; }
+.toast-text span { display: block; }
+.toast.clickable { cursor: pointer; }
+/* a tappable toast has no cursor to give it away on a phone, so the press does */
+.toast.clickable:active { filter: brightness(0.96); }
+.reward { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 32px 20px; width: min(340px, var(--card-max)); text-align: center; }
+.reward .card-icon { margin-top: -46px; }
+.reward-text { margin: 0; text-wrap: balance; }
+/* the label stays 43px tall; the button around it is the 44px touch target */
+.card-button { display: grid; place-items: center; min-height: 44px; }
+.card-button .wiggle {
+  display: block; height: 43px; line-height: 43px; padding: 0 18px; background: #fff; text-transform: uppercase; font-size: 14px;
+  transform: rotate(-0.59deg); animation: wiggle 4s var(--ease-out) infinite; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+@media (hover: hover) and (pointer: fine) {
+  .card-button:hover .wiggle { animation-play-state: paused; }
+}
+.card-button:active .wiggle { animation-play-state: paused; filter: brightness(0.94); }
+.card-close {
+  position: absolute; top: -10px; right: -10px; width: 28px; height: 28px; border-radius: 50%; background: #fff !important;
+  display: grid; place-items: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+/* 28px of white reads right in the corner, but a thumb needs 44 */
+/* 28px reads right on the card, but the tap area has to reach 44px */
+.card-close::before { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
+.card-close:active { filter: brightness(0.92); }
+
+/* ---- hotspot (C2) ---- */
+.hotspot { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 20; will-change: transform; }
+.hotspot::before { content: ""; position: absolute; left: -46.5px; top: -46.5px; width: 93px; height: 93px; border-radius: 50%; }
+.hotspot-in { position: absolute; left: -23px; top: -23px; width: 46px; height: 46px; display: block; transition: opacity var(--t-fast), transform var(--t-base) var(--ease-pop); }
+.hotspot[data-state="hidden"] { pointer-events: none; }
+.hotspot[data-state="hidden"] .hotspot-in { opacity: 0; transform: scale(0.4); }
+.hotspot-in > * { position: absolute; left: 50%; top: 50%; }
+.hotspot-ring { width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.6); animation: ringPulse 2s linear infinite; }
+.hotspot-ring.late { animation-delay: 1s; }
+.hotspot-blob { width: 46px; height: 46px; transform: translate(-50%, -50%); transition: transform var(--t-base) var(--ease-pop); filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.25)); }
+.hotspot-blob svg { width: 100%; height: 100%; display: block; }
+.hotspot-icon { transform: translate(-50%, -50%); transition: opacity var(--t-fast); display: grid; }
+@media (hover: hover) and (pointer: fine) {
+  .hotspot:hover .hotspot-blob { transform: translate(-50%, -50%) scale(1.1); }
+}
+/* touch never hovers: the press itself has to confirm the aim landed */
+.hotspot:active .hotspot-blob { transform: translate(-50%, -50%) scale(1.14); }
+.hotspot-spin, .hotspot-check, .hotspot-lock { opacity: 0; transform: translate(-50%, -50%); }
+.hotspot-spin { width: 34px; height: 34px; margin: -17px 0 0 -17px; transform: none; border-radius: 50%; border: 1.5px solid transparent; border-top-color: #fff; }
+.hotspot-check { display: grid; color: var(--ink); }
+.hotspot-lock { display: grid; place-items: center; left: calc(50% + 15px); top: calc(50% + 15px); width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
+
+.hotspot[data-state="loading"] .hotspot-blob { transform: translate(-50%, -50%) scale(0.435); }
+.hotspot[data-state="loading"] .hotspot-icon, .hotspot[data-state="loading"] .hotspot-ring { opacity: 0; animation: none; }
+.hotspot[data-state="loading"] .hotspot-spin { opacity: 1; animation: spin 0.8s linear infinite; }
+.hotspot[data-state="visited"] .hotspot-blob { transform: translate(-50%, -50%) scale(0.478); }
+.hotspot[data-state="visited"] .hotspot-icon, .hotspot[data-state="visited"] .hotspot-ring { opacity: 0; animation: none; }
+.hotspot[data-state="visited"] .hotspot-check { opacity: 1; }
+.hotspot[data-state="locked"] .hotspot-icon { opacity: 0.5; }
+.hotspot[data-state="locked"] .hotspot-ring { animation: none; opacity: 0; }
+.hotspot[data-state="locked"] .hotspot-lock { opacity: 1; }
+.hotspot-in.shake { animation: shakeX 0.6s var(--ease-shake) both; }
+
+/* ---- subtitles (A3, C1) ---- */
+.subtitles {
+  position: absolute; left: 50%; bottom: calc(var(--sab) + 40px); transform: translateX(-50%); margin: 0; z-index: 45; opacity: 0; pointer-events: none;
+  font-size: 18px; color: var(--subtitle); text-align: center; white-space: nowrap;
+  text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000;
+}
+
+/* ---- chapter label, arrows (A8, A9) ---- */
+/* both sizes are capped against the width too: 3.45vh is 32px of 4px-tracked
+   caps on a tall phone, which "APPROVE ONCE" cannot fit across 375px */
+.eyebrow { display: block; font-size: max(12px, min(1.7vh, 3.2vw)); font-weight: 700; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: #fff; }
+.chapter-name, .reveal-title { display: block; font-size: max(22px, min(3.45vh, 6.2vw)); font-weight: 700; letter-spacing: var(--track-title); line-height: 1.5; text-transform: uppercase; color: #fff; }
+.chapter-label { position: absolute; left: 0; top: 0; text-align: center; white-space: nowrap; opacity: 0; transition: opacity var(--t-base) var(--ease-out); pointer-events: none; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 2px 18px rgba(0, 0, 0, 0.45); }
+.chapter-label.on { opacity: 1; }
+.chapter-entry { left: 0; top: 0; animation: none !important; transform: none; opacity: 0; transition: opacity var(--t-base) var(--ease-out); }
+.chapter-entry.on { opacity: 1; pointer-events: auto; }
+.arrow {
+  position: absolute; top: 50%; width: 46px; height: 46px; margin-top: -23px; border-radius: 50%; background: #fff !important; display: grid; place-items: center;
+  opacity: 0; pointer-events: none; transition: opacity var(--t-base) var(--ease-out), transform var(--t-fast) var(--ease-out); z-index: 30;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.arrow.left { left: max(20px, var(--sal)); } .arrow.right { right: max(20px, var(--sar)); }
+.arrow.on { opacity: 1; pointer-events: auto; }
+@media (hover: hover) and (pointer: fine) {
+  .arrow.on:hover { transform: scale(1.08); }
+}
+.arrow.on:active { transform: scale(0.94); }
+.arrow.on:disabled { opacity: 0.4; pointer-events: none; }
+
+/* ---- found reveal (A5) ---- */
+.reveal { position: absolute; inset: 0; z-index: 35; pointer-events: none; text-align: center; }
+.reveal-head { position: absolute; top: calc(var(--sat) + clamp(18px, 7vh, 88px)); left: 0; right: 0; padding: 0 max(16px, var(--sar)) 0 max(16px, var(--sal)); }
+.reveal-head > * { opacity: 0; }
+/* 62vh of a square cut-out is 528px across on a 393px phone. Capping the height
+   against the width keeps the tilted cut-out inside the screen on every phone
+   and leaves the desktop size exactly as authored. */
+.reveal-cutout { position: absolute; left: 50%; top: 47%; height: min(62vh, 72vw); max-width: 72vw; opacity: 0; filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.55)); }
+.reveal-cutout img { height: 100%; width: auto; max-width: 100%; object-fit: contain; display: block; }
+.reveal-cutout .ph { height: 100%; aspect-ratio: 3 / 4; border-radius: 12px; background: repeating-linear-gradient(45deg, #ddd 0 12px, #ccc 12px 24px); display: grid; place-items: center; font: 700 16px var(--font-mono); color: #444; }
+
+/* ---- progress cursor (C2) ---- */
+.pcursor { position: absolute; left: 0; top: 0; z-index: 80; width: 0; height: 0; pointer-events: none; opacity: 0; transition: opacity var(--t-fast); }
+.pcursor.on { opacity: 1; }
+.pcursor > * { position: absolute; left: -23px; top: -23px; }
+.pcursor-dot { width: 46px; height: 46px; border-radius: 50%; background: #fff; display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+.ring-value { transition: stroke-dashoffset 0.05s linear; }
+
+.fade-black { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 55; }
+.flood { position: absolute; inset: 0; background: var(--field); opacity: 0; pointer-events: none; z-index: 48; }
+
+@media (max-width: 767px) {
+  /* 375px will not hold sound + Change room + Skip across one row: Skip is 157px
+     and Change room 159px, so they overlap on every iPhone. The two small
+     controls pair up in the left corner, thumb-high, and Skip keeps the whole
+     right corner with its label, since it has to stay the obvious way out. */
+  /* the sound tile is 50px but sits at -9deg, so its box is ~67px; 76px
+     clears it with room for the Change room tile to lean the other way */
+  .hud-rooms { left: calc(var(--edge-l) + 76px); margin-left: 0; }
+  .hud-rooms .tile-label { display: none; }  /* the aria-label still names it */
+  .hud-rooms .tile-body { width: 50px; height: 50px; padding: 0; justify-content: center; }
+
+  /* cards and subtitles clear the bottom HUD row instead of landing on it */
+  .card { bottom: var(--over-hud); }
+  .toast { white-space: normal; }
+  .subtitles { white-space: normal; width: var(--card-max); font-size: 16px; bottom: var(--over-hud); }
+}
+
+/* A phone on its side: 393px of height, so the bottom row is close to
+   everything and a 62vh cut-out leaves no room for the card under it. */
+@media (max-height: 500px) {
+  .card { bottom: var(--over-hud); }
+  .subtitles { white-space: normal; max-width: var(--card-max); font-size: 16px; bottom: var(--over-hud); }
+  .reveal-cutout { height: min(50vh, 32vw); top: 48%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hotspot-ring, .card-button .wiggle { animation: none; }
+  .tile[data-state="in"], .tile[data-state="out"] { animation-duration: 0.01s; }
+}

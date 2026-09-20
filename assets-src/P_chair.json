@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T02:13:21.414797Z",
+    "display_name": "Nano Banana Pro",
+    "id": "655888fd-51b6-4748-88ca-a2f48dfca739",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021321_655888fd-51b6-4748-88ca-a2f48dfca739_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 2048,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "120b225f-2de4-4031-8f71-91fdb4705e36",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/120b225f-2de4-4031-8f71-91fdb4705e36_resize.jpg"
+        }
+      ],
+      "prompt": "Square photograph of the same slender oak lounge armchair with tomato red linen cushions as in the reference image, standing beside the window, sheer curtain moving slightly, tomato red paint patch soft in the background, film print finish. No text, no logos.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2048
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021321_655888fd-51b6-4748-88ca-a2f48dfca739.png",
+    "status": "completed"
+  }
+]

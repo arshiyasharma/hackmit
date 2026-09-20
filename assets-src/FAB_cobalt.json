@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T02:14:14.219173Z",
+    "display_name": "Nano Banana Pro",
+    "id": "bfe20beb-d889-4473-b06d-13d994c0860b",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021414_bfe20beb-d889-4473-b06d-13d994c0860b_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "0e1beba0-3341-4b3e-a4e1-490a2be7b3bd",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/0e1beba0-3341-4b3e-a4e1-490a2be7b3bd_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep the sofa shape, every cushion fold, the oak frame, the rug, the mug, the floor, the framing, the light, and the grain pixel-identical. Change only three colors. Sofa upholstery becomes cobalt blue boucle. The paint patch on the wall becomes tomato red. The knitted throw and the three book covers become tomato red. Do not add or remove any object.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021414_bfe20beb-d889-4473-b06d-13d994c0860b.png",
+    "status": "completed"
+  }
+]

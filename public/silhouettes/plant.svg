@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 540" width="340" height="540" role="img" aria-label="Potted plant">
+  <!-- Stand-in silhouette. #C97B5F and #2A2724 are replaced at render time
+       with the room's own palette by lib/placeholder.ts. -->
+  <path d="M170 330V120" stroke="#2A2724" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <path d="M170 214c-54 0-96-34-108-86 58-14 100 12 118 60Z" fill="#2A2724"/>
+  <path d="M170 214c54 0 96-34 108-86-58-14-100 12-118 60Z" fill="#2A2724"/>
+  <path d="M170 300c-46 0-82-30-92-74 50-12 86 10 100 52Z" fill="#2A2724" fill-opacity="0.6"/>
+  <path d="M170 300c46 0 82-30 92-74-50-12-86 10-100 52Z" fill="#2A2724" fill-opacity="0.6"/>
+  <path d="M170 120c26-28 26-64 0-92-26 28-26 64 0 92Z" fill="#2A2724"/>
+  <path d="M84 326h172l-22 176a20 20 0 0 1-20 18h-88a20 20 0 0 1-20-18Z" fill="#C97B5F"/>
+  <rect x="72" y="310" width="196" height="30" rx="15" fill="#C97B5F"/>
+  <rect x="104" y="382" width="132" height="12" rx="6" fill="#2A2724" fill-opacity="0.32"/>
+</svg>

@@ -1,0 +1,209 @@
+/* The picker remains on the room stage; only the panel frosts what is behind it. */
+.capture-upload {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-height: 100dvh;
+  width: 100%;
+  place-items: center;
+  padding: max(76px, calc(env(safe-area-inset-top) + 60px)) 24px max(56px, calc(env(safe-area-inset-bottom) + 32px));
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), "Instrument Sans", system-ui, sans-serif;
+}
+
+.capture-panel {
+  display: flex;
+  width: min(100%, 700px);
+  flex-direction: column;
+  gap: 28px;
+  padding: 40px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  box-shadow: 0 12px 48px rgb(24 19 18 / 5%);
+  text-align: center;
+}
+
+.capture-title {
+  margin: 0;
+  font-size: clamp(27px, 3.4vw, 34px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.capture-description {
+  max-width: 38ch;
+  margin: 12px auto 0;
+  color: var(--muted-foreground);
+  font-size: 15px;
+  line-height: 1.6;
+  text-wrap: balance;
+}
+
+.capture-dropzone {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 32px 20px;
+  border: 1px dashed color-mix(in srgb, var(--foreground) 24%, transparent);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--surface) 18%, transparent);
+  transition: border-color var(--micro) var(--ease-out), background-color var(--micro) var(--ease-out);
+}
+
+.capture-dropzone[data-dragging="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.capture-drop-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.capture-dropzone[data-dragging="true"] .capture-drop-icon {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.capture-drop-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.capture-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--micro) var(--ease-out), border-color var(--micro) var(--ease-out);
+}
+
+.capture-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.capture-button:disabled { cursor: wait; opacity: 0.6; }
+.capture-button-primary { background: var(--accent); color: var(--on-accent); }
+.capture-button-primary:hover:not(:disabled) { background: var(--accent-bright); }
+.capture-button-secondary {
+  border-color: color-mix(in srgb, var(--foreground) 18%, transparent);
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+  color: var(--foreground);
+}
+.capture-button-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--surface) 75%, transparent); }
+
+.capture-help, .capture-status {
+  max-width: 38ch;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.capture-tip { margin: -10px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.capture-upload .capture-notice { border-radius: 0; box-shadow: none; }
+
+.pixx-room-root .capture-upload { height: 100dvh; min-height: 100%; background: transparent; }
+.pixx-room-root .capture-panel {
+  border-color: rgb(255 255 255 / 65%);
+  background: color-mix(in srgb, var(--surface) 64%, transparent);
+  box-shadow: 0 20px 70px rgb(34 18 14 / 12%), inset 0 1px 0 rgb(255 255 255 / 45%);
+  -webkit-backdrop-filter: blur(22px) saturate(110%);
+  backdrop-filter: blur(22px) saturate(110%);
+}
+.pixx-room-root .capture-review { background: transparent; }
+.pixx-room-root .capture-review .capture-paper-light { display: none; }
+
+@media (max-width: 600px) {
+  .capture-upload { padding-inline: 16px; }
+  .capture-panel { gap: 24px; padding: 28px 20px; }
+  .capture-dropzone { padding: 28px 16px; }
+  .capture-tip { margin-top: -8px; }
+}
+
+@media (max-height: 600px) and (min-width: 601px) {
+  .capture-upload { padding-block: 52px 28px; }
+  .capture-panel { gap: 20px; padding: 28px 32px; }
+  .capture-dropzone { gap: 12px; padding-block: 20px; }
+  .capture-drop-icon { width: 36px; height: 36px; }
+  .capture-tip { margin-top: -6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capture-dropzone, .capture-button { transition: none; }
+}
+
+/* Live capture is only the unfiltered feed and one shutter. */
+.capture-camera {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #151515;
+}
+.capture-camera-feed {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.capture-camera-shutter {
+  position: absolute;
+  left: 50%;
+  bottom: max(28px, calc(env(safe-area-inset-bottom) + 16px));
+  transform: translateX(-50%);
+  min-height: 48px;
+  padding: 12px 24px;
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 0;
+  background: var(--accent);
+  color: #fff;
+  font: 500 14px/1.4 var(--font-body), "Instrument Sans", system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 16%);
+}
+.capture-camera-shutter:hover:not(:disabled) { background: var(--accent-bright); }
+.capture-camera-shutter:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+.capture-camera-shutter:disabled { cursor: wait; opacity: 0.65; }
+.capture-camera-error {
+  position: absolute;
+  top: max(20px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(400px, calc(100% - 32px));
+  padding: 12px 16px;
+  background: rgb(255 255 255 / 92%);
+  color: var(--foreground);
+  font-size: 13px;
+  text-align: center;
+}
+.pixx-room-root:has(.capture-camera) .pixx-chip { display: none; }

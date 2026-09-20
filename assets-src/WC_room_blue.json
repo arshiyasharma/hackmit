@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T04:52:17.470342Z",
+    "display_name": "Nano Banana Pro",
+    "id": "1bdcbcae-f07b-41c7-a5bf-bb7f098a1b87",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_045217_1bdcbcae-f07b-41c7-a5bf-bb7f098a1b87_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "de133316-69c2-4b16-b8e5-99b92b372f61",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/de133316-69c2-4b16-b8e5-99b92b372f61_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep every black contour line exactly where it is, unchanged and still visible, and keep the composition identical. Fill the drawing with soft loose watercolour washes that stay roughly inside the lines with a few natural bleeds just past them. Colours: warm white plaster walls, pale oak floor, a warm oat coloured sofa, an off-white rug, and a brass floor lamp with a white shade. The lounge armchair's seat and back cushions are a soft pale sky blue, a gentle periwinkle blue like a clear morning sky, and the large rough rectangular paint patch on the back wall is that same soft pale sky blue. No red and no pink anywhere in the picture. Light cold-pressed paper texture, gentle pigment pooling at the edges of each wash, clean white paper showing through in places. No new objects, no text.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_045217_1bdcbcae-f07b-41c7-a5bf-bb7f098a1b87.png",
+    "status": "completed"
+  }
+]

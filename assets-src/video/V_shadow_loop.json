@@ -1,0 +1,32 @@
+[
+  {
+    "created_at": "2026-09-20T02:25:04.513023Z",
+    "display_name": "Seedance 2.5",
+    "id": "f0c05f4b-f4e9-4c2e-8afc-c1074d91cd09",
+    "job_type": "seedance_2_5",
+    "min_result_url": null,
+    "params": {
+      "aspect_ratio": "16:9",
+      "bitrate_mode": "standard",
+      "duration": 6,
+      "extension_mode": null,
+      "generate_audio": false,
+      "genre": "auto",
+      "height": 720,
+      "medias": [],
+      "model": "default",
+      "multi_prompt": [],
+      "multi_shot_mode": "custom",
+      "multi_shots": false,
+      "prompt": "Locked-off shot of a plain white wall filling the frame. Soft, out-of-focus shadows of tree branches and leaves sway slowly across the wall in a light breeze. High key, gentle contrast, calm and slow. No objects, no camera movement, no light changes other than the moving shadows. The motion at the end matches the motion at the start so the clip can loop.",
+      "prompt_language": "en",
+      "reference_elements": [],
+      "resolution": "720p",
+      "speedramp": "auto",
+      "width": 1280
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_022504_f0c05f4b-f4e9-4c2e-8afc-c1074d91cd09.mp4",
+    "status": "completed",
+    "thumbnail_url": "https://cdn.higgsfield.ai/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_022504_f0c05f4b-f4e9-4c2e-8afc-c1074d91cd09_thumbnail.webp"
+  }
+]

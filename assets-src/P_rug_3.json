@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T02:13:20.953736Z",
+    "display_name": "Nano Banana Pro",
+    "id": "873669d9-6da1-4b5d-b57f-3127b318ce92",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021320_873669d9-6da1-4b5d-b57f-3127b318ce92_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 2048,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "432f1637-9ba2-4b78-a674-78d3e5b375bb",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/432f1637-9ba2-4b78-a674-78d3e5b375bb_resize.jpg"
+        }
+      ],
+      "prompt": "Square photograph of the same rug as in the reference image with its moss green border line, in the room under the front legs of the oak-framed oat sofa, camera low at 40 cm, soft daylight from the left, film print finish. No text, no logos.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2048
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021320_873669d9-6da1-4b5d-b57f-3127b318ce92.png",
+    "status": "completed"
+  }
+]

@@ -1,0 +1,159 @@
+/* The opening. One sheet of warm paper: the room draws itself in contour
+   lines, a watercolour wash floods it, and the copy settles on top.
+
+   Typography matches the product app, so the landing leads into it:
+     Cormorant        the name, the only loud thing on the page
+     Instrument Sans  the deck, set at reading size with a real measure
+     Sometype Mono    the small tracked labels, which recede
+   Scale carries the hierarchy, so only the small labels are tracked out.
+
+   Sizes are clamped against BOTH axes. A phone is ~390 wide and ~850 tall, so
+   a height-only clamp lets the display face grow past the screen width; a
+   width-only clamp collapses it when the phone turns on its side. */
+
+.sense .intro {
+  position: absolute; inset: 0; overflow: hidden; z-index: 60;
+  background: var(--paper-white);
+  --wash: -25%;
+  /* one gutter for anything that reaches a screen edge. In landscape the notch
+     eats 47px on one side, so a flat 16px is not enough on its own */
+  --edge-x: max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+}
+
+/* ---- the drawing, then the wash ---- */
+.intro-hero { position: absolute; inset: 0; pointer-events: none; }
+.hero-line, .hero-wc {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center 64%;
+}
+.hero-line {
+  background: center 64% / cover no-repeat var(--line-src);
+  clip-path: inset(0 100% 0 0);
+}
+.hero-line[data-side="r"] { clip-path: inset(0 0 0 100%); }
+.hero-wc {
+  opacity: 0;
+  /* the wash rises through the drawing instead of cross-fading flat */
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 var(--wash), transparent calc(var(--wash) + 16%));
+  mask-image: linear-gradient(to top, #000 0%, #000 var(--wash), transparent calc(var(--wash) + 16%));
+}
+/* the pen tip that travels with each drawing edge */
+.hero-pen {
+  position: absolute; top: 0; bottom: 0; width: 2px; opacity: 0;
+  background: linear-gradient(to bottom, transparent, rgba(17, 17, 17, 0.5) 22%, rgba(17, 17, 17, 0.5) 78%, transparent);
+}
+
+/* ---- the copy ---- */
+.intro-notice {
+  position: absolute; left: 50%; translate: -50% 0; margin: 0; opacity: 0;
+  /* clear of the status bar and the notch; max() leaves desktop where it was */
+  top: max(3.6dvh, calc(env(safe-area-inset-top, 0px) + 10px));
+  display: flex; align-items: center; gap: 8px; pointer-events: none;
+  /* max-content instead of the shrink-to-fit an abspos left:50% would give it,
+     so the line uses the screen and wraps at the gutter rather than at 50vw */
+  width: max-content; max-width: calc(100vw - 2 * var(--edge-x));
+  text-align: center; text-wrap: balance;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em;
+  line-height: 1.45;
+  text-transform: uppercase; color: rgba(17, 17, 17, 0.4);
+}
+.intro-notice svg { opacity: 0.55; flex: none; }
+
+.intro-copy {
+  position: absolute; left: 50%; top: 41%; translate: -50% -50%;
+  display: grid; justify-items: center;
+  width: min(720px, 90vw); max-width: calc(100vw - 2 * var(--edge-x));
+  text-align: center; opacity: 0;
+}
+/* a wash of the paper so the copy reads over the painting, with no card edge */
+.intro-copy::before {
+  content: ""; position: absolute; left: 50%; top: 50%; translate: -50% -50%;
+  width: 132%; height: 176%; border-radius: 50%; z-index: -1;
+  background: radial-gradient(closest-side, var(--paper-white) 40%, rgba(250, 247, 240, 0.78) 68%, transparent 100%);
+}
+
+.intro-name {
+  margin: 0;
+  /* a light old-style at a large size: it sits with the watercolour rather than
+     shouting over it, and at this weight it needs the extra size and tracking
+     to hold its presence. PIXX-AR sets about 4.1em wide, so the vw cap keeps
+     seven capitals inside a narrow window */
+  font-family: var(--font-title); font-optical-sizing: auto;
+  font-size: clamp(63px, min(13.8dvh, 14vw), 152px);
+  font-weight: 300; line-height: 0.96;
+  letter-spacing: 0.05em; text-indent: 0.05em;
+  text-transform: uppercase; color: var(--ink);
+}
+.intro-name .name-ar { color: var(--highlight); }
+/* a hyphen is drawn for lowercase, so it hangs low between capitals */
+.intro-name .name-dash {
+  display: inline-block; transform: translateY(-0.055em);
+  color: var(--highlight); margin: 0 0.02em;
+}
+
+.intro-deck {
+  /* a real measure, so the sentence breaks where it wants to */
+  margin: 3.4dvh 0 0; max-width: 36ch;
+  font-size: clamp(17px, 2.45dvh, 22px); font-weight: 400; line-height: 1.5;
+  color: rgba(17, 17, 17, 0.82); text-wrap: balance;
+}
+
+.intro-action {
+  margin: 3dvh 0 0;
+  font-family: var(--font-mono); font-size: clamp(12px, 1.72dvh, 15px); font-weight: 700;
+  letter-spacing: 0.2em; text-indent: 0.2em;
+  text-transform: uppercase; color: var(--highlight);
+}
+
+.intro-enter { position: relative; height: 52px; margin-top: 3.4dvh; display: flex; justify-content: center; }
+.intro-enter .tile { position: relative; }
+.intro-enter .tile-body { height: 52px; padding: 0 24px; font-size: 15px; box-shadow: 0 2px 10px rgba(17, 17, 17, 0.1); }
+
+/* The drawing is 16:9. On a screen much taller than it, object-fit: cover
+   crops to a 26%-wide slice of the room and nothing reads, so the hero stops
+   being full bleed and becomes a band letterboxed onto the paper. The band is
+   4:3, which keeps 75% of the drawing's width at every phone size, and the
+   wash mask then rides the band instead of the screen. */
+@media (max-aspect-ratio: 4 / 5) {
+  .intro-hero {
+    /* 43% sits the band just below the copy's own centre, so the room reads
+       under the wordmark the way the 64% focal point does on a wide screen */
+    inset: auto 0 auto 0; top: 43%; translate: 0 -50%;
+    height: min(75vw, 52dvh);
+    /* feather the two cut edges so the band has no rectangle showing */
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent);
+  }
+}
+
+@media (max-width: 767px) {
+  .intro-copy { top: 39%; width: min(440px, calc(100vw - 2 * var(--edge-x))); }
+  /* the name is the widest thing on the page, so the veil grows with it */
+  .intro-copy::before { width: 146%; }
+  /* 17vw x 4.1em leaves the wordmark at ~76% of the copy block on every phone */
+  .intro-name { font-size: clamp(44px, min(10dvh, 17vw), 78px); letter-spacing: 0.04em; text-indent: 0.04em; }
+  /* 26ch is a real measure here, not the block edge: 30ch would already be
+     wider than a 393px phone's copy block and the rag would go to chance */
+  .intro-deck { max-width: 26ch; margin-top: clamp(14px, 2.8dvh, 22px); font-size: clamp(16px, 2.45dvh, 19px); }
+  .intro-action { margin-top: clamp(12px, 3dvh, 20px); }
+  .intro-enter { margin-top: clamp(16px, 3.4dvh, 26px); }
+  /* the sentence sets 354px at this tracking, which is one line on a 393 and a
+     430 phone and two on a 375; 0.18em would cost the 393 a second line */
+  .intro-notice { letter-spacing: 0.12em; }
+}
+
+/* A phone on its side leaves ~390px of height for the whole stack, and the
+   width-based caps above would still be reading from a 850px axis, so the
+   copy goes compact and the deck spends the spare width on a longer measure.
+   This sits last so it also wins on a 667x375 phone, which is "mobile" wide. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .intro-copy { top: 44%; width: min(620px, calc(100vw - 2 * var(--edge-x))); }
+  .intro-copy::before { width: 128%; height: 190%; }
+  .intro-name { font-size: clamp(34px, min(13dvh, 7.5vw), 62px); letter-spacing: 0.04em; text-indent: 0.04em; }
+  .intro-deck { max-width: 46ch; margin-top: 8px; font-size: clamp(14px, 3.7dvh, 17px); }
+  .intro-action { margin-top: 8px; font-size: clamp(11px, 2.9dvh, 14px); }
+  /* 46px is the smallest that still clears a 44px thumb target */
+  .intro-enter { margin-top: 10px; height: 46px; }
+  .intro-enter .tile-body { height: 46px; padding: 0 20px; font-size: 14px; }
+  .intro-notice { top: max(8px, calc(env(safe-area-inset-top, 0px) + 6px)); letter-spacing: 0.14em; }
+}

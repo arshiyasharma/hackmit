@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 520" width="260" height="520" role="img" aria-label="Mirror">
+  <!-- Stand-in silhouette. #C97B5F and #2A2724 are replaced at render time
+       with the room's own palette by lib/placeholder.ts. -->
+  <path d="M130 14c64 0 114 52 114 116v266a14 14 0 0 1-14 14H30a14 14 0 0 1-14-14V130C16 66 66 14 130 14Z" fill="#C97B5F"/>
+  <path d="M130 50c45 0 80 37 80 82v252H50V132c0-45 35-82 80-82Z" fill="#2A2724" fill-opacity="0.26"/>
+  <path d="M84 340L182 96h22L106 340Z" fill="#2A2724" fill-opacity="0.5"/>
+  <path d="M142 384l40-100h16l-40 100Z" fill="#2A2724" fill-opacity="0.5"/>
+</svg>

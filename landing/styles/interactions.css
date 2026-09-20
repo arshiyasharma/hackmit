@@ -1,0 +1,188 @@
+/* Interaction close-ups from spec M6: ask (A12), fabric lens (A14), piece
+   viewer (A11). Each root is a click-through layer under the toast, the cards,
+   and the progress cursor; only its buttons take pointer events. Rest rotations
+   and entrances are set from script, loops run on inner wrappers only. */
+
+.sense .ui > .ask-root, .sense .ui > .lens-root, .sense .ui > .viewer-root {
+  position: absolute; inset: 0; z-index: 30; pointer-events: none;
+}
+
+/* the root layout sets viewportFit cover, so every tile pinned to a screen edge
+   owes the notch and the home bar their room. max() keeps the 17px design gap
+   where there is no inset, which is the whole of Safari in portrait. */
+.ask-root .hud-back, .lens-root .hud-back {
+  top: max(17px, env(safe-area-inset-top, 0px));
+  left: max(17px, env(safe-area-inset-left, 0px));
+}
+.viewer-root .hud-close { bottom: max(17px, env(safe-area-inset-bottom, 0px)); }
+
+/* env() only resolves to a used value on a real box, so this zero-size, no-op
+   span is how AskInteraction reads the insets back out in script */
+.safe-probe {
+  position: absolute; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+/* ---- ask (A12) ---- */
+.ask-dock {
+  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 18px; pointer-events: none;
+}
+/* a second of finger on one spot is what iOS reads as a selection or a callout */
+.ask-dock .tile {
+  position: relative; touch-action: none;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.ask-fill {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 0 0 4px 4px; background: var(--highlight);
+  transform: scaleX(0); transform-origin: 0 50%; pointer-events: none;
+}
+.ask-hold.ask-holding .tile-body { transform: scale(0.96); transition-duration: 0.1s; }
+/* no ring cursor on a phone, so the tile face carries the hold instead: the
+   same 0 to 1 arrives as --hold, and the wash rides the body's own transform */
+.ask-touch .ask-fill { height: 5px; }
+.ask-touch .ask-hold .tile-body {
+  background-image: linear-gradient(to right,
+    color-mix(in srgb, var(--highlight) 20%, transparent) calc(var(--hold, 0) * 100%),
+    transparent calc(var(--hold, 0) * 100%));
+}
+
+/* the note overlaps the bottom edge of the frame, like a slip pushed under it */
+.ask-note {
+  position: relative; width: min(430px, 88vw); margin-bottom: -16px; padding: 28px 32px 46px; border-radius: 3px;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 35px, rgba(36, 87, 230, 0.12) 35px 36px),
+    var(--paper-card);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); text-align: center;
+}
+.ask-note::before {
+  content: ""; position: absolute; top: -13px; left: 50%; width: 96px; height: 27px; margin-left: -48px;
+  background: rgba(255, 255, 255, 0.55); transform: rotate(3deg);
+  clip-path: polygon(0 8%, 4% 0, 9% 10%, 96% 0, 100% 12%, 97% 52%, 100% 94%, 93% 100%, 6% 92%, 0 100%, 3% 48%);
+}
+.ask-note-text {
+  display: block; font-family: var(--font-script); font-size: 36px; line-height: 36px; color: var(--highlight);
+  animation: lineBoil 0.8s steps(1, end) infinite;
+}
+
+.ask-dim { position: absolute; inset: 0; pointer-events: none; }
+.ask-dim svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.55)); }
+.ask-dim path { fill: none; stroke: #fff; stroke-width: 1.5; stroke-linecap: round; }
+.ask-chip {
+  position: absolute; left: 0; top: 0; margin: 0; padding: 6px 10px; border-radius: 3px; background: var(--paper-tile);
+  font: 12px/1.2 var(--font-mono); letter-spacing: 0.5px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  /* the gauge is placed in script, but nothing it says may leave the frame */
+  max-width: calc(100vw - 24px); overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---- fabric lens (A14) ---- */
+.lens-hit {
+  position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  /* the lens is dragged in both axes, so nothing here may pan or call out */
+  touch-action: none; -webkit-touch-callout: none;
+}
+.sense .lens-hit:focus-visible { outline-offset: -8px; }
+/* the dock outranks the full-screen hit layer, so Pick this one stays tappable */
+.lens-root .tile, .lens-dock { z-index: 2; }
+.lens-dock {
+  position: absolute; left: 50%; bottom: max(24px, calc(env(safe-area-inset-bottom, 0px) + 8px)); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: none;
+}
+.lens-dock .tile { position: relative; }
+.lens-caption {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 7px 12px 7px 9px; border-radius: 4px; overflow: hidden;
+  background: var(--paper-card); font-size: 13px; line-height: 16px; white-space: nowrap; box-shadow: 0 0 4px rgba(0, 0, 0, 0.25);
+  max-width: calc(100vw - 32px);
+}
+.lens-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--fabric-oat); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18); }
+/* no overflow of its own: the name slides up out of the caption's clip on change */
+.lens-name { display: block; min-width: 0; }
+/* only filled on touch, where the ring cursor is not there to count them off */
+.lens-count { flex: none; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.5px; opacity: 0.55; }
+.lens-count:empty { display: none; }
+
+/* ---- piece viewer (A11) ---- */
+/* the cards are bounded on both axes: dvh, because the iOS URL bar moves and a
+   card sized in vh would be cut off by it */
+.viewer-stack {
+  position: absolute; left: 50%; top: 50%; width: min(88vw, 44dvh); aspect-ratio: 375 / 477; transform: translate(-50%, -52%);
+  display: block; pointer-events: auto; border-radius: 0.4em; -webkit-tap-highlight-color: transparent;
+  touch-action: none; /* the whole stack is one tap target, and nothing here pans */
+}
+.viewer-card { position: absolute; left: 50%; top: 50%; display: block; will-change: transform; }
+.viewer-add {
+  top: max(17px, env(safe-area-inset-top, 0px));
+  right: max(17px, env(safe-area-inset-right, 0px));
+}
+
+.viewer-facts {
+  width: min(88vw, 44dvh); aspect-ratio: 375 / 477; border-radius: 0.4em; background: var(--viewer-accent, var(--highlight)); color: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); text-align: left;
+  /* the card sets its own type scale, so the copy fits the card at every size
+     instead of fitting a viewport the card is no longer the size of */
+  container-type: inline-size;
+}
+.viewer-facts-text {
+  position: absolute; left: 12%; right: 11%; top: 15%; display: block; transform: rotate(-5deg);
+  /* 6.8cqi is the old 3vh, re-expressed against the card it actually sits on */
+  font-size: clamp(14px, 6.8cqi, 40px); line-height: 1.3; font-weight: 500; text-wrap: balance;
+}
+.viewer-hint { position: absolute; left: 7%; bottom: 6%; display: flex; align-items: center; gap: 8px; font-size: max(12px, 3.8cqi); }
+
+.viewer-photo {
+  width: min(76vw, 40dvh); aspect-ratio: 900 / 1078; border-radius: 2px; background: #fdfcf7;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+/* faint paper noise over the white border */
+.viewer-photo::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0.12; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* square image, inset 4.5% from the top at 77.5% of the card height */
+.viewer-img {
+  position: absolute; top: 4.5%; left: 50%; height: 77.5%; aspect-ratio: 1; transform: translateX(-50%); overflow: hidden; display: block;
+  background: color-mix(in srgb, var(--viewer-accent, #999) 22%, #d9d3c5); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+.viewer-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.viewer-top .viewer-img img { animation: slowZoom 8s cubic-bezier(0.45, 0, 0.55, 1) alternate infinite; }
+.viewer-img.viewer-missing {
+  background: repeating-linear-gradient(45deg,
+    color-mix(in srgb, var(--viewer-accent, #999) 30%, #e4dfd2) 0 12px,
+    color-mix(in srgb, var(--viewer-accent, #999) 18%, #e4dfd2) 12px 24px);
+}
+
+@media (max-width: 767px) {
+  .ask-note { padding: 22px 24px 40px; }
+  .ask-note-text { font-size: 30px; line-height: 30px; }
+  /* the fabric name is the readout of the whole interaction, so it gets body size */
+  .lens-caption { font-size: 14px; line-height: 17px; }
+  /* height is the plentiful axis on a phone, so the cards grow toward the width */
+  .viewer-stack, .viewer-facts { width: min(88vw, 56dvh); }
+  .viewer-photo { width: min(76vw, 50dvh); }
+}
+
+/* short and wide, where height is the scarce axis and a bottom dock eats the
+   frame. Last, so it also wins on a phone held sideways at 667 by 375. */
+@media (orientation: landscape) and (max-height: 460px) {
+  .ask-dock { gap: 10px; }
+  .ask-note { width: min(360px, 76vw); padding: 14px 20px 26px; margin-bottom: -10px; }
+  .ask-note-text { font-size: 24px; line-height: 26px; }
+  .lens-dock { gap: 8px; }
+  .viewer-stack, .viewer-facts { width: min(72vw, 62dvh); }
+  .viewer-photo { width: min(62vw, 55dvh); }
+  /* the card now reaches the bottom of the frame, so Close leaves the middle
+     for the corner, where the side margins are wide open */
+  .viewer-root .hud-close { left: auto; margin-left: 0; right: max(17px, env(safe-area-inset-right, 0px)); }
+}
+
+/* no hover to peel the paper on, so the press does it instead */
+@media (hover: none) {
+  .ask-root .tile:active .tile-body,
+  .lens-root .tile:active .tile-body,
+  .viewer-root .tile:active .tile-body { --peel: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-note-text, .viewer-top .viewer-img img { animation: none; }
+}

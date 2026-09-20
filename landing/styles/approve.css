@@ -1,0 +1,195 @@
+/* Approve once and the receipts reel (spec B4, C1 "Receipts", C4 "Receipts", M7).
+   The phone interface is sized from --s, which is its pixel width / 200, so
+   every length below is written on a 200 unit wide phone. */
+
+/* ---- approve scene ---- */
+.approve-layer { z-index: 30; }
+
+/* Both boxes are placed from the script in the same way: while the interface is
+   glued to the still it sits exactly on the plate, and when it lifts off only
+   the plate keeps the projected rect. */
+.approve-phone, .approve-screen {
+  --s: 1; position: absolute; left: 0; top: 0; width: 200px; height: 424px; opacity: 0;
+  transform-origin: 50% 50%; will-change: transform;
+}
+.approve-screen {
+  display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;
+  padding: calc(var(--s) * 36px) calc(var(--s) * 20px) calc(var(--s) * 30px);
+  border-radius: calc(var(--s) * 18px); background: #EEE9DC; color: var(--ink);
+  box-shadow: inset 0 0 calc(var(--s) * 16px) rgba(70, 48, 16, 0.14), inset 0 0 1px rgba(0, 0, 0, 0.35);
+}
+/* the photographed screen, lit: only seen once the interface has lifted off it */
+.approve-plate { display: none; }
+.approve-layer[data-mode="sheet"] .approve-plate {
+  display: block; position: absolute; inset: 0; border-radius: calc(var(--s) * 18px); background: #EEE9DC;
+  box-shadow: inset 0 0 calc(var(--s) * 16px) rgba(70, 48, 16, 0.14), inset 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+/* ---- the interface, lifted off the still (phones and short viewports) ----
+   The script decides this, not a media query: on a 375 x 667 phone the
+   photographed screen projects ~150px wide, where Approve would be 35px tall
+   and the summary 11px. Lifted, it is the same paper, the same corner and the
+   same inner shadow, enlarged over the phone it came from. */
+.approve-layer[data-mode="sheet"] .approve-screen {
+  --s: 1.05;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(340px, calc(100% - 32px)); height: auto;
+  max-height: calc(100% - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  /* .sense sets touch-action: none for the 3D stage, which would eat the scroll
+     in the rare case the summary is taller than the viewport */
+  overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain;
+  box-shadow:
+    inset 0 0 calc(var(--s) * 16px) rgba(70, 48, 16, 0.14), inset 0 0 1px rgba(0, 0, 0, 0.35),
+    0 18px 44px rgba(0, 0, 0, 0.45);
+}
+.approve-head { display: flex; flex-direction: column; gap: calc(var(--s) * 34px); }
+.approve-mark {
+  display: block; text-align: center; font-size: calc(var(--s) * 11px); font-weight: 700; letter-spacing: calc(var(--s) * 5px);
+  text-indent: calc(var(--s) * 5px); text-transform: uppercase; opacity: 0.55;
+}
+.approve-lines { display: flex; flex-direction: column; gap: calc(var(--s) * 6px); }
+.approve-line { margin: 0; font-size: calc(var(--s) * 24px); line-height: 1.15; }
+.approve-total {
+  margin-top: calc(var(--s) * 10px); padding-top: calc(var(--s) * 12px); border-top: 1px dashed rgba(17, 17, 17, 0.3);
+  font-family: var(--font-mono); font-size: calc(var(--s) * 14.5px); white-space: nowrap;
+}
+
+.approve-action { display: grid; place-items: center; min-height: calc(var(--s) * 132px); }
+.approve-action > * { grid-area: 1 / 1; }
+.sense .approve-button {
+  display: block; width: 100%; align-self: end; border-radius: calc(var(--s) * 9px);
+  -webkit-tap-highlight-color: transparent;
+}
+.approve-button-in {
+  display: grid; place-items: center; height: calc(var(--s) * 46px); border-radius: inherit;
+  background: var(--accent-approve); color: #fff; font-size: calc(var(--s) * 14px); font-weight: 700;
+  letter-spacing: calc(var(--s) * 1.2px); text-transform: uppercase; white-space: nowrap;
+  box-shadow: 0 calc(var(--s) * 2px) calc(var(--s) * 6px) rgba(224, 70, 46, 0.35);
+  transition: transform var(--t-fast) var(--ease-out), filter var(--t-fast) var(--ease-out);
+}
+/* touch has no hover, and iOS would leave the lift stuck on after a tap */
+@media (hover: hover) {
+  .approve-button:hover .approve-button-in { filter: brightness(1.06); transform: translateY(calc(var(--s) * -1px)); }
+}
+.approve-button:active .approve-button-in { transform: scale(0.97); transition-duration: 0.1s; }
+/* both tap targets clear 44px whatever --s they are drawn at: once because the
+   interface has lifted, once for any coarse pointer (a tablet keeps the
+   interface glued to a still that projects it small) */
+.approve-layer[data-mode="sheet"] .approve-button-in { min-height: 44px; }
+.approve-layer[data-mode="sheet"] .approve-hold { min-width: 44px; min-height: 44px; }
+@media (pointer: coarse) {
+  .approve-button-in { min-height: 44px; }
+  .sense .approve-hold { min-width: 44px; min-height: 44px; }
+}
+
+.approve-hold-wrap { display: flex; flex-direction: column; align-items: center; gap: calc(var(--s) * 10px); visibility: hidden; }
+.sense .approve-hold {
+  /* the shared ring draws in --highlight; on this screen it takes the chapter accent */
+  --highlight: var(--accent-approve);
+  position: relative; display: block; width: calc(var(--s) * 92px); height: calc(var(--s) * 92px); border-radius: 50%;
+  background: #fff; color: var(--ink); box-shadow: 0 calc(var(--s) * 2px) calc(var(--s) * 8px) rgba(0, 0, 0, 0.18);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+  /* a press-and-hold on iOS otherwise raises the callout, the selection
+     magnifier and a grey tap flash over the ring */
+  touch-action: none; -webkit-touch-callout: none;
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.approve-hold .ring { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity var(--t-fast) var(--ease-out); }
+.approve-glyph { position: absolute; inset: 0; display: grid; place-items: center; transition: transform var(--t-fast) var(--ease-out); }
+.approve-glyph .ico { width: calc(var(--s) * 46px); height: calc(var(--s) * 46px); }
+.approve-hold[data-holding] .approve-glyph { transform: scale(0.9); color: var(--accent-approve); }
+.sense .approve-hold[data-state="done"] { background: var(--accent-approve); color: #fff; cursor: default; }
+.approve-hold[data-state="done"] .ring { opacity: 0; }
+.approve-caption { margin: 0; text-align: center; font-size: calc(var(--s) * 12.5px); line-height: 1.25; opacity: 0.75; text-wrap: balance; }
+
+/* paper note, rest rotation set from script so the slide never erases it */
+.sense .approve-layer > .approve-note {
+  position: absolute; left: max(24px, 7vw); bottom: 92px; max-width: 80vw; padding: 14px 24px 12px; pointer-events: none;
+  background: var(--paper-card); border-radius: 2px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-script); font-size: 36px; line-height: 1; color: var(--ink); transform-origin: 0 100%;
+}
+.approve-note::before {
+  content: ""; position: absolute; left: 50%; top: -13px; width: 92px; height: 26px; margin-left: -46px;
+  background: rgba(255, 255, 255, 0.55); transform: rotate(-4deg);
+  clip-path: polygon(0 8%, 4% 0, 97% 4%, 100% 14%, 98% 92%, 94% 100%, 3% 96%, 1% 84%);
+}
+.approve-note-in { display: block; }
+
+/* ---- receipts reel ---- */
+.sense .ui > .receipt-row {
+  position: absolute; left: 0; right: 0; top: 58%; z-index: 30; transform: translateY(-50%); pointer-events: none;
+  display: flex; justify-content: center; align-items: flex-start; gap: clamp(14px, 2.4vw, 36px);
+}
+.receipt {
+  position: relative; top: var(--dy, 0px); flex: none; width: 172px; visibility: hidden;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.38)); will-change: transform;
+}
+.receipt-paper {
+  display: flex; flex-direction: column; gap: 5px; padding: 16px 16px 62px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.04), transparent 18%, transparent 80%, rgba(0, 0, 0, 0.05)), var(--paper-card);
+  color: var(--ink); font-family: var(--font-mono); font-size: 13px; line-height: 1.35; font-weight: 400;
+  /* torn zigzag edge, 14 teeth of 7px */
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 7px), 96.43% 100%, 92.86% calc(100% - 7px), 89.29% 100%, 85.71% calc(100% - 7px),
+    82.14% 100%, 78.57% calc(100% - 7px), 75% 100%, 71.43% calc(100% - 7px), 67.86% 100%, 64.29% calc(100% - 7px), 60.71% 100%,
+    57.14% calc(100% - 7px), 53.57% 100%, 50% calc(100% - 7px), 46.43% 100%, 42.86% calc(100% - 7px), 39.29% 100%,
+    35.71% calc(100% - 7px), 32.14% 100%, 28.57% calc(100% - 7px), 25% 100%, 21.43% calc(100% - 7px), 17.86% 100%,
+    14.29% calc(100% - 7px), 10.71% 100%, 7.14% calc(100% - 7px), 3.57% 100%, 0 calc(100% - 7px));
+}
+.receipt-shop { font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+.receipt-rule { display: block; height: 0; margin: 4px 0; border-top: 1px dashed rgba(17, 17, 17, 0.35); }
+.receipt-price { font-weight: 700; }
+.receipt-caption { opacity: 0.6; }
+.receipt-digits { letter-spacing: 1px; white-space: pre; }
+.receipt-stamp {
+  position: absolute; left: 50%; bottom: 17px; margin-left: -37px; width: 74px; padding: 3px 0 2px; text-align: center; visibility: hidden;
+  border: 2px solid var(--accent-approve); border-radius: 4px; color: var(--accent-approve);
+  font: 700 17px/1 var(--font-mono); letter-spacing: 3px; text-indent: 3px; text-transform: uppercase;
+  box-shadow: inset 0 0 0 1px rgba(224, 70, 46, 0.25);
+}
+
+@media (max-width: 767px) {
+  .sense .approve-layer > .approve-note {
+    left: max(16px, env(safe-area-inset-left, 0px));
+    /* clear of the home indicator */
+    bottom: max(84px, calc(env(safe-area-inset-bottom, 0px) + 68px));
+    max-width: min(80vw, calc(100vw - 32px)); font-size: 28px; padding: 12px 18px 10px;
+  }
+  /* two columns inside a fixed gutter, so the pair is centred and the rotated
+     corners never reach the edge whatever the phone is */
+  .sense .ui > .receipt-row {
+    top: 46%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px;
+    width: min(360px, calc(100% - 40px)); margin-inline: auto;
+  }
+  .receipt { width: auto; }
+  /* 14px, the body floor: the column is >= 160px wide here, which "one-time
+     number" clears at that size without wrapping mid-phrase */
+  .receipt-paper { padding: 14px 12px 56px; font-size: 14px; }
+  .receipt-caption { opacity: 0.72; }
+}
+
+@media (max-height: 640px) and (min-width: 768px) {
+  .sense .ui > .receipt-row { top: 50%; }
+}
+
+/* Landscape phones: there is no room under the phone for a centred sheet, so
+   the interface docks to the free right edge and the paper note keeps the
+   bottom left. Same type, tighter frame. */
+@media (max-height: 560px) {
+  .approve-layer[data-mode="sheet"] .approve-screen {
+    --s: 1;
+    left: auto; right: max(16px, env(safe-area-inset-right, 0px)); transform: translateY(-50%);
+    width: min(300px, 44vw);
+    padding: calc(var(--s) * 22px) calc(var(--s) * 18px) calc(var(--s) * 18px);
+  }
+  .approve-layer[data-mode="sheet"] .approve-head { gap: calc(var(--s) * 16px); }
+  .approve-layer[data-mode="sheet"] .approve-action { min-height: calc(var(--s) * 104px); }
+  .sense .approve-layer > .approve-note {
+    /* the notch sits on one long edge in landscape */
+    left: max(24px, 7vw, env(safe-area-inset-left, 0px));
+    bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px)); font-size: 26px; padding: 10px 16px 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .approve-button-in, .approve-glyph { transition: none; }
+}

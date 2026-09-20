@@ -1,0 +1,464 @@
+[
+  {
+    "created_at": "2026-09-20T02:01:44.569759Z",
+    "display_name": "Nano Banana Pro",
+    "id": "a64932ba-4955-4bf7-9750-c3cbc5d19ade",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_020144_a64932ba-4955-4bf7-9750-c3cbc5d19ade_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "450bc3c9-841f-48e5-9e31-873b61871d2e",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/450bc3c9-841f-48e5-9e31-873b61871d2e_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base and keep everything pixel-identical except these changes. 1: repaint the paint test patch from moss green to tomato red, same shape and drips. 2: change the thin border line of the rug from moss green to tomato red. 3: add one lounge armchair with a slender oak frame and a tomato red linen seat and back cushion, standing on the floor at 71% from the left edge, to the right of the sofa, turned about 30 degrees toward the sofa, with a soft contact shadow falling to the right. The phone stays on the windowsill. Nothing else changes.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_020144_a64932ba-4955-4bf7-9750-c3cbc5d19ade.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T02:00:48.858149Z",
+    "display_name": "Nano Banana Pro",
+    "id": "30941787-9e88-4d74-add3-56f9a6deb420",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_020048_30941787-9e88-4d74-add3-56f9a6deb420_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "9f7f4a46-becc-41b4-a1fe-c0e6286a0c86",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/9f7f4a46-becc-41b4-a1fe-c0e6286a0c86_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base and keep the camera, architecture, window, curtain, phone, arc lamp, bulb, light direction, and grain pixel-identical. Make only these changes. 1: repaint the rough paint test patch on the back wall from cobalt blue to moss green, same shape and drips. 2: remove the cardboard moving box and show clean oak floor in its place. 3: add a three-seater sofa with a low oak frame and deep loose cushions in warm oat-colored boucle, centered against the back wall at 50% from the left edge, spanning from 36% to 64% of the image width, so the green paint patch rises behind its back cushions. 4: add a flat-woven wool rug, 200 by 300 cm, off-white with a thin moss green border line, lying on the floor in front of the sofa, centered at 50% from the left edge, its far edge tucked slightly under the sofa. Soft contact shadows under the new pieces that match the existing light from the left.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_020048_30941787-9e88-4d74-add3-56f9a6deb420.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:59:58.390864Z",
+    "display_name": "Nano Banana Pro",
+    "id": "819624d4-de87-4ec9-b2da-40c6d3dd74e6",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015958_819624d4-de87-4ec9-b2da-40c6d3dd74e6_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "ff9f3a96-f953-44a9-a8cc-4fa1290fbb68",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/ff9f3a96-f953-44a9-a8cc-4fa1290fbb68_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base and keep the wall, stains, cracks, sill, plant, geometry, light, and grain pixel-identical. Change only the paint color of the window frame, the two open window shutters, and the colored stripes of the awning from cobalt blue to moss green. The black opening stays pure black.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015958_819624d4-de87-4ec9-b2da-40c6d3dd74e6.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:59:58.385694Z",
+    "display_name": "Nano Banana Pro",
+    "id": "1e0b84a6-0dda-4462-9c54-b0256c739c09",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015958_1e0b84a6-0dda-4462-9c54-b0256c739c09_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "d75b4158-4e29-4e0a-b928-ea5035eed891",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/d75b4158-4e29-4e0a-b928-ea5035eed891_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base and keep the wall, stains, cracks, sill, plant, geometry, light, and grain pixel-identical. Change only the paint color of the window frame, the two open window shutters, and the colored stripes of the awning from cobalt blue to tomato red. The black opening stays pure black.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015958_1e0b84a6-0dda-4462-9c54-b0256c739c09.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:59:58.105804Z",
+    "display_name": "Nano Banana Pro",
+    "id": "88b01c72-9886-4340-b9b8-6cb4e4c7437c",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015958_88b01c72-9886-4340-b9b8-6cb4e4c7437c_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "35060722-8512-453e-8aae-bed62ef134e5",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/35060722-8512-453e-8aae-bed62ef134e5_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep everything pixel-identical. Change only the phone: it now lies screen-down in exactly the same position and rotation, showing a plain matte graphite back with one small camera lens at its top left corner and no logo or marking.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015958_88b01c72-9886-4340-b9b8-6cb4e4c7437c.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:59:57.775021Z",
+    "display_name": "Nano Banana Pro",
+    "id": "41eb92f1-a744-43fb-81a8-3c4c78786fa5",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015957_41eb92f1-a744-43fb-81a8-3c4c78786fa5_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "af8d8ffb-4abb-4860-9c82-be3aded7493e",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/af8d8ffb-4abb-4860-9c82-be3aded7493e_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep the camera, walls, floor, window, curtain, phone, paint patch, bulb, moving box, light, and film grain pixel-identical. Add only one object: a slim brass arc floor lamp with a white linen drum shade standing in the back left corner of the room, its round base on the oak floor near the back wall at about 30% from the left edge of the image. The lamp is 152 cm tall in a room with a 270 cm ceiling, so the top of its arc reaches a little over half the wall height. The lamp is switched on and throws a soft warm pool of light on the wall behind it and a faint shadow to the right. Do not move, restyle, or relight anything else.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015957_41eb92f1-a744-43fb-81a8-3c4c78786fa5.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:59:52.000364Z",
+    "display_name": "Nano Banana Pro",
+    "id": "9657dd95-f825-4e8b-be55-c96ac31a1a2e",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015952_9657dd95-f825-4e8b-be55-c96ac31a1a2e_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 2048,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Flat overhead scan of a blank sheet of heavy cream stationery cardstock, subtle fibers and tooth, perfectly even lighting, no folds, no stains, no text, no lines, uniform texture filling the whole frame edge to edge.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2048
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015952_9657dd95-f825-4e8b-be55-c96ac31a1a2e.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:59:51.840444Z",
+    "display_name": "Nano Banana Pro",
+    "id": "e169267e-9a7b-4b0e-805a-384ce7ea146a",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015951_e169267e-9a7b-4b0e-805a-384ce7ea146a_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 2048,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Studio product photograph of a slender oak lounge armchair with tomato red linen seat and back cushions, three-quarter front view, standing level with no tilt, soft even light from the top left, flat solid mid-gray backdrop, no shadow on the backdrop. No text, no logos.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2048
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015951_e169267e-9a7b-4b0e-805a-384ce7ea146a.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:59:18.1273Z",
+    "display_name": "GPT Image 2.5",
+    "id": "190ba591-e322-46a1-898b-1ce80b785c96",
+    "job_type": "gpt_image_2_5",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015918_190ba591-e322-46a1-898b-1ce80b785c96_min.webp",
+    "params": {
+      "aspect_ratio": "3:2",
+      "height": 688,
+      "medias": [],
+      "model": "flare",
+      "prompt": "A single side table, centred, full object in frame, front three-quarter view, simple illustrative style with soft flat shading, colour palette #e3e2dd, #1e2023, #a87c45, #5c4633, #d2c9bd, industrial, warm wood, minimal, modern character, on a plain white background, no room, no floor, no shadow, no text, no people.",
+      "quality": "medium",
+      "reference_elements": [],
+      "remove_bg": false,
+      "resolution": "1k",
+      "width": 1024
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015918_190ba591-e322-46a1-898b-1ce80b785c96.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:56:14.278146Z",
+    "display_name": "Nano Banana Pro",
+    "id": "4c83f411-1563-46ab-8291-921338f3b297",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015614_4c83f411-1563-46ab-8291-921338f3b297_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "47c6c366-872b-4f44-a0ea-262841d90ccf",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/47c6c366-872b-4f44-a0ea-262841d90ccf_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep the camera, walls, floor, window, curtain, windowsill, paint patch, bulb, moving box, light, and film grain pixel-identical. Change only the phone: move the smartphone along the oak windowsill to the right end of the sill, close to the inner corner where the sill ends, lying flat, screen dark, plain with no logo, and make it slightly larger so it clearly reads as a modern smartphone. Do not move, restyle, or relight anything else.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015614_4c83f411-1563-46ab-8291-921338f3b297.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:56:09.167844Z",
+    "display_name": "Nano Banana Pro",
+    "id": "f005f9c1-6561-40e3-84b4-f3ec0f8341ed",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_f005f9c1-6561-40e3-84b4-f3ec0f8341ed_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Perfectly frontal, flat, elevation-style photograph of a sun-washed exterior wall of an old apartment building. Hand-troweled stucco in pale apricot with subtle water stains and hairline cracks fills the entire frame edge to edge, with no ground, no sky, no roof, and no neighboring windows. In the exact center there is one wide rectangular picture window with 16:9 proportions. Its opening spans from 32% to 68% of the image width and from 30% to 66% of the image height, and the opening itself is pure flat black because it will be replaced in compositing. The window has a deep-set wooden casement frame 8 cm thick, painted glossy cobalt blue with slightly chipped paint. Its two window leaves are opened outward and lie flat against the wall to the left and right of the opening like shutters, painted the same cobalt blue. Above the window a short canvas awning with cobalt blue and cream stripes projects slightly and casts a soft shadow band on the wall beneath it. Below the window a narrow pale stone sill carries one small terracotta pot of trailing greenery at its far right end. The outer 12% of the image on the left and on the right is plain stucco with no features. Even, soft daylight. Painterly film print finish, subtle grain. No text, no house numbers, no logos, no people. Aspect ratio 16:9.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_f005f9c1-6561-40e3-84b4-f3ec0f8341ed.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:56:09.112213Z",
+    "display_name": "Nano Banana Pro",
+    "id": "98c4999d-45a6-4ff0-8799-e26b3287754e",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_98c4999d-45a6-4ff0-8799-e26b3287754e_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Top-down photograph with the camera exactly perpendicular to a thick oak windowsill. A modern smartphone with a plain dark bezel lies screen-up in the center, rotated 6 degrees clockwise, in portrait orientation, taking up about 19% of the frame width and 75% of the frame height. The screen is on and shows one completely flat, evenly lit off-white color with no interface, no icons, no text, and no reflections, because the interface is added later in code. Oak grain runs left to right. Soft daylight comes from the top of the frame and the phone casts a gentle shadow toward the bottom. The white painted window frame runs along the top 10% of the image and the hem of a sheer curtain touches the sill at the top right. No hands, no logos, no text. Painterly film print finish, subtle grain. 16:9.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_98c4999d-45a6-4ff0-8799-e26b3287754e.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:56:09.079923Z",
+    "display_name": "Nano Banana Pro",
+    "id": "b6192157-8661-4a92-9a64-64c248dcc2d9",
+    "job_type": "nano_banana_pro",
+    "min_result_url": null,
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 1024,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Flat top-down scan of a sheet of heavy cream writing paper, very subtle fibers and tooth, even lighting, no folds, no stains, no text, no lines. Seamless and uniform enough to tile.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 1024
+    },
+    "result_url": null,
+    "status": "nsfw"
+  },
+  {
+    "created_at": "2026-09-20T01:56:09.073606Z",
+    "display_name": "Nano Banana Pro",
+    "id": "5e79b668-f2e8-49ce-8f94-f26111064b59",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_5e79b668-f2e8-49ce-8f94-f26111064b59_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "A sheet of eight separate small hand-drawn doodles in black ballpoint pen on pure white paper, arranged in a 4 by 2 grid with generous spacing: a loose spiral scribble, a floor lamp sketch with a vertical measurement arrow beside it, a sofa outline, a rough floor plan rectangle with tick marks, a curly arrow, a starburst, an underline flourish, a circled check mark. Quick confident lines with natural pen pressure, no shading, no text, no numbers, no color. High resolution scan.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_5e79b668-f2e8-49ce-8f94-f26111064b59.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:56:09.064662Z",
+    "display_name": "Nano Banana Pro",
+    "id": "fde50c22-dd90-4cff-97bc-7f33a52abb07",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_fde50c22-dd90-4cff-97bc-7f33a52abb07_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "3:4",
+      "batch_size": 1,
+      "height": 2400,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Studio product photograph of a modern smartphone with a plain dark bezel, perfectly upright with no tilt, seen straight from the front, screen showing one flat off-white color with no interface, soft even light from the top left, no shadow on the backdrop, flat solid mid-gray backdrop, no logos, no text.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 1792
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_fde50c22-dd90-4cff-97bc-7f33a52abb07.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:56:09.062817Z",
+    "display_name": "Nano Banana Pro",
+    "id": "e07830f0-22d4-49dd-ba86-60bdfde90525",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_e07830f0-22d4-49dd-ba86-60bdfde90525_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "21:9",
+      "batch_size": 1,
+      "height": 1344,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Flat top-down scan of a strip of white paper torn by hand along both short ends, with soft fibrous torn edges, on a flat solid mid-gray backdrop, no text. The strip is three times as wide as it is tall and fills most of the frame.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 3168
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_e07830f0-22d4-49dd-ba86-60bdfde90525.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:56:09.045733Z",
+    "display_name": "Nano Banana Pro",
+    "id": "d1773fa6-7331-4c0e-9145-3af403aae26a",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_d1773fa6-7331-4c0e-9145-3af403aae26a_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "4:3",
+      "batch_size": 1,
+      "height": 1792,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Top-down studio photograph of a rectangular upholstery fabric swatch in cobalt blue boucle with pinked zigzag edges, slightly curled at one corner, strong texture detail, soft raking light, flat solid mid-gray backdrop. No text, no logos.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2400
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_d1773fa6-7331-4c0e-9145-3af403aae26a.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:56:09.026417Z",
+    "display_name": "Nano Banana Pro",
+    "id": "e7f28975-a6fe-43e7-8175-5d9070f87e2a",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_e7f28975-a6fe-43e7-8175-5d9070f87e2a_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "1:1",
+      "batch_size": 1,
+      "height": 2048,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "A sheet of four separate marks on pure white paper arranged in a 2 by 2 grid with generous spacing: a loose loop in blue ballpoint pen, a zigzag in yellow highlighter, a short dry brush smear in cobalt blue paint, a crayon scribble in tomato red. No text. High resolution scan.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2048
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_e7f28975-a6fe-43e7-8175-5d9070f87e2a.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:56:09.008586Z",
+    "display_name": "Nano Banana Pro",
+    "id": "a1d74e37-46c9-4aec-85d0-34efcd481d14",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_a1d74e37-46c9-4aec-85d0-34efcd481d14_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "4:3",
+      "batch_size": 1,
+      "height": 1792,
+      "input_image": null,
+      "input_images": [],
+      "prompt": "Flat top-down scan of three separate strips of translucent matte cream paper masking tape with slightly ragged cut ends, arranged one above the other with generous space between them, each strip horizontal, on a flat solid mid-gray backdrop, no text.",
+      "resolution": "2k",
+      "surface": null,
+      "width": 2400
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015609_a1d74e37-46c9-4aec-85d0-34efcd481d14.png",
+    "status": "completed"
+  },
+  {
+    "created_at": "2026-09-20T01:55:04.126677Z",
+    "display_name": "GPT Image 2.5",
+    "id": "5b35ab5c-5fde-4254-8904-edbc29a1ba11",
+    "job_type": "gpt_image_2_5",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015504_5b35ab5c-5fde-4254-8904-edbc29a1ba11_min.webp",
+    "params": {
+      "aspect_ratio": "2:3",
+      "height": 1024,
+      "medias": [],
+      "model": "flare",
+      "prompt": "A single floor lamp, centred, full object in frame, front three-quarter view, simple illustrative style with soft flat shading, colour palette #8c5a3b, #c9a227, #7a3b2e, #e8dcc6, #2e2a25, traditional, middle eastern, ornate, warm wood, brass, rattan character, on a plain white background, no room, no floor, no shadow, no text, no people.",
+      "quality": "medium",
+      "reference_elements": [],
+      "remove_bg": false,
+      "resolution": "1k",
+      "width": 688
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_015504_5b35ab5c-5fde-4254-8904-edbc29a1ba11.png",
+    "status": "completed"
+  }
+]

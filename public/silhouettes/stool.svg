@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 300" width="260" height="300" role="img" aria-label="Stool">
+  <!-- Stand-in silhouette. #C97B5F and #2A2724 are replaced at render time
+       with the room's own palette by lib/placeholder.ts. -->
+  <ellipse cx="130" cy="62" rx="108" ry="34" fill="#C97B5F"/>
+  <path d="M22 62v22c0 19 48 34 108 34s108-15 108-34V62Z" fill="#C97B5F"/>
+  <path d="M22 84c0 19 48 34 108 34s108-15 108-34" fill="none" stroke="#2A2724" stroke-opacity="0.3" stroke-width="10"/>
+  <path d="M56 112l-16 158h24l18-152Z" fill="#2A2724"/>
+  <path d="M204 112l16 158h-24l-18-152Z" fill="#2A2724"/>
+  <rect x="120" y="116" width="20" height="154" rx="9" fill="#2A2724"/>
+  <rect x="62" y="196" width="136" height="14" rx="7" fill="#C97B5F"/>
+</svg>

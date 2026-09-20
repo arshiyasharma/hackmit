@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T05:15:52.646085Z",
+    "display_name": "Nano Banana Pro",
+    "id": "2af6c0aa-3750-484c-8770-89b1a47353d4",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_051552_2af6c0aa-3750-484c-8770-89b1a47353d4_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "0cc01e44-6cb6-42b5-a4af-fed7a2e3b61f",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/0cc01e44-6cb6-42b5-a4af-fed7a2e3b61f_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base. Keep the camera, walls, floor, window, curtain, windowsill, phone, ceiling bulb, furniture, lighting, shadows and film grain pixel-identical. Change one thing only: repaint the rough hand-rolled rectangular paint test patch on the back wall from deep cobalt blue to a soft pale sky blue, a gentle periwinkle blue like a clear morning sky, keeping the exact same shape, rough roller edges and paint drips. Do not move, restyle or relight anything else.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_051552_2af6c0aa-3750-484c-8770-89b1a47353d4.png",
+    "status": "completed"
+  }
+]

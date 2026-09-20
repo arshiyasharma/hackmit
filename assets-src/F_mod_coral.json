@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T07:07:24.09619Z",
+    "display_name": "Nano Banana Pro",
+    "id": "84eab2a3-7c35-4c8b-b125-99420484e778",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_070724_84eab2a3-7c35-4c8b-b125-99420484e778_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "d5d7b37b-4d07-4f1a-9e34-1f56c9907b47",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/d5d7b37b-4d07-4f1a-9e34-1f56c9907b47_resize.jpg"
+        }
+      ],
+      "prompt": "Use the reference image as the exact base and keep the wall, stains, cracks, sill, plant, geometry, light, and grain pixel-identical. Change only the paint colour of the window frame, the two open window shutters, and the coloured stripes of the awning from cobalt blue to a warm coral pink, a soft salmon red. The black opening stays pure black.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_070724_84eab2a3-7c35-4c8b-b125-99420484e778.png",
+    "status": "completed"
+  }
+]

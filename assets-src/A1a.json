@@ -1,0 +1,29 @@
+[
+  {
+    "created_at": "2026-09-20T02:13:20.587655Z",
+    "display_name": "Nano Banana Pro",
+    "id": "d11beb05-3788-439a-998a-9aade3c8b60d",
+    "job_type": "nano_banana_pro",
+    "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021320_d11beb05-3788-439a-998a-9aade3c8b60d_min.webp",
+    "params": {
+      "application": null,
+      "aspect_ratio": "16:9",
+      "batch_size": 1,
+      "height": 3072,
+      "input_image": null,
+      "input_images": [
+        {
+          "id": "20a31de3-21d4-4250-b1be-835dca63022a",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/20a31de3-21d4-4250-b1be-835dca63022a_resize.jpg"
+        }
+      ],
+      "prompt": "STYLE: Interior photograph with a soft painterly finish, like a scanned medium format film print. Soft overcast daylight enters from a large window on the left wall, with long gentle shadows falling to the right and no hard sun patches. Warm white matte plaster walls with a slight hand-troweled texture, pale oak plank floor, tall plain white baseboard. Everything in focus, subtle film grain, slightly lifted blacks. Muted neutral palette with exactly one saturated accent color: cobalt blue. No people, no animals, no text, no letters, no numbers, no logos, no brand marks, no watermark. Aspect ratio 16:9. Same room as the reference image, camera moved closer to the empty back left corner: the corner where the back wall meets the left wall sits at 38% from the left edge, the oak floor takes the bottom 30% of the frame, a slice of the cobalt blue paint patch is visible at the far right edge, the edge of the window reveal with the sheer curtain is visible at the far left. The corner is empty, calm, and evenly lit. 35mm lens look, camera height 1.2 meters, back wall parallel to the camera.",
+      "resolution": "4k",
+      "surface": null,
+      "width": 5504
+    },
+    "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JZGg2SBLH2gNxiJUqrD74CVfJ1/hf_20260920_021320_d11beb05-3788-439a-998a-9aade3c8b60d.png",
+    "status": "completed"
+  }
+]
