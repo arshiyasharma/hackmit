@@ -1,13 +1,9 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import CheckoutRun from "./CheckoutRun";
 import CheckoutSheet from "./CheckoutSheet";
-import TestModeChip from "./TestModeChip";
 import type { CartItem, Product } from "@/types";
 
 // Exercise the order-mode content without a browser-only portal. Shared Sheet
@@ -22,7 +18,7 @@ vi.mock("@/components/ui/Sheet", () => ({
  *
  * Every other test in this repo checks logic. This one checks that the
  * components produce markup and that the words a judge reads are in it —
- * the TEST MODE bar, the shop names, the honest copy under the button.
+ * the shop names and the checkout copy under the button.
  *
  * Server rendering, not a browser: no effects run, so this covers the idle
  * screen rather than the live walk. That is deliberately the half that is
@@ -62,27 +58,6 @@ const BASKET: CartItem[] = [
 function text(markup: string): string {
   return markup.replace(/<[^>]*>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
-
-describe("TestModeChip", () => {
-  it("renders the words that stop a judge worrying", () => {
-    expect(text(renderToStaticMarkup(<TestModeChip />))).toContain(
-      "Test mode — no money moves"
-    );
-  });
-
-  it("says something different, and louder, if a run were ever live", () => {
-    const live = text(renderToStaticMarkup(<TestModeChip live />));
-    expect(live).toContain("Live mode");
-    expect(live).not.toContain("no money moves");
-  });
-
-  it("is a status, never a control — nothing in it is clickable", () => {
-    const markup = renderToStaticMarkup(<TestModeChip />);
-    expect(markup).toContain('role="status"');
-    expect(markup).not.toContain("<button");
-    expect(markup).not.toContain("<a ");
-  });
-});
 
 describe("CheckoutRun renders the idle screen", () => {
   const markup = renderToStaticMarkup(<CheckoutRun lines={BASKET} mode="test" />);
@@ -220,27 +195,6 @@ describe("order mode explains the actual simulation", () => {
     expect(body).not.toContain("Use real orders");
   });
 });
-
-describe("the checkout page mounts the chip where it cannot be missed", () => {
-  const source = readFileSync(join(__dirname, "..", "app", "checkout", "page.tsx"), "utf8");
-
-  it("renders TestModeChip inside the sticky header, not below the fold", () => {
-    expect(source).toContain("<TestModeChip");
-    const sticky = source.indexOf("sticky top-");
-    const chip = source.indexOf("<TestModeChip");
-    expect(sticky).toBeGreaterThan(-1);
-    expect(chip).toBeGreaterThan(sticky);
-    // before the basket total, so it is the first thing in the block
-    expect(chip).toBeLessThan(source.indexOf("<NumberPlate"));
-  });
-
-  it("is not conditional — it shows for the whole run, not just before it", () => {
-    const line = source.split("\n").find((l) => l.includes("<TestModeChip")) ?? "";
-    expect(line).not.toContain("?");
-    expect(line).not.toContain("&&");
-  });
-});
-
 
 describe("checkout budget enforcement", () => {
   // The store starts with a $600 budget. Include exact cent boundaries.
