@@ -1,13 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "@/app/api/checkout/route";
+import { runCheckout } from "@/lib/checkout/agent";
 import { getRun } from "@/lib/checkout/runs";
 import type { Basket, BasketLine } from "@/lib/checkout/types";
 
 /**
  * The checkout entry point, called the way Next calls it. No server is started
  * and no port is bound — the handler is a function that takes a Request.
+ *
+ * The walk is stubbed. This file is about what the route accepts, what it
+ * refuses and how fast it answers; `lib/checkout/agent.test.ts` is about what
+ * the walk does. Letting the real ten-second walk start eight times here would
+ * make the suite slow and tell us nothing new.
  */
+
+vi.mock("@/lib/checkout/agent", () => ({
+  runCheckout: vi.fn(async () => {}),
+}));
+
+beforeEach(() => {
+  vi.mocked(runCheckout).mockClear();
+});
 
 function line(patch: Partial<BasketLine> = {}): BasketLine {
   return {
@@ -55,6 +69,18 @@ describe("POST /api/checkout", () => {
     expect(body.lines).toHaveLength(2);
     for (const l of body.lines) expect(l.status.state).toBe("pending");
     expect(elapsed).toBeLessThan(50);
+  });
+
+  it("starts the walk for the run it created, without waiting for it", async () => {
+    const res = await post({ basket: basket([line()]) });
+    const { runId } = (await res.json()) as { runId: string };
+    expect(runCheckout).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(runCheckout).mock.calls[0][0]).toBe(runId);
+  });
+
+  it("does not start a walk for a basket it refused", async () => {
+    await post({ basket: basket([]) });
+    expect(runCheckout).not.toHaveBeenCalled();
   });
 
   it("freezes the basket on the run it created", async () => {

@@ -321,9 +321,15 @@ export function PhotoMode() {
     return null;
   }, [fit, scale, ceilingHeightMm]);
 
+  /*
+   * The honest label and the scale it is honest about, in one line. They used
+   * to be two: a pill at the top of the stage saying "Placed to scale in your
+   * photo", which landed on the style chips, and this caption at the bottom.
+   * Same subject, so one line says it once, where the scale controls are.
+   */
   const scaleCaption = scale
-    ? `scale from ${scale.label}`
-    : `scale assumed from a ${formatMm(ceilingHeightMm)} ceiling`;
+    ? `Placed to scale in your photo — scale from ${scale.label}`
+    : `Placed to scale in your photo — scale assumed from a ${formatMm(ceilingHeightMm)} ceiling`;
 
   /* the pinch refusal, on the whole stage */
   usePinch(
@@ -405,9 +411,6 @@ export function PhotoMode() {
       />
 
       {/* the honest label, top centre, always */}
-      <p className="pointer-events-none absolute inset-x-0 top-3 mx-auto w-fit rounded-full bg-background/70 px-3 py-1 text-xs text-muted-foreground backdrop-blur-md">
-        Placed to scale in your photo
-      </p>
 
       {/* the sprites */}
       {fit && pxPerMm
@@ -434,15 +437,15 @@ export function PhotoMode() {
           ))
         : null}
 
-      {items.length === 0 ? (
-        <p className="pointer-events-none absolute inset-x-6 bottom-28 rounded-xl border border-line bg-background/85 px-4 py-3 text-center text-sm text-muted-foreground backdrop-blur-md">
-          Ask for one thing — &ldquo;a tall lamp&rdquo; — and it stands here at
-          the size it really arrives.
-        </p>
-      ) : null}
+      {/*
+       * The "Ask for one thing…" card used to sit here. It said what the page's
+       * own opening line and the input's placeholder already say, and it landed
+       * in the same band as the items strip and the chips, so three layers
+       * overlapped at the bottom of a 390px screen. One line of copy is enough.
+       */}
 
-      {/* the scale control, bottom left, out of the way of the ask input */}
-      <div className="absolute bottom-3 left-3 flex max-w-[70%] flex-col gap-1">
+      {/* the scale control sits directly above the ask stack, never over it */}
+      <div className="absolute inset-x-3 bottom-[var(--room-bottom-chrome)] flex flex-col gap-1">
         {measuring ? (
           <div className="rounded-xl border border-line bg-background/90 px-3 py-2 backdrop-blur-md">
             <StatusLine
@@ -467,13 +470,13 @@ export function PhotoMode() {
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-background/70 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-md">
               {scaleCaption}
             </span>
             <button
               type="button"
-              className="tap min-h-11 rounded-full border border-line bg-background/80 px-3 py-1 text-xs text-foreground backdrop-blur-md"
+              className="tap min-h-11 whitespace-nowrap rounded-full border border-line bg-background/80 px-3 py-1 text-xs text-foreground backdrop-blur-md"
               onClick={(e) => {
                 e.stopPropagation();
                 setMeasuring({ index: 0, firstY: null });
@@ -484,7 +487,7 @@ export function PhotoMode() {
             {scale ? null : (
               <button
                 type="button"
-                className="tap min-h-11 rounded-full border border-line bg-background/80 px-3 py-1 text-xs text-muted-foreground backdrop-blur-md"
+                className="tap min-h-11 whitespace-nowrap rounded-full border border-line bg-background/80 px-3 py-1 text-xs text-muted-foreground backdrop-blur-md"
                 onClick={(e) => {
                   e.stopPropagation();
                   setMeasuring({ index: 1, firstY: null });

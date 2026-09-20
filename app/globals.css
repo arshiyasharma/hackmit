@@ -199,3 +199,22 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* a chip row scrolls sideways; the scrollbar itself would eat the row's height */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * How much of the bottom edge the room screen's own chrome owns: the status
+ * line, the items strip and the ask input. Anything the scene draws near the
+ * bottom (the scale controls, the no-AR note) offsets by this, so two
+ * components can stack against the same edge without landing on each other.
+ */
+:root {
+  --room-bottom-chrome: 10rem;
+}

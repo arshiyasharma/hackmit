@@ -278,7 +278,9 @@ export function BudgetHud() {
   return (
     <div
       className={cn(
-        "pointer-events-none fixed inset-x-0 top-0 z-40",
+        // absolute, not fixed: it anchors to the room stage, so it lands on the
+        // same edge as the photo instead of the window's on a wide screen
+        "pointer-events-none absolute inset-x-0 top-0 z-40",
         // the same top inset as the room-context strip, so the two readouts
         // sit on one line rather than 4px apart
         "gutter pt-[max(12px,env(safe-area-inset-top))]"

@@ -89,13 +89,17 @@ export function RoomContextStrip() {
         </span>
       </div>
 
+      {/* one scrolling line, never a wrapping block: the strip is 58% of a
+          390px column, so wrapping put every word on its own row and pushed
+          the top chrome 180px down the screen */}
       {tags.length > 0 ? (
-        <ul className="mt-1.5 flex flex-wrap gap-1.5">
+        <ul className="no-scrollbar -mx-1 mt-1.5 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
           <AnimatePresence initial={false}>
             {tags.map((tag) => (
               <motion.li
                 key={tag}
                 layout={!reduced}
+                className="shrink-0"
                 initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.8 }}

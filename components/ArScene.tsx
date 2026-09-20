@@ -187,7 +187,7 @@ export function ArScene() {
       ) : null}
 
       {arSupported === false && roomImage ? (
-        <p className="pointer-events-none absolute inset-x-0 bottom-20 mx-auto w-fit max-w-[80%] rounded-full bg-background/70 px-3 py-1 text-center text-[11px] text-muted-foreground backdrop-blur-md">
+        <p className="pointer-events-none absolute inset-x-0 bottom-[calc(var(--room-bottom-chrome)+7.5rem)] mx-auto w-fit max-w-[80%] rounded-full bg-background/70 px-3 py-1 text-center text-[11px] text-muted-foreground backdrop-blur-md">
           This browser has no live AR — Chrome on Android does. Your photo is to
           scale either way.
         </p>

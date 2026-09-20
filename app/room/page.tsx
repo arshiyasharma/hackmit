@@ -152,12 +152,22 @@ export default function RoomPage() {
   return (
     <main
       data-phase={phase}
-      className="relative flex h-dvh w-full flex-col overflow-hidden bg-background"
+      className="relative flex h-dvh w-full justify-center overflow-hidden bg-background"
     >
-      {/* ------------------------------------------------ 1 + 2. the room */}
-      <div className="absolute inset-0">
-        <ArScene />
-      </div>
+      {/*
+       * ONE STAGE. The room and every piece of chrome share this box, so the
+       * photo, the strip, the budget and the ask are all measured against the
+       * same edges. Before this the scene filled the window while the chrome
+       * sat in a centred max-w-md column, and on a desktop they simply could
+       * not line up: the "Placed to scale" pill, the scale controls and the AR
+       * notice landed against the window while the strip and the ask landed
+       * against the column, and the two collided on top of each other.
+       */}
+      <div className="relative h-full w-full max-w-md overflow-hidden">
+        {/* ------------------------------------------------ 1 + 2. the room */}
+        <div className="absolute inset-0">
+          <ArScene />
+        </div>
 
       {/* --------------------------------------------------- 3. the chrome */}
 
@@ -172,6 +182,8 @@ export default function RoomPage() {
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
         <div className="gutter mx-auto flex w-full max-w-md items-start pt-[max(12px,env(safe-area-inset-top))]">
+          {/* the strip caps itself at 58% so the budget keeps the top-right
+              corner; do not add padding here or the chips stack vertically */}
           <div className="pointer-events-auto min-w-0 flex-1">
             <RoomContextStrip />
           </div>
@@ -255,8 +267,9 @@ export default function RoomPage() {
         )}
       </AnimatePresence>
 
-      {/* the options for the active item, resting at 40% so the sprite shows */}
-      <OptionSheet />
+        {/* the options for the active item, resting at 40% so the sprite shows */}
+        <OptionSheet />
+      </div>
     </main>
   );
 }
