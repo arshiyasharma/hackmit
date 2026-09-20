@@ -15,10 +15,6 @@ import type {
 } from "@/lib/sourcing/product";
 import { fetchImmersiveProduct } from "@/lib/sourcing/serpapi";
 import {
-  mergeDimensions,
-  scrapeRetailerDimensions,
-} from "@/lib/sourcing/scrapeDimensions";
-import {
   getWhitelistedDomain,
   isDirectRetailerUrl,
   isGoogleHostedUrl,
@@ -442,6 +438,9 @@ export function enrichVisualMatches(
 /**
  * Enrich SerpAPI Google Shopping results into the existing Product schema.
  * Resolves direct retailer Buy URLs via immersive product (top candidates only).
+ *
+ * Dimension scraping is deferred to the caller (`fillMissingDimensions`) so we
+ * only hit retailer PDPs for products we actually return.
  */
 export async function enrichShoppingResults(
   results: SerpShoppingResult[] | null | undefined,
@@ -478,7 +477,10 @@ export async function enrichShoppingResults(
       let immersiveTitle: string | null = null;
       let in_stock: boolean | null = null;
 
-      if (candidate.immersive_token && apiKey) {
+      // Immersive is only required when Shopping didn't give a direct retailer URL.
+      // Skipping it when we already have a PDP link saves one SerpAPI round-trip
+      // per candidate (often the dominant cost).
+      if (!directUrl && candidate.immersive_token && apiKey) {
         const immersive = await fetchImmersiveProduct(
           candidate.immersive_token,
           apiKey
@@ -486,47 +488,24 @@ export async function enrichShoppingResults(
         features = immersive.features;
         immersiveTitle = immersive.title ?? null;
 
-        if (!directUrl) {
-          const picked = pickDirectStore(
-            immersive.stores,
-            candidate.source,
-            candidate.retailer
-          );
-          if (picked) {
-            directUrl = picked.url;
-            in_stock = parseInStockFromOffers(picked.store.details_and_offers);
-          }
-        } else {
-          // Already had a direct URL; still try stock from a matching store.
-          const picked = pickDirectStore(
-            immersive.stores,
-            candidate.source,
-            candidate.retailer
-          );
-          in_stock = parseInStockFromOffers(
-            picked?.store.details_and_offers ??
-              immersive.stores[0]?.details_and_offers
-          );
+        const picked = pickDirectStore(
+          immersive.stores,
+          candidate.source,
+          candidate.retailer
+        );
+        if (picked) {
+          directUrl = picked.url;
+          in_stock = parseInStockFromOffers(picked.store.details_and_offers);
         }
       }
 
       if (!directUrl) return null;
 
-      const product = buildProductFromCandidate(candidate, directUrl, {
+      return buildProductFromCandidate(candidate, directUrl, {
         immersiveTitle,
         features,
         in_stock,
       });
-      if (!product) return null;
-
-      // Prefer retailer PDP scrape; SerpAPI title/features only fill remaining gaps.
-      const scraped = await scrapeRetailerDimensions(
-        product.product_url,
-        product.retailer,
-        unknownDimensions()
-      );
-      const dimensions = mergeDimensions(scraped, product.dimensions);
-      return { ...product, dimensions };
     })
   );
 

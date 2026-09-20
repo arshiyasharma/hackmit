@@ -4,9 +4,16 @@ import {
   enrichShoppingResults,
   type Product,
 } from "@/lib/sourcing/enrich";
-import { filterProductsByDesignQuery } from "@/lib/sourcing/roomContext";
+import {
+  diversifyProductsByQuery,
+  filterProductsByDesignQuery,
+  isBroadProductQuery,
+} from "@/lib/sourcing/roomContext";
 import { scrapeRetailerDimensions } from "@/lib/sourcing/scrapeDimensions";
-import { searchGoogleShopping } from "@/lib/sourcing/serpapi";
+import {
+  buildShoppingQueryFallbacks,
+  searchGoogleShoppingWithFallbacks,
+} from "@/lib/sourcing/serpapi";
 
 const DEFAULT_LIMIT = 4;
 const ELASTIC_ENOUGH = 3;
@@ -33,7 +40,7 @@ function dimensionsIncomplete(product: Product): boolean {
 }
 
 /** Backfill missing W/H/D from the retailer PDP (best-effort). */
-async function fillMissingDimensions(
+export async function fillMissingDimensions(
   products: Product[]
 ): Promise<Product[]> {
   return Promise.all(
@@ -57,11 +64,26 @@ async function fillMissingDimensions(
   );
 }
 
+function upsertInBackground(products: Product[]): void {
+  if (products.length === 0) return;
+  void upsertProducts(products).catch((error) => {
+    console.error("Elasticsearch indexing failed:", error);
+  });
+}
+
+function finalizeProducts(
+  products: Product[],
+  designQuery: string,
+  limit: number
+): Product[] {
+  return diversifyProductsByQuery(products, designQuery).slice(0, limit);
+}
+
 /**
  * Source products for one shopping query:
  *   1) Elasticsearch catalog first (relevance-filtered)
- *   2) SerpAPI Google Shopping + enrich if not enough
- *   3) Upsert newly discovered products (best-effort)
+ *   2) SerpAPI Google Shopping + enrich if not enough / broad queries
+ *   3) Upsert newly discovered products (best-effort, non-blocking)
  */
 export async function sourceProductsForQuery(
   options: SourceProductsOptions
@@ -73,23 +95,27 @@ export async function sourceProductsForQuery(
     options.maxPrice != null && Number.isFinite(options.maxPrice)
       ? Math.round(options.maxPrice * 100)
       : undefined;
+  const broad = isBroadProductQuery(designQuery);
 
   const applyRelevance = (products: Product[]) =>
-    filterProductsByDesignQuery(products, designQuery);
+    diversifyProductsByQuery(
+      filterProductsByDesignQuery(products, designQuery),
+      designQuery
+    );
 
   let elasticProducts: Product[] = [];
   try {
     elasticProducts = applyRelevance(
       await searchProducts({
-        q: options.shoppingQuery,
+        q: designQuery,
         maxPriceCents,
       })
     );
-    if (elasticProducts.length >= elasticMin) {
+    // Broad queries like "lamp" must hit SerpAPI — Elastic is full of prior pink lamps.
+    if (elasticProducts.length >= elasticMin && !broad) {
       const filled = await fillMissingDimensions(
-        elasticProducts.slice(0, limit)
+        finalizeProducts(elasticProducts, designQuery, limit)
       );
-      // Refresh Elastic with any newly scraped dims (best-effort).
       const improved = filled.some((p, i) => {
         const before = elasticProducts[i]?.dimensions;
         const after = p.dimensions;
@@ -100,13 +126,7 @@ export async function sourceProductsForQuery(
           (before.d_in == null && after.d_in != null)
         );
       });
-      if (improved) {
-        try {
-          await upsertProducts(filled);
-        } catch (error) {
-          console.error("Elasticsearch indexing failed:", error);
-        }
-      }
+      if (improved) upsertInBackground(filled);
       return filled;
     }
   } catch (error) {
@@ -116,34 +136,60 @@ export async function sourceProductsForQuery(
     );
   }
 
-  const result = await searchGoogleShopping(
-    options.shoppingQuery,
+  if (!options.apiKey) {
+    if (elasticProducts.length > 0) {
+      return fillMissingDimensions(
+        finalizeProducts(elasticProducts, designQuery, limit)
+      );
+    }
+    throw new Error("SERPAPI_KEY is not configured");
+  }
+
+  const result = await searchGoogleShoppingWithFallbacks(
+    buildShoppingQueryFallbacks(options.shoppingQuery, designQuery),
     options.apiKey
   );
   if (!result.ok) {
     if (elasticProducts.length > 0) {
-      return fillMissingDimensions(elasticProducts.slice(0, limit));
+      return fillMissingDimensions(
+        finalizeProducts(elasticProducts, designQuery, limit)
+      );
     }
-    throw new Error(result.error);
+    console.warn("[source] SerpAPI shopping failed:", result.error);
+    return [];
   }
 
-  const products = applyRelevance(
-    await enrichShoppingResults(result.shopping_results, {
-      maxPrice: options.maxPrice,
-      apiKey: options.apiKey,
-      // Fetch extra candidates so relevance filtering still leaves enough.
-      maxProducts: Math.max(limit * 2, 6),
-    })
-  ).slice(0, limit);
+  const enriched = await enrichShoppingResults(result.shopping_results, {
+    maxPrice: options.maxPrice,
+    apiKey: options.apiKey,
+    maxProducts: Math.max(limit + 3, 8),
+  });
+  const resolved = applyRelevance(enriched);
+
+  // Prefer fresh Serp hits; fill gaps from Elastic without letting cache dominate.
+  const seen = new Set(resolved.map((p) => p.id));
+  const merged = [
+    ...resolved,
+    ...elasticProducts.filter((p) => !seen.has(p.id)),
+  ];
+  const products = await fillMissingDimensions(
+    finalizeProducts(merged, designQuery, limit)
+  );
 
   if (products.length > 0) {
-    try {
-      await upsertProducts(products);
-    } catch (error) {
-      console.error("Elasticsearch indexing failed:", error);
-    }
+    upsertInBackground(products);
     return products;
   }
 
-  return fillMissingDimensions(elasticProducts.slice(0, limit));
+  if (enriched.length > 0) {
+    const fallback = await fillMissingDimensions(
+      finalizeProducts(enriched, designQuery, limit)
+    );
+    upsertInBackground(fallback);
+    return fallback;
+  }
+
+  return fillMissingDimensions(
+    finalizeProducts(elasticProducts, designQuery, limit)
+  );
 }

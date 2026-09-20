@@ -65,6 +65,8 @@ function buildGoogleShoppingUrl(q: string, apiKey: string): string {
   const serpUrl = new URL("https://serpapi.com/search.json");
   serpUrl.searchParams.set("engine", "google_shopping");
   serpUrl.searchParams.set("q", q);
+  serpUrl.searchParams.set("hl", "en");
+  serpUrl.searchParams.set("gl", "us");
   serpUrl.searchParams.set("api_key", apiKey);
   return serpUrl.toString();
 }
@@ -77,6 +79,13 @@ function parseVisualMatches(raw: unknown): SerpVisualMatch[] {
 function parseShoppingResults(raw: unknown): SerpShoppingResult[] {
   if (!Array.isArray(raw)) return [];
   return raw as SerpShoppingResult[];
+}
+
+/** SerpAPI often reports empty Shopping pages as this error string. */
+export function isGoogleNoResultsError(message: string): boolean {
+  return /hasn't returned any results|no results for this query|zero results/i.test(
+    message
+  );
 }
 
 /**
@@ -98,18 +107,119 @@ export async function searchGoogleLens(
 
 /**
  * Call SerpAPI Google Shopping and return shopping_results.
+ * Short in-memory cache avoids repeat Serp round-trips within a demo session.
  */
+const SHOPPING_CACHE_TTL_MS = 5 * 60_000;
+const shoppingCache = new Map<
+  string,
+  { expires: number; shopping_results: SerpShoppingResult[] }
+>();
+
 export async function searchGoogleShopping(
   q: string,
   apiKey: string
 ): Promise<SerpShoppingSearchResult> {
-  const result = await fetchSerpJson(buildGoogleShoppingUrl(q, apiKey));
-  if (!result.ok) return result;
+  const cacheKey = q.trim().toLowerCase();
+  const cached = shoppingCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    return { ok: true, shopping_results: cached.shopping_results };
+  }
 
-  return {
-    ok: true,
-    shopping_results: parseShoppingResults(result.data.shopping_results),
+  const result = await fetchSerpJson(buildGoogleShoppingUrl(q, apiKey));
+  if (!result.ok) {
+    // Empty Google pages are not hard failures — treat as zero hits.
+    if (isGoogleNoResultsError(result.error)) {
+      return { ok: true, shopping_results: [] };
+    }
+    return result;
+  }
+
+  const shopping_results = parseShoppingResults(result.data.shopping_results);
+  shoppingCache.set(cacheKey, {
+    expires: Date.now() + SHOPPING_CACHE_TTL_MS,
+    shopping_results,
+  });
+
+  // Bound memory in long-running dev servers.
+  if (shoppingCache.size > 50) {
+    const oldest = shoppingCache.keys().next().value;
+    if (oldest) shoppingCache.delete(oldest);
+  }
+
+  return { ok: true, shopping_results };
+}
+
+/**
+ * Try the primary Shopping query, then simpler fallbacks until something hits.
+ */
+export async function searchGoogleShoppingWithFallbacks(
+  queries: string[],
+  apiKey: string
+): Promise<SerpShoppingSearchResult> {
+  const tried = new Set<string>();
+  let lastError: string | null = null;
+
+  for (const raw of queries) {
+    const q = raw.trim().replace(/\s+/g, " ");
+    if (!q) continue;
+    const key = q.toLowerCase();
+    if (tried.has(key)) continue;
+    tried.add(key);
+
+    const result = await searchGoogleShopping(q, apiKey);
+    if (!result.ok) {
+      lastError = result.error;
+      if (isGoogleNoResultsError(result.error)) continue;
+      // Transient/network — try next fallback before giving up.
+      continue;
+    }
+    if (result.shopping_results.length > 0) {
+      return result;
+    }
+  }
+
+  if (lastError && !isGoogleNoResultsError(lastError)) {
+    return { ok: false, error: lastError };
+  }
+
+  return { ok: true, shopping_results: [] };
+}
+
+/** Build progressively simpler Shopping strings from a rich query. */
+export function buildShoppingQueryFallbacks(
+  shoppingQuery: string,
+  designQuery?: string | null
+): string[] {
+  const STYLE_WORDS =
+    /\b(warm|cool|neutral|eclectic|boho|vintage|romantic|french|cottage|modern|minimal|organic|natural|wood)\b/gi;
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (value: string) => {
+    const q = value.trim().replace(/\s+/g, " ");
+    if (!q) return;
+    const key = q.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(q);
   };
+
+  add(shoppingQuery);
+  add(shoppingQuery.replace(STYLE_WORDS, " "));
+  if (designQuery) {
+    add(designQuery);
+    add(designQuery.replace(STYLE_WORDS, " "));
+  }
+
+  const words = (designQuery || shoppingQuery)
+    .replace(STYLE_WORDS, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length > 2) add(words.slice(-2).join(" "));
+  if (words.length > 1) add(words.slice(-1).join(" "));
+
+  return out;
 }
 
 function buildImmersiveProductUrl(pageToken: string, apiKey: string): string {

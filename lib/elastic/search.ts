@@ -76,6 +76,9 @@ export function buildProductSearchQuery(params: ProductSearchParams) {
       match: {
         title: {
           query: params.q.trim(),
+          // Prefer titles that cover most query tokens. Plain OR was matching
+          // "table" alone onto "pink table lamp" and short-circuiting SerpAPI.
+          minimum_should_match: "75%",
         },
       },
     });
