@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { X } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusLine } from "@/components/ui/StatusLine";
@@ -32,6 +32,101 @@ const READING = [
 
 /** The five slots are always there, so the strip does not jump when they land. */
 const SLOTS = [0, 1, 2, 3, 4];
+
+/**
+ * The "+ word" control at the end of the chip row.
+ *
+ * The model reads the room; it cannot read the user. Someone who knows they
+ * want brass, or rattan, or nothing shiny, can say so here and the next search
+ * carries it — the same string, the same place, as the words the photo
+ * produced. Tapping removes, tapping the plus adds: the strip is a control,
+ * not a readout.
+ */
+function AddStyleTag() {
+  const addStyleTag = useStore((s) => s.addStyleTag);
+  const [open, setOpen] = React.useState(false);
+  const [word, setWord] = React.useState("");
+  const input = React.useRef<HTMLInputElement>(null);
+
+  const commit = () => {
+    const value = word.trim();
+    if (value) {
+      addStyleTag(value);
+      if (
+        typeof navigator !== "undefined" &&
+        typeof navigator.vibrate === "function"
+      ) {
+        navigator.vibrate(8);
+      }
+    }
+    // stay open: people add "brass" and then "rattan" in one go
+    setWord("");
+    input.current?.focus();
+  };
+
+  if (!open) {
+    return (
+      <li className="shrink-0">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Add a style word to the search"
+          className={cn(
+            "tap inline-flex h-8 items-center gap-1 rounded-full",
+            "border border-dashed border-accent/70 bg-surface/70 px-2.5",
+            "text-xs text-accent backdrop-blur-sm",
+            "transition-colors hover:bg-accent/10 active:bg-accent/15"
+          )}
+        >
+          <Plus className="size-3" aria-hidden />
+          word
+        </button>
+      </li>
+    );
+  }
+
+  return (
+    <li className="shrink-0">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          commit();
+        }}
+        className={cn(
+          "inline-flex h-8 items-center gap-1 rounded-full",
+          "border border-accent bg-surface px-2.5 text-xs backdrop-blur-sm"
+        )}
+      >
+        <input
+          ref={input}
+          autoFocus
+          value={word}
+          onChange={(e) => setWord(e.target.value)}
+          onBlur={() => {
+            if (!word.trim()) setOpen(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setWord("");
+              setOpen(false);
+            }
+          }}
+          placeholder="brass"
+          aria-label="New style word"
+          maxLength={24}
+          className="w-20 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
+        />
+        <button
+          type="submit"
+          aria-label="Add this style word"
+          className="tap text-accent"
+        >
+          <Check className="size-3.5" aria-hidden />
+        </button>
+      </form>
+    </li>
+  );
+}
 
 export function RoomContextStrip() {
   const roomContext = useStore((s) => s.roomContext);
@@ -130,13 +225,21 @@ export function RoomContextStrip() {
               </motion.li>
             ))}
           </AnimatePresence>
+          <AddStyleTag />
         </ul>
       ) : (
-        <p className="mt-1.5 max-w-[24ch] text-[11px] leading-snug text-muted-foreground">
-          {generic
-            ? "Couldn't read the style — search will be generic."
-            : "No style words. Search will be generic."}
-        </p>
+        <div className="mt-1.5 flex items-start gap-2">
+          <p className="max-w-[18ch] text-[11px] leading-snug text-muted-foreground">
+            {generic
+              ? "Couldn't read the style — search will be generic."
+              : "No style words. Search will be generic."}
+          </p>
+          {/* with nothing read off the photo, this is the only way to steer
+              the search — so the control is here too, not only beside chips */}
+          <ul className="flex">
+            <AddStyleTag />
+          </ul>
+        </div>
       )}
     </div>
   );

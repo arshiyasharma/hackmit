@@ -52,6 +52,13 @@ export const DEFAULT_PROFILE: Profile = {
   units: "mm",
 };
 
+/**
+ * The search query is the style words joined to the request. Past six the
+ * string gets so specific that the shops answer with nothing, so the strip
+ * stops accepting new ones there.
+ */
+const MAX_STYLE_TAGS = 6;
+
 /** $600. The budget is editable, but nobody should have to set one first. */
 export const DEFAULT_BUDGET_CENTS = 60000;
 
@@ -117,6 +124,8 @@ export type VisaActions = {
   setRoomContext: (context: RoomContext | null) => void;
   /** the user disagrees with a style tag; the next search changes */
   removeStyleTag: (tag: string) => void;
+  /** the user knows something the photo does not say — "brass", "rattan" */
+  addStyleTag: (tag: string) => void;
 
   /* items */
   /** creates the item and makes it active; returns its id for the async jobs */
@@ -208,6 +217,38 @@ export const useStore = create<VisaStore>()(
               }
             : {}
         ),
+
+      /*
+       * Every style word is typed straight into a shop's search box, so a word
+       * added here is normalised the same way the model's own words are:
+       * lowercase, single-spaced, short. Duplicates are ignored rather than
+       * stacked, and the list stops at MAX_STYLE_TAGS — past that the query
+       * gets so specific that the shops return nothing.
+       *
+       * It works before the photo has been read, too: with no room context yet
+       * the word starts one, so the first search still carries it.
+       */
+      addStyleTag: (tag) =>
+        set((s) => {
+          const word = tag.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 24);
+          if (!word) return {};
+
+          const context = s.roomContext ?? {
+            styleTags: [],
+            palette: [],
+            lighting: "neutral" as const,
+            source: "fallback" as const,
+          };
+          if (context.styleTags.includes(word)) return {};
+          if (context.styleTags.length >= MAX_STYLE_TAGS) return {};
+
+          return {
+            roomContext: {
+              ...context,
+              styleTags: [...context.styleTags, word],
+            },
+          };
+        }),
 
       /* items — the item exists before either async job returns */
       addItem: ({ request, category, position }) => {
