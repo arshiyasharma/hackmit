@@ -1,5 +1,5 @@
 /**
- * The ambient scene on the right: cove measuring a room, on a slow 18s loop.
+ * The ambient scene on the right: PIXX-AR measuring a room, on a slow 18s loop.
  * Pure SVG + CSS — no JS, no mouse tracking, and it holds its finished state
  * when the viewer has reduced motion on.
  */

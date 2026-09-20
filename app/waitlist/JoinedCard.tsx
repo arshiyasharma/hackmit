@@ -20,7 +20,7 @@ export default function JoinedCard({
       </div>
       <h2>{alreadyIn ? "you're already on the list" : "you're in."}</h2>
       <p>
-        you&rsquo;re <b>#{position}</b> in the cove — we&rsquo;ll email you the moment invites
+        you&rsquo;re <b>#{position}</b> in line — we&rsquo;ll email you the moment invites
         open, and we&rsquo;ll ask what you want us to build first.
       </p>
     </div>

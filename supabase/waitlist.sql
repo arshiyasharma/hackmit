@@ -1,4 +1,4 @@
--- Cove waitlist table.
+-- PIXX-AR waitlist table.
 -- RUN THIS FILE BY HAND: Supabase dashboard -> SQL Editor -> paste -> Run.
 -- If you skip it, every signup fails with a 404 from /api/waitlist and the
 -- server log says: [waitlist] insert failed (404): ...relation "public.waitlist" does not exist
@@ -19,4 +19,4 @@ create unique index if not exists waitlist_email_key
 alter table public.waitlist enable row level security;
 
 -- Handy view for eyeballing signups in the Table Editor.
-comment on table public.waitlist is 'cove waitlist signups';
+comment on table public.waitlist is 'PIXX-AR waitlist signups';

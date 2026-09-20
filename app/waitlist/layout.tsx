@@ -16,13 +16,13 @@ const serif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "cove — furniture that actually fits",
+  title: "PIXX-AR — furniture that actually fits",
   description:
-    "cove drops real furniture into your real room in ar, checks it clears the doorway, and keeps your cart under budget. join the waitlist.",
+    "PIXX-AR drops real furniture into your real room in ar, checks it clears the doorway, and keeps your cart under budget. join the waitlist.",
   openGraph: {
-    title: "cove — furniture that actually fits",
+    title: "PIXX-AR — furniture that actually fits",
     description:
-      "see it to scale, fit it through the door, stay under budget. join the cove waitlist.",
+      "see it to scale, fit it through the door, stay under budget. join the PIXX-AR waitlist.",
   },
 };
 

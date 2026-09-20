@@ -21,7 +21,7 @@ export default function WaitlistScreen({ initialTotal }: { initialTotal: number 
         </h1>
 
         <p className="wl-sub wl-rise" style={{ animationDelay: "0.16s" }}>
-          cove stands real pieces in your real room in ar, checks they clear your doorway,
+          PIXX-AR stands real pieces in your real room in ar, checks they clear your doorway,
           and keeps the whole cart under budget — before you ever hit buy.
         </p>
 

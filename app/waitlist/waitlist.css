@@ -1,4 +1,4 @@
-/* cove waitlist — fully scoped under .wl-root so it can't leak into the app */
+/* PIXX-AR waitlist — fully scoped under .wl-root so it can't leak into the app */
 
 .wl-root {
   --cream: #fbf6ec;

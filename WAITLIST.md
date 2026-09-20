@@ -1,6 +1,6 @@
-# cove waitlist — setup
+# PIXX-AR waitlist — setup
 
-Standalone landing page at `/waitlist`. Nothing in it imports from the Cove app,
+Standalone landing page at `/waitlist`. Nothing in it imports from the PIXX-AR app,
 and Clerk middleware skips it, so it can't be broken by auth work.
 
 - landing page: `/waitlist`
@@ -10,7 +10,7 @@ and Clerk middleware skips it, so it can't be broken by auth work.
 
 ## 1. make the supabase project (2 min)
 
-1. supabase.com → new project (free tier). name it `cove`.
+1. supabase.com → new project (free tier). name it `pixx-ar`.
 2. wait for it to finish provisioning.
 3. **Run `supabase/waitlist.sql` by hand:** dashboard → SQL Editor → New query →
    paste the whole file → Run.

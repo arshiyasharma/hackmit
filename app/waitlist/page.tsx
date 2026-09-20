@@ -26,7 +26,7 @@ export default async function WaitlistPage() {
 
       <header className="wl-head">
         <p className="wl-mark">
-          cove<span aria-hidden />
+          PIXX-AR<span aria-hidden />
         </p>
         <p className="wl-head-note">built at hackmit</p>
       </header>

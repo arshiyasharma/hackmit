@@ -38,7 +38,7 @@ export default async function WaitlistAdmin({ searchParams }: PageProps<"/waitli
       <div className="wl-admin">
         <div className="wl-admin-top">
           <h1>
-            cove waitlist · {rows.length} {rows.length === 1 ? "signup" : "signups"}
+            PIXX-AR waitlist · {rows.length} {rows.length === 1 ? "signup" : "signups"}
           </h1>
           <a href={`/api/waitlist/export?key=${encodeURIComponent(key ?? "")}`}>
             download csv ↓

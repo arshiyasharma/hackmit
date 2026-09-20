@@ -1,8 +1,8 @@
 /**
  * Waitlist storage — Supabase over plain REST (PostgREST), no SDK.
  *
- * Standalone on purpose: nothing here imports from the Cove app, and nothing
- * in the Cove app should import from here. Server-only — the service role key
+ * Standalone on purpose: nothing here imports from the PIXX-AR app, and nothing
+ * in the PIXX-AR app should import from here. Server-only — the service role key
  * must never reach the browser.
  */
 
