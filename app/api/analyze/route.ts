@@ -38,7 +38,14 @@ export const runtime = "nodejs";
 export const maxDuration = 45;
 
 const OPENAI_MODEL = "gpt-4o-mini";
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
+/*
+ * THE LITE MODEL LEADS, because the big one is the one that is busy.
+ * gemini-3.6-flash answered 503 "high demand" on roughly every other call,
+ * while gemini-3.1-flash-lite answered straight away — and this prompt asks
+ * for five colours and four shopping words, which is not work that needs the
+ * larger model. The heavier ones stay in the chain behind it.
+ */
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
 /**
  * When the first model is busy, ask a different one rather than giving up.
  * These three were checked against this project's key with the SDK: they
@@ -48,7 +55,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
  */
 const GEMINI_FALLBACK_MODELS = (
   process.env.GEMINI_FALLBACK_MODELS ??
-  "gemini-3-flash-preview,gemini-3.1-flash-lite"
+  "gemini-3-flash-preview,gemini-3.6-flash"
 )
   .split(",")
   .map((m) => m.trim())
@@ -58,7 +65,8 @@ const GEMINI_FALLBACK_MODELS = (
 const RETRY_PATTERN = /\b(429|500|502|503|504|high demand|overloaded|unavailable)\b/i;
 const RETRY_DELAYS_MS = [300, 600];
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const TIMEOUT_MS = 22_000;
+/* the chain is three fast models now, so it has no business taking longer */
+const TIMEOUT_MS = 14_000;
 
 /** A 1600px JPEG data URL is ~1 MB. Anything far past that is not our photo. */
 const MAX_DATA_URL_CHARS = 12_000_000;

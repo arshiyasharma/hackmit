@@ -36,6 +36,12 @@ export type Carton = [number, number, number];
 
 /** The captured photo. `dataUrl` is already EXIF-rotated and downscaled. */
 export type Room = {
+  /**
+   * A 512px copy sent to /api/analyze and nowhere else. The style read wants
+   * five colours and four words, not detail, and a tenth of the bytes is a
+   * tenth of the upload and the tokens.
+   */
+  analysisDataUrl?: string;
   dataUrl: string;
   /** natural pixels of dataUrl, after downscale */
   width: number;
