@@ -10,10 +10,10 @@
  *      and the skeleton is on screen before any network call has returned.
  *      This is the 100ms criterion and it is the reason the order is this way
  *      round rather than "ask the server what this is, then make the item".
- *   2. THEN three calls go out in parallel, none of them blocking the others:
- *        /api/normalise   the category the other two key off
- *        /api/placeholder the stand-in sprite
- *        /api/search      the real listings
+ *   2. THEN the jobs go out in parallel, none of them blocking the others:
+ *        /api/normalise   the category the other two key off  (here)
+ *        /api/placeholder the stand-in sprite                 (here)
+ *        /api/search      the real listings   (OptionSheet, off the same item)
  *      Each fills its own part of the item as it lands. A failure marks that
  *      part failed and the rest of the screen carries on.
  *
@@ -29,7 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { withDemo } from "@/lib/demo";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import type { Product, RoomContext } from "@/types";
+import type { RoomContext } from "@/types";
 
 /* ------------------------------------------------------- the asking flag */
 
@@ -164,6 +164,7 @@ export function AskInput() {
 
   const [text, setText] = React.useState("");
   const [open, setOpen] = React.useState(false);
+  const [focused, setFocused] = React.useState(false);
   const fieldRef = React.useRef<HTMLInputElement | null>(null);
 
   const hasItems = items.length > 0;
@@ -171,10 +172,17 @@ export function AskInput() {
   // it collapses so it stops covering the room
   const expanded = !hasItems || open;
 
+  /*
+   * "asking" means the user is engaged with the field, not merely that it is on
+   * screen — an untouched field over an empty room is the `empty` phase, and
+   * the room screen should be able to tell the two apart.
+   */
+  const asking = expanded && (focused || text.trim().length > 0);
+
   React.useEffect(() => {
-    setAskingFlag(expanded);
+    setAskingFlag(asking);
     return () => setAskingFlag(false);
-  }, [expanded]);
+  }, [asking]);
 
   const asks = React.useMemo(() => buildAsks(roomContext), [roomContext]);
   const waitingForContext = roomContext === null && roomImage !== null;
@@ -216,23 +224,14 @@ export function AskInput() {
         else patch(id, null);
       });
 
-      const budgetRemainingCents =
-        store.budgetCents -
-        store.items.reduce(
-          (sum, item) => sum + (item.linkedProduct?.priceCents ?? 0),
-          0
-        );
-
-      void postJson<{ options?: Product[] }>("/api/search", {
-        request,
-        category: request,
-        roomContext: payloadContext,
-        budgetRemainingCents,
-      }).then((answer) => {
-        const patch = useStore.getState().setOptions;
-        if (answer?.options?.length) patch(id, answer.options.slice(0, 8));
-        else patch(id, null);
-      });
+      /*
+       * The third job — /api/search — is fired by components/OptionSheet.tsx
+       * the moment an item with `optionsStatus: "pending"` becomes active,
+       * which is now. It de-duplicates per item id in its own module, so
+       * calling it from here as well would send every search twice and let two
+       * answers race into setOptions. The two jobs still run in parallel; this
+       * one is simply owned next door.
+       */
     },
     []
   );
@@ -290,12 +289,16 @@ export function AskInput() {
               transition={
                 reduced ? { duration: 0.15 } : { ...spring, delay: Math.min(i, 6) * 0.04 }
               }
+              // keep the focus in the field: a blur here would collapse the
+              // whole ask out from under the finger before the tap landed
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => {
                 setText(ask);
                 fieldRef.current?.focus();
               }}
               className={cn(
-                "min-h-8 shrink-0 rounded-full border border-line px-3 py-1.5",
+                // `tap` puts a 44px hit area around a chip that reads as 32px
+                "tap min-h-8 shrink-0 rounded-full border border-line px-3 py-1.5",
                 "bg-background/80 text-[13px] whitespace-nowrap backdrop-blur-md",
                 "transition-colors active:bg-muted"
               )}
@@ -325,7 +328,9 @@ export function AskInput() {
           ref={fieldRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onFocus={() => setFocused(true)}
           onBlur={() => {
+            setFocused(false);
             // a blur on a phone means the keyboard went away; the field only
             // collapses once something is standing in the room
             if (hasItems && text.trim() === "") setOpen(false);
@@ -340,6 +345,7 @@ export function AskInput() {
         />
         <button
           type="submit"
+          onPointerDown={(e) => e.preventDefault()}
           aria-label="Ask for this"
           className={cn(
             "flex size-11 shrink-0 items-center justify-center rounded-full",

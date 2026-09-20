@@ -46,7 +46,7 @@ export function RoomContextStrip() {
   /* still reading the photo — the strip is a skeleton of what is coming */
   if (!roomContext) {
     return (
-      <div className="pointer-events-none w-full max-w-[62%] select-none">
+      <div className="pointer-events-none w-full max-w-[58%] select-none">
         <div className="flex items-center gap-1.5">
           {SLOTS.map((i) => (
             <Skeleton key={i} className="size-5 rounded-full" />
@@ -68,7 +68,7 @@ export function RoomContextStrip() {
   const generic = roomContext.source === "fallback";
 
   return (
-    <div className="w-full max-w-[62%]">
+    <div className="w-full max-w-[58%]">
       <div className="pointer-events-none flex items-center gap-1.5">
         {palette.map((hex, i) => (
           <motion.span

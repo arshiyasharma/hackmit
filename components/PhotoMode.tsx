@@ -88,6 +88,28 @@ export function categoryDefault(category: string): CategoryDefault {
   return FALLBACK_DEFAULT;
 }
 
+/**
+ * How tall the billboard stands, in millimetres, given a listing's
+ * [width, height, depth].
+ *
+ * Normally that is simply the listed height. The exception is a FLAT object —
+ * a rug, a mat, a picture quoted lying down — whose listed height is its
+ * thickness: 2,000 × 20 × 1,400 mm would stand a 20 mm sliver in the room, which
+ * reads as broken rather than as honest. A flat object is shown standing on its
+ * largest face instead, the way you would hold a rug up to look at it.
+ *
+ * The LABEL is untouched by this: it prints the listing's own width and height,
+ * so the numbers on the sprite, on the ProductCard and in the fit check still
+ * agree. Only the drawn plane changes — which is already derived, since its
+ * width comes from the cutout's aspect ratio rather than from the listing.
+ */
+export function standingHeightMm(dims: readonly [number, number, number]): number {
+  const [w, h, d] = dims;
+  const largest = Math.max(w, h, d);
+  const flat = h <= w && h <= d && h < largest / 2;
+  return flat ? largest : h;
+}
+
 export type SpriteSize = {
   /** the plane's width in millimetres — derived, never a listed number */
   widthMm: number;
@@ -113,7 +135,8 @@ export function spriteSizeMm(item: PlacedItem): SpriteSize {
 
   const dims = item.linkedProduct?.dimsMm;
   if (dims && dims[1] > 0) {
-    return { widthMm: dims[1] * ratio, heightMm: dims[1], known: true };
+    const heightMm = standingHeightMm(dims);
+    return { widthMm: heightMm * ratio, heightMm, known: true };
   }
   return {
     widthMm: fallback.heightMm * ratio,
@@ -623,6 +646,18 @@ function PhotoSprite({
           >
             {caption}
           </span>
+
+          {/* the kernel's verdict, printed exactly as lib/fit.ts returned it */}
+          {item.fit && item.fit.verdict !== "pass" ? (
+            <span
+              className={cn(
+                "max-w-[15rem] whitespace-normal text-center text-[10px]",
+                item.fit.verdict === "fail" ? "text-warn" : "text-muted-foreground"
+              )}
+            >
+              {item.fit.reason}
+            </span>
+          ) : null}
         </div>
       ) : null}
 

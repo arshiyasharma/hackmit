@@ -97,36 +97,38 @@ function prefersReducedMotion(): boolean {
  * leaves `texture` null and the skeleton keeps standing where it stood.
  */
 function usePlaceholderTexture(url: string): Texture | null {
-  const [texture, setTexture] = React.useState<Texture | null>(null);
+  /* the loaded texture is kept WITH the url it came from, so a new url shows
+     the skeleton again without a setState in the effect body */
+  const [loaded, setLoaded] = React.useState<{
+    url: string;
+    texture: Texture;
+  } | null>(null);
 
   React.useEffect(() => {
-    if (!url) {
-      setTexture(null);
-      return;
-    }
+    if (!url) return;
     let live = true;
-    let loaded: Texture | null = null;
+    let created: Texture | null = null;
     new TextureLoader().load(
       url,
       (tex) => {
         tex.colorSpace = SRGBColorSpace;
         tex.anisotropy = 4;
-        loaded = tex;
-        if (live) setTexture(tex);
+        created = tex;
+        if (live) setLoaded({ url, texture: tex });
         else tex.dispose();
       },
       undefined,
       () => {
-        if (live) setTexture(null);
+        // a failed cutout is not an error state: the skeleton keeps standing
       }
     );
     return () => {
       live = false;
-      loaded?.dispose();
+      created?.dispose();
     };
   }, [url]);
 
-  return texture;
+  return loaded && loaded.url === url ? loaded.texture : null;
 }
 
 /* ====================================================== the sprite itself */
@@ -163,7 +165,7 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
     velocity: 0,
   });
 
-  const reduced = React.useMemo(prefersReducedMotion, []);
+  const reduced = React.useMemo(() => prefersReducedMotion(), []);
 
   useFrame((state, delta) => {
     const group = groupRef.current;
@@ -255,12 +257,26 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
           {texture ? (
             <meshBasicMaterial
               map={texture}
-              transparent
-              // alphaTest keeps the cut-out edge from leaving a dark halo over
-              // the camera feed; depthWrite off keeps two sprites from
-              // punching holes in each other
+              /*
+               * AN ALPHA-TESTED CUTOUT, NOT A BLENDED ONE. This is deliberate
+               * and both halves matter:
+               *
+               *   `transparent` stays OFF. /api/placeholder flood-fills a white
+               *   background to alpha 0, but those texels keep their WHITE rgb;
+               *   with blending on, linear filtering and mipmaps bleed that
+               *   white into the edge and the sprite wears a pale fringe —
+               *   which is exactly what shows up against a dark room. With
+               *   blending off a fragment is either drawn whole or discarded,
+               *   so there is nothing to bleed.
+               *
+               *   `depthWrite` therefore stays ON (the default). An alpha test
+               *   discards before the depth write, so a cutout cannot punch a
+               *   hole in the sprite behind it, and the depth buffer sorts two
+               *   sprites standing near each other exactly — where the
+               *   transparent pass would sort them by centroid and flicker as
+               *   the user walks between them.
+               */
               alphaTest={0.5}
-              depthWrite={false}
               toneMapped={false}
               side={DoubleSide}
             />

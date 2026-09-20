@@ -279,7 +279,9 @@ export function BudgetHud() {
     <div
       className={cn(
         "pointer-events-none fixed inset-x-0 top-0 z-40",
-        "gutter pt-[max(8px,env(safe-area-inset-top))]"
+        // the same top inset as the room-context strip, so the two readouts
+        // sit on one line rather than 4px apart
+        "gutter pt-[max(12px,env(safe-area-inset-top))]"
       )}
     >
       <div className="mx-auto flex w-full max-w-md justify-end">

@@ -20,27 +20,13 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { RemoveButton } from "@/components/BudgetHud";
+import { openOptionsFor } from "@/components/OptionSheet";
 import { NumberPlate } from "@/components/ui/NumberPlate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { demoHref } from "@/lib/demo";
 import { linkedItems, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { PlacedItem } from "@/types";
-
-/**
- * Tapping a chip should also bring that item's options back up. The sheet owns
- * its own open state and takes no props, so the request is broadcast rather
- * than passed: components/OptionSheet.tsx can listen for this and open itself.
- * Setting the active item is the part that is guaranteed either way.
- */
-export const OPEN_OPTIONS_EVENT = "visa:open-options";
-
-export function requestOptions(itemId: string) {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(
-    new CustomEvent(OPEN_OPTIONS_EVENT, { detail: { itemId } })
-  );
-}
 
 /* ------------------------------------------------------------------ utils */
 
@@ -131,8 +117,10 @@ export function ItemsStrip() {
               <button
                 type="button"
                 onClick={() => {
+                  // makes it active AND brings its options up — the sheet owns
+                  // its own open state, this is its published way in
                   setActiveItem(item.id);
-                  requestOptions(item.id);
+                  openOptionsFor(item.id);
                 }}
                 aria-current={active ? "true" : undefined}
                 className="flex items-center gap-2 text-left"

@@ -10,7 +10,7 @@ import { ProfileSheet } from "@/components/ProfileSheet";
 import { Sheet } from "@/components/ui/Sheet";
 import { NumberPlate, formatCarton } from "@/components/ui/NumberPlate";
 import { planarCornerLimit, type FitResult } from "@/lib/fit";
-import { useStore } from "@/lib/store";
+import { itemById, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
@@ -35,9 +35,27 @@ export type FitSheetProps = {
 
 const mm = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
+/**
+ * One frozen empty array, reused. The store selector below must return a
+ * stable reference when there are no options, or useSyncExternalStore sees a
+ * new snapshot on every render and loops forever.
+ */
+const NO_OPTIONS: readonly Product[] = Object.freeze([]);
+
 export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps) {
   const profile = useStore((s) => s.profile);
-  const products = useStore((s) => s.products);
+  /*
+   * The alternatives come from THIS item's option set — the five listings the
+   * search returned for the thing standing in the room. v2 kept a flat
+   * `products` array on the store; v3 hangs options off the PlacedItem, so we
+   * find the item that owns this listing and fall back to the active one.
+   */
+  const products = useStore((s) => {
+    const owner =
+      s.items.find((item) => item.options.some((p) => p.id === product.id)) ??
+      itemById(s.items, s.activeItemId);
+    return owner?.options ?? NO_OPTIONS;
+  });
   const [profileOpen, setProfileOpen] = React.useState(false);
 
   const geometry = React.useMemo(() => {
@@ -65,15 +83,12 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
 
   const alternatives = React.useMemo(() => {
     if (!result || result.verdict !== "fail") return [];
-    const sameElement = products.filter(
-      (p) => p.id !== product.id && p.elementId === product.elementId && productPasses(p, profile)
+    // `products` is already this one item's option set, so no second grouping.
+    const pool = products.filter(
+      (p) => p.id !== product.id && productPasses(p, profile)
     );
-    const pool =
-      sameElement.length > 0
-        ? sameElement
-        : products.filter((p) => p.id !== product.id && productPasses(p, profile));
     return [...pool].sort((a, b) => a.priceCents - b.priceCents).slice(0, 2);
-  }, [products, product.id, product.elementId, profile, result]);
+  }, [products, product.id, profile, result]);
 
   const tone = fitTone(result);
   const headline = !result

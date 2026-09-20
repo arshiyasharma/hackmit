@@ -28,9 +28,13 @@ import { Camera } from "lucide-react";
 
 import ArScene from "@/components/ArScene";
 import AskInput, { useAsking } from "@/components/AskInput";
-import BudgetHud from "@/components/BudgetHud";
+import BudgetHud, { useRemoveItem } from "@/components/BudgetHud";
 import ItemsStrip from "@/components/ItemsStrip";
-import OptionSheet from "@/components/OptionSheet";
+import OptionSheet, { openOptionsFor, useOptionsOpen } from "@/components/OptionSheet";
+import {
+  OPEN_OPTIONS_EVENT,
+  REMOVE_ITEM_EVENT,
+} from "@/components/PhotoMode";
 import { RoomContextStrip } from "@/components/RoomContextStrip";
 import { StatusLine } from "@/components/ui/StatusLine";
 import { demoHref } from "@/lib/demo";
@@ -81,6 +85,10 @@ export default function RoomPage() {
   const roomImage = useStore((s) => s.roomImage);
   const roomContext = useStore((s) => s.roomContext);
   const asking = useAsking();
+  // the sheet rests at 40% and the bottom chrome lives in that same 40%, so
+  // while it is up the strip and the ask step out of the way rather than
+  // sitting behind it
+  const optionsOpen = useOptionsOpen();
   const reduced = useReducedMotion();
 
   const active = React.useMemo(
@@ -89,6 +97,40 @@ export default function RoomPage() {
   );
 
   const phase = derivePhase(items, active, asking);
+
+  /*
+   * THE SPRITE'S OWN GESTURES LAND HERE.
+   *
+   * Both scenes — the WebXR one and the photo one — say what the user did to a
+   * sprite on `window` rather than taking a callback prop, because neither
+   * takes props and in a live session the canvas is not even in the same DOM
+   * tree as this chrome. This screen owns the option sheet and the remove
+   * gesture, so this is where those two announcements are answered.
+   *
+   * Without this, tapping a sprite does nothing and the relink loop dead-ends
+   * at the first tap — the item is reachable only from the bottom strip.
+   */
+  const removeItem = useRemoveItem();
+  React.useEffect(() => {
+    const itemIdOf = (event: Event): string | null => {
+      const detail = (event as CustomEvent<{ itemId?: unknown }>).detail;
+      return typeof detail?.itemId === "string" ? detail.itemId : null;
+    };
+    const onOpen = (event: Event) => {
+      const id = itemIdOf(event);
+      if (id) openOptionsFor(id);
+    };
+    const onRemove = (event: Event) => {
+      const id = itemIdOf(event);
+      if (id) removeItem(id);
+    };
+    window.addEventListener(OPEN_OPTIONS_EVENT, onOpen);
+    window.addEventListener(REMOVE_ITEM_EVENT, onRemove);
+    return () => {
+      window.removeEventListener(OPEN_OPTIONS_EVENT, onOpen);
+      window.removeEventListener(REMOVE_ITEM_EVENT, onRemove);
+    };
+  }, [removeItem]);
 
   /* what the wait is called, in the user's own words rather than a spinner */
   const waitMessages = React.useMemo(() => {
@@ -120,15 +162,18 @@ export default function RoomPage() {
       {/* --------------------------------------------------- 3. the chrome */}
 
       {/* top: the room context that explains the results, and the budget */}
+      {/* BudgetHud positions ITSELF: fixed, top-right of this same max-w-md
+          column, inside the safe area, capped at 40% of it, with its own
+          `relative` box for the floating deltas. Wrapping it in another
+          positioned bar does nothing to a fixed element except steal width
+          from the strip beside it, so it is rendered as a sibling and the
+          strip gets the whole column to cap itself against. */}
+      <BudgetHud />
+
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
-        <div className="gutter mx-auto flex w-full max-w-md items-start justify-between gap-3 pt-[max(12px,env(safe-area-inset-top))]">
+        <div className="gutter mx-auto flex w-full max-w-md items-start pt-[max(12px,env(safe-area-inset-top))]">
           <div className="pointer-events-auto min-w-0 flex-1">
             <RoomContextStrip />
-          </div>
-          {/* `relative` so the budget's floating deltas have something to
-              position against — Delta places itself at top-full right-0 */}
-          <div className="pointer-events-auto relative w-[40%] shrink-0">
-            <BudgetHud />
           </div>
         </div>
 
@@ -170,34 +215,45 @@ export default function RoomPage() {
       </AnimatePresence>
 
       {/* bottom: the wait, what is placed, and the ask */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
-        <div className="gutter mx-auto flex w-full max-w-md flex-col gap-2 pb-[max(12px,env(safe-area-inset-bottom))]">
-          <AnimatePresence>
-            {phase === "generating" && waitMessages.length > 0 ? (
-              <motion.div
-                key="wait"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={fade}
-                className="pointer-events-none"
-              >
-                <StatusLine
-                  messages={waitMessages}
-                  intervalMs={2400}
-                  className={cn(
-                    "w-fit rounded-full bg-background/80 px-3 py-1",
-                    "text-[12px] text-muted-foreground backdrop-blur-md"
-                  )}
-                />
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+      <AnimatePresence>
+        {optionsOpen ? null : (
+          <motion.div
+            key="bottom-chrome"
+            initial={{ opacity: 0, y: reduced ? 0 : 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: reduced ? 0 : 16 }}
+            transition={fade}
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
+          >
+            <div className="gutter mx-auto flex w-full max-w-md flex-col gap-2 pb-[max(12px,env(safe-area-inset-bottom))]">
+              <AnimatePresence>
+                {phase === "generating" && waitMessages.length > 0 ? (
+                  <motion.div
+                    key="wait"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={fade}
+                    className="pointer-events-none"
+                  >
+                    <StatusLine
+                      messages={waitMessages}
+                      intervalMs={2400}
+                      className={cn(
+                        "w-fit rounded-full bg-background/80 px-3 py-1",
+                        "text-[12px] text-muted-foreground backdrop-blur-md"
+                      )}
+                    />
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
 
-          <ItemsStrip />
-          <AskInput />
-        </div>
-      </div>
+              <ItemsStrip />
+              <AskInput />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* the options for the active item, resting at 40% so the sprite shows */}
       <OptionSheet />

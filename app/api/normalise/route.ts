@@ -125,7 +125,8 @@ const RULES: Rule[] = [
   },
   { phrases: ["dining chair"], category: "dining chair", silhouette: "chair" },
   { phrases: ["desk chair", "office chair"], category: "desk chair", silhouette: "chair" },
-  { phrases: ["chair", "seat"], category: "armchair", silhouette: "chair" },
+  // "somewhere to sit" is a real thing people type, and it is a chair
+  { phrases: ["chair", "seat", "sit", "sit on", "seating"], category: "armchair", silhouette: "chair" },
 
   /* tables and desks */
   { phrases: ["coffee table"], category: "coffee table", silhouette: "table" },
