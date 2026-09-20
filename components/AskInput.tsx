@@ -27,7 +27,7 @@ import { ArrowUp, Plus } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { withDemo } from "@/lib/demo";
-import { useStore } from "@/lib/store";
+import { roomContextFor, useRoomContext, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { RoomContext } from "@/types";
 
@@ -158,7 +158,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T | null> {
 
 export function AskInput() {
   const items = useStore((s) => s.items);
-  const roomContext = useStore((s) => s.roomContext);
+  const roomContext = useRoomContext();
   const roomImage = useStore((s) => s.roomImage);
   const reduced = useReducedMotion();
 
@@ -190,7 +190,9 @@ export function AskInput() {
   const submit = React.useCallback(
     (raw: string) => {
       const store = useStore.getState();
-      const context = store.roomContext;
+      // the edited context: the placeholder prompt and the search both key
+      // off this, so a word or colour changed above is in from the first call
+      const context = roomContextFor(store);
 
       // an empty ask is valid: the room chooses. Never dead-end.
       const request =

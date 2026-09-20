@@ -6,7 +6,7 @@ import { Check, Plus, X } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusLine } from "@/components/ui/StatusLine";
-import { useStore } from "@/lib/store";
+import { useRoomContext, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 /**
@@ -240,7 +240,8 @@ function AddPaletteColor() {
 }
 
 export function RoomContextStrip() {
-  const roomContext = useStore((s) => s.roomContext);
+  // the model's answer WITH the user's edits applied, never the raw one
+  const roomContext = useRoomContext();
   const roomImage = useStore((s) => s.roomImage);
   const removeStyleTag = useStore((s) => s.removeStyleTag);
   const removePaletteColor = useStore((s) => s.removePaletteColor);

@@ -38,7 +38,7 @@ import {
 import { RoomContextStrip } from "@/components/RoomContextStrip";
 import { StatusLine } from "@/components/ui/StatusLine";
 import { demoHref } from "@/lib/demo";
-import { itemById, searchQuery, useStore } from "@/lib/store";
+import { itemById, searchQuery, useRoomContext, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { PlacedItem, RoomPhase } from "@/types";
 
@@ -83,7 +83,8 @@ export default function RoomPage() {
   const items = useStore((s) => s.items);
   const activeItemId = useStore((s) => s.activeItemId);
   const roomImage = useStore((s) => s.roomImage);
-  const roomContext = useStore((s) => s.roomContext);
+  // edits included, so the status line names the query that will actually run
+  const roomContext = useRoomContext();
   const asking = useAsking();
   // the sheet rests at 40% and the bottom chrome lives in that same 40%, so
   // while it is up the strip and the ask step out of the way rather than

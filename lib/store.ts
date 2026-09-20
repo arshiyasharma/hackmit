@@ -111,7 +111,24 @@ export const NEUTRAL_ROOM_CONTEXT: RoomContext = {
 export type VisaState = {
   /* capture */
   roomImage: Room | null;
+  /** exactly what /api/analyze answered — never edited in place */
   roomContext: RoomContext | null;
+  /**
+   * WHAT THE USER CHANGED ABOUT IT, kept apart from the model's answer.
+   *
+   * The read arrives seconds after the screen does, so edits made while it is
+   * in flight used to be wiped the moment it landed: add "brass", watch Gemini
+   * answer, watch "brass" vanish. Storing the edits rather than the result
+   * means the answer can arrive whenever it likes and the strip still says
+   * what the user made it say — and a word they deleted stays deleted even if
+   * the model names it.
+   */
+  edits: {
+    addedTags: string[];
+    removedTags: string[];
+    addedColors: string[];
+    removedColors: string[];
+  };
 
   /* the loop */
   items: PlacedItem[];
@@ -193,9 +210,17 @@ export type VisaActions = {
 
 export type VisaStore = VisaState & VisaActions;
 
+const EMPTY_EDITS = {
+  addedTags: [] as string[],
+  removedTags: [] as string[],
+  addedColors: [] as string[],
+  removedColors: [] as string[],
+};
+
 const initialState: VisaState = {
   roomImage: null,
   roomContext: null,
+  edits: EMPTY_EDITS,
   items: [],
   activeItemId: null,
   budgetCents: DEFAULT_BUDGET_CENTS,
@@ -231,20 +256,26 @@ export const useStore = create<VisaStore>()(
 
       /* capture */
       setRoomImage: (roomImage) =>
-        // a new room invalidates everything standing in the old one
-        set({ roomImage, roomContext: null, items: [], activeItemId: null }),
+        // a new room invalidates everything standing in the old one, edits too
+        set({
+          roomImage,
+          roomContext: null,
+          edits: EMPTY_EDITS,
+          items: [],
+          activeItemId: null,
+        }),
       setRoomContext: (roomContext) => set({ roomContext }),
       removeStyleTag: (tag) =>
-        set((s) =>
-          s.roomContext
-            ? {
-                roomContext: {
-                  ...s.roomContext,
-                  styleTags: s.roomContext.styleTags.filter((t) => t !== tag),
-                },
-              }
-            : {}
-        ),
+        set((s) => ({
+          edits: {
+            ...s.edits,
+            addedTags: s.edits.addedTags.filter((t) => t !== tag),
+            // remembered, so a late model answer cannot bring it back
+            removedTags: s.edits.removedTags.includes(tag)
+              ? s.edits.removedTags
+              : [...s.edits.removedTags, tag],
+          },
+        })),
 
       /*
        * Every style word is typed straight into a shop's search box, so a word
@@ -260,20 +291,13 @@ export const useStore = create<VisaStore>()(
         set((s) => {
           const word = tag.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 24);
           if (!word) return {};
-
-          const context = s.roomContext ?? {
-            styleTags: [],
-            palette: [],
-            lighting: "neutral" as const,
-            source: "fallback" as const,
-          };
-          if (context.styleTags.includes(word)) return {};
-          if (context.styleTags.length >= MAX_STYLE_TAGS) return {};
-
+          if (effectiveTags(s).includes(word)) return {};
+          if (effectiveTags(s).length >= MAX_STYLE_TAGS) return {};
           return {
-            roomContext: {
-              ...context,
-              styleTags: [...context.styleTags, word],
+            edits: {
+              ...s.edits,
+              addedTags: [...s.edits.addedTags, word],
+              removedTags: s.edits.removedTags.filter((t) => t !== word),
             },
           };
         }),
@@ -288,38 +312,27 @@ export const useStore = create<VisaStore>()(
         set((s) => {
           const colour = normalizeHex(hex);
           if (!colour) return {};
-
-          const context = s.roomContext ?? {
-            styleTags: [],
-            palette: [],
-            lighting: "neutral" as const,
-            source: "fallback" as const,
-          };
-          if (context.palette.includes(colour)) return {};
-          if (context.palette.length >= MAX_PALETTE) return {};
-
+          if (effectivePalette(s).includes(colour)) return {};
+          if (effectivePalette(s).length >= MAX_PALETTE) return {};
           return {
-            roomContext: {
-              ...context,
-              palette: [...context.palette, colour],
-              // picked by hand, so it is intent and it joins the search query
-              picked: [...(context.picked ?? []), colour],
+            edits: {
+              ...s.edits,
+              addedColors: [...s.edits.addedColors, colour],
+              removedColors: s.edits.removedColors.filter((c) => c !== colour),
             },
           };
         }),
 
       removePaletteColor: (hex) =>
-        set((s) =>
-          s.roomContext
-            ? {
-                roomContext: {
-                  ...s.roomContext,
-                  palette: s.roomContext.palette.filter((c) => c !== hex),
-                  picked: (s.roomContext.picked ?? []).filter((c) => c !== hex),
-                },
-              }
-            : {}
-        ),
+        set((s) => ({
+          edits: {
+            ...s.edits,
+            addedColors: s.edits.addedColors.filter((c) => c !== hex),
+            removedColors: s.edits.removedColors.includes(hex)
+              ? s.edits.removedColors
+              : [...s.edits.removedColors, hex],
+          },
+        })),
 
       /* items — the item exists before either async job returns */
       addItem: ({ request, category, position }) => {
@@ -494,6 +507,66 @@ export const useStore = create<VisaStore>()(
     }
   )
 );
+
+/* ------------------------------------------------------- the room context */
+
+function effectiveTags(state: {
+  roomContext: RoomContext | null;
+  edits: VisaState["edits"];
+}): string[] {
+  const fromModel = state.roomContext?.styleTags ?? [];
+  const kept = fromModel.filter((t) => !state.edits.removedTags.includes(t));
+  const added = state.edits.addedTags.filter((t) => !kept.includes(t));
+  return [...kept, ...added].slice(0, MAX_STYLE_TAGS);
+}
+
+function effectivePalette(state: {
+  roomContext: RoomContext | null;
+  edits: VisaState["edits"];
+}): string[] {
+  const fromModel = state.roomContext?.palette ?? [];
+  const kept = fromModel.filter((c) => !state.edits.removedColors.includes(c));
+  const added = state.edits.addedColors.filter((c) => !kept.includes(c));
+  return [...kept, ...added].slice(0, MAX_PALETTE);
+}
+
+/**
+ * THE ROOM CONTEXT EVERYTHING ELSE SHOULD READ.
+ *
+ * The model's answer with the user's edits applied: their words added, the
+ * ones they deleted gone for good, their colours in `picked` so the search and
+ * the image prompt can treat them as intent. Nothing reads `roomContext`
+ * directly any more except this function — that is what stops a late answer
+ * from undoing an edit, and an edit from being forgotten by the next search.
+ */
+export function roomContextFor(state: {
+  roomContext: RoomContext | null;
+  edits: VisaState["edits"];
+}): RoomContext | null {
+  const base = state.roomContext;
+  const tags = effectiveTags(state);
+  const palette = effectivePalette(state);
+  const picked = state.edits.addedColors.filter((c) => palette.includes(c));
+
+  if (!base) {
+    if (tags.length === 0 && palette.length === 0) return null;
+    // edits made before the read landed still steer the search
+    return {
+      styleTags: tags,
+      palette,
+      picked,
+      lighting: "neutral",
+      source: "fallback",
+    };
+  }
+
+  return { ...base, styleTags: tags, palette, picked };
+}
+
+/** The same thing as a hook, for a component that just wants to render it. */
+export function useRoomContext(): RoomContext | null {
+  return useStore((s) => roomContextFor(s));
+}
 
 /** Older files imported the store under this name. Same store. */
 export const useVisaStore = useStore;

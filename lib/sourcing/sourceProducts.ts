@@ -161,7 +161,19 @@ export async function sourceProductsForQuery(
   try {
     elasticProducts = applyRelevance(
       await searchProducts({
-        q: designQuery,
+        /*
+         * THE STYLED QUERY, not the bare request.
+         *
+         * `designQuery` is "a tall lamp" — what the user asked for, used below
+         * to drop irrelevant hits. `shoppingQuery` is what the room screen is
+         * actually showing above the results: the style words and the picked
+         * colours joined to that request. Searching the bare request here made
+         * the whole strip decorative — add "brass", remove "ornate", pick sage,
+         * and Elastic returned the same lamps either way, because none of those
+         * words ever reached it. Retrieval uses the full query; relevance
+         * filtering still uses the request.
+         */
+        q: options.shoppingQuery || designQuery,
         maxPriceCents,
       })
     );

@@ -6,7 +6,14 @@ import { create } from "zustand";
 import SourcingResults from "@/components/SourcingResults";
 import { Sheet } from "@/components/ui/Sheet";
 import { withDemo } from "@/lib/demo";
-import { searchQuery, spentCents, useActiveItem, useStore } from "@/lib/store";
+import {
+  roomContextFor,
+  searchQuery,
+  spentCents,
+  useActiveItem,
+  useRoomContext,
+  useStore,
+} from "@/lib/store";
 import type { PlacedItem, Product } from "@/types";
 
 /**
@@ -80,7 +87,7 @@ function optionsOf(answer: SearchAnswer): Product[] {
 export function OptionSheet() {
   const open = useSheetState((s) => s.open);
   const item = useActiveItem();
-  const roomContext = useStore((s) => s.roomContext);
+  const roomContext = useRoomContext();
 
   const [snap, setSnap] = React.useState(1);
   const [pendingId, setPendingId] = React.useState<string | null>(null);
@@ -92,7 +99,8 @@ export function OptionSheet() {
 
   const runSearch = React.useCallback(async (target: PlacedItem) => {
     const state = useStore.getState();
-    const sent = searchQuery(state.roomContext, target.request);
+    const context = roomContextFor(state);
+    const sent = searchQuery(context, target.request);
 
     inFlight.get(target.id)?.abort();
     const controller = new AbortController();
@@ -109,7 +117,7 @@ export function OptionSheet() {
           request: target.request,
           category: target.category,
           query: sent,
-          roomContext: state.roomContext,
+          roomContext: context,
           budgetRemainingCents: state.budgetCents - spentCents(state.items),
         }),
         signal: controller.signal,
