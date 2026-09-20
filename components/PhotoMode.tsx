@@ -24,7 +24,7 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { Maximize2, RotateCw } from "lucide-react";
+import { Maximize2, RotateCw, Trash2 } from "lucide-react";
 import { useDrag, usePinch } from "@use-gesture/react";
 import { toast } from "sonner";
 
@@ -130,9 +130,12 @@ export type SpriteSize = {
 export function spriteSizeMm(item: PlacedItem): SpriteSize {
   const fallback = categoryDefault(item.category);
   const ratio =
-    item.placeholderStatus === "ready" && item.placeholderWidthRatio > 0
-      ? item.placeholderWidthRatio
-      : fallback.widthRatio;
+    // the linked listing's own photo wins; then the stand-in; then the shape
+    item.listingCutoutUrl && item.listingWidthRatio && item.listingWidthRatio > 0
+      ? item.listingWidthRatio
+      : item.placeholderStatus === "ready" && item.placeholderWidthRatio > 0
+        ? item.placeholderWidthRatio
+        : fallback.widthRatio;
 
   const dims = item.linkedProduct?.dimsMm;
   if (dims && dims[1] > 0) {
@@ -213,7 +216,6 @@ export function emitItemEvent(name: string, itemId: string): void {
 }
 
 /** How long a press has to hold before it means "remove this". */
-const LONG_PRESS_MS = 550;
 
 /** ~400 ms to settle, with the small overshoot that makes a resize readable. */
 export const RESIZE_SPRING = { type: "spring", stiffness: 220, damping: 26 } as const;
@@ -259,6 +261,38 @@ export function PhotoMode() {
   const setActiveItem = useStore((s) => s.setActiveItem);
   const moveItem = useStore((s) => s.moveItem);
   const resizeItem = useStore((s) => s.resizeItem);
+
+  /*
+   * THE BIN. Removal is a destination, not a gesture: it only exists while a
+   * sprite is being dragged, it sits in the corner furthest from the ask input,
+   * and a drop anywhere else in the picture is just a placement.
+   */
+  const binRef = React.useRef<HTMLDivElement | null>(null);
+  /* what the bin looks like is state; where the bin IS is a ref, read only
+     inside the drag handler, never during a render */
+  const [dragging, setDragging] = React.useState(false);
+  const [binHot, setBinHot] = React.useState(false);
+
+  const overBin = React.useCallback((x: number, y: number) => {
+    const box = binRef.current?.getBoundingClientRect();
+    if (!box) return false;
+    // a little forgiveness around the edge, for a finger
+    const pad = 12;
+    return (
+      x >= box.left - pad &&
+      x <= box.right + pad &&
+      y >= box.top - pad &&
+      y <= box.bottom + pad
+    );
+  }, []);
+
+  const onDragPoint = React.useCallback(
+    (point: { x: number; y: number } | null) => {
+      setDragging(point !== null);
+      setBinHot(point ? overBin(point.x, point.y) : false);
+    },
+    [overBin]
+  );
   const ceilingHeightMm = useStore((s) => s.profile.ceilingHeightMm);
 
   const stageRef = React.useRef<HTMLDivElement | null>(null);
@@ -437,6 +471,8 @@ export function PhotoMode() {
               onPlaced={() => moveItem(item.id, item.position, item.rotationY)}
               onResize={(scale) => resizeItem(item.id, scale)}
               onRotate={(degrees) => moveItem(item.id, item.position, degrees)}
+              onDragPoint={onDragPoint}
+              overBin={overBin}
             />
           ))
         : null}
@@ -447,6 +483,25 @@ export function PhotoMode() {
        * in the same band as the items strip and the chips, so three layers
        * overlapped at the bottom of a 390px screen. One line of copy is enough.
        */}
+
+      {/* the bin, only while something is in the air */}
+      <div
+        ref={binRef}
+        aria-hidden={!dragging}
+        className={cn(
+          "pointer-events-none absolute right-3 top-24 z-30 grid size-16 place-items-center",
+          "rounded-2xl border-2 border-dashed backdrop-blur-md transition-all duration-150",
+          dragging ? "opacity-100" : "pointer-events-none opacity-0",
+          binHot
+            ? "scale-110 border-warn bg-warn/20 text-warn"
+            : "border-line bg-background/80 text-muted-foreground"
+        )}
+      >
+        <Trash2 className="size-5" aria-hidden />
+        <span className="mt-0.5 text-[9px]">
+          {binHot ? "release" : "drag here"}
+        </span>
+      </div>
 
       {/* the scale control sits directly above the ask stack, never over it */}
       <div className="pointer-events-none absolute inset-x-3 bottom-[var(--room-bottom-chrome)] flex flex-col gap-1">
@@ -527,6 +582,10 @@ type PhotoSpriteProps = {
   onPlaced: () => void;
   onResize: (scale: number) => void;
   onRotate: (degrees: number) => void;
+  /** where the finger is during a drag, so the bin can light up; null on drop */
+  onDragPoint: (point: { x: number; y: number } | null) => void;
+  /** is this viewport point inside the bin? */
+  overBin: (x: number, y: number) => boolean;
 };
 
 function PhotoSprite({
@@ -543,16 +602,24 @@ function PhotoSprite({
   onPlaced,
   onResize,
   onRotate,
+  onDragPoint,
+  overBin,
 }: PhotoSpriteProps) {
   const reduced = useReducedMotion();
   const ref = React.useRef<HTMLDivElement | null>(null);
-  const pressTimer = React.useRef<number | null>(null);
-  const longPressed = React.useRef(false);
+  /** true once a press has travelled far enough to be a drag, not a tap */
+  const draggedFar = React.useRef(false);
+
+  /* the product itself once one is linked, the drawing of it until then */
+  const spriteSrc =
+    item.listingCutoutUrl ??
+    (item.placeholderStatus === "ready" && item.placeholderUrl
+      ? item.placeholderUrl
+      : null);
 
   const size = spriteSizeMm(item);
   const width = size.widthMm * pxPerMm * item.scale;
   const height = size.heightMm * pxPerMm * item.scale;
-  const resized = Math.abs(item.scale - 1) > 0.01;
 
   /* evenly along the floor line until the user drags it somewhere */
   const home = React.useMemo(
@@ -570,13 +637,22 @@ function PhotoSprite({
   }, [place]);
 
   useDrag(
-    ({ offset: [x, y], event, last }) => {
+    ({ offset: [x, y], xy: [px, py], movement: [mx, my], event, last, first }) => {
       event.preventDefault?.();
+      if (first) draggedFar.current = false;
+      if (Math.abs(mx) + Math.abs(my) > 8) draggedFar.current = true;
+
       onSpot({
         x: Math.min(Math.max(x / fit.width, 0.02), 0.98),
         y: Math.min(Math.max(y / fit.height, 0.05), 1),
       });
-      if (last) onPlaced();
+      onDragPoint(last ? null : { x: px, y: py });
+
+      if (last) {
+        // dropped on the bin? that is the only gesture that removes anything
+        if (overBin(px, py)) onRemove();
+        else onPlaced();
+      }
     },
     {
       target: ref,
@@ -589,21 +665,12 @@ function PhotoSprite({
     }
   );
 
-  const startPress = () => {
-    longPressed.current = false;
-    pressTimer.current = window.setTimeout(() => {
-      longPressed.current = true;
-      vibrate(16);
-      onRemove();
-    }, LONG_PRESS_MS);
-  };
-  const endPress = () => {
-    if (pressTimer.current !== null) {
-      window.clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  };
-  React.useEffect(() => endPress, []);
+  /*
+   * A LONG PRESS USED TO DELETE, and dragging a sprite slowly is a long press.
+   * People lost objects while placing them. Removal is now a place you drag to
+   * — the bin in the top-right corner — plus the cross on the item's chip, so
+   * nothing vanishes from a gesture meant to move it.
+   */
 
   const caption = dimsCaption(item);
   const label = labelDimsMm(item);
@@ -623,13 +690,9 @@ function PhotoSprite({
       animate={{ width, height, rotate: item.rotationY }}
       initial={false}
       transition={reduced ? { duration: 0.15 } : RESIZE_SPRING}
-      onPointerDown={startPress}
-      onPointerUp={endPress}
-      onPointerCancel={endPress}
-      onPointerLeave={endPress}
       onClick={(e) => {
         e.stopPropagation();
-        if (longPressed.current) return;
+        if (draggedFar.current) return;
         onActivate();
       }}
       onKeyDown={(e) => {
@@ -639,50 +702,69 @@ function PhotoSprite({
         }
       }}
     >
-      {/* the active item carries the ONE dimension label; nothing else does */}
+      {/*
+       * DIMENSION ARROWS, and they never move.
+       *
+       * We do not know how big the room is. The photo has no scale until the
+       * user taps a doorway, so how large the sprite LOOKS is a guess and the
+       * millimetres are not: they came off the listing. So the numbers are
+       * pinned to the object as measurements — an arrow across the width and an
+       * arrow up the height — and dragging the sprite bigger or smaller does
+       * not change a digit of them. There is nothing to "reset", because the
+       * stated size was never what the picture claimed.
+       */}
+      {active ? (
+        <>
+          {/* height, up the left edge */}
+          <div className="pointer-events-none absolute -left-2 bottom-0 top-0 flex w-0 items-center">
+            <div className="h-full w-px bg-foreground/45" />
+            <span className="absolute left-0 top-0 h-px w-2 -translate-x-1/2 bg-foreground/45" />
+            <span className="absolute bottom-0 left-0 h-px w-2 -translate-x-1/2 bg-foreground/45" />
+            <span
+              style={{ rotate: `${-item.rotationY}deg` }}
+              className={cn(
+                "absolute left-1 whitespace-nowrap rounded-full px-1.5 py-0.5",
+                "bg-background/80 text-[10px] backdrop-blur-md",
+                dimsTone(item) === "warn" ? "text-warn" : "text-foreground"
+              )}
+            >
+              {label ? formatMm(label.heightMm) : "— mm"}
+            </span>
+          </div>
+
+          {/* width, across the bottom edge */}
+          <div className="pointer-events-none absolute -bottom-2 left-0 right-0 flex h-0 justify-center">
+            <div className="h-px w-full bg-foreground/45" />
+            <span className="absolute left-0 top-0 h-2 w-px -translate-y-1/2 bg-foreground/45" />
+            <span className="absolute right-0 top-0 h-2 w-px -translate-y-1/2 bg-foreground/45" />
+            <span
+              style={{ rotate: `${-item.rotationY}deg` }}
+              className={cn(
+                "absolute top-1 whitespace-nowrap rounded-full px-1.5 py-0.5",
+                "bg-background/80 text-[10px] backdrop-blur-md",
+                dimsTone(item) === "warn" ? "text-warn" : "text-foreground"
+              )}
+            >
+              {label ? formatMm(label.widthMm) : "— mm"}
+            </span>
+          </div>
+        </>
+      ) : null}
+
+      {/* where those numbers came from, and the kernel's verdict if it refused */}
       {active ? (
         <div
-          /* the sprite may be turned; the ONE readout on screen stays level */
           style={{ rotate: `${-item.rotationY}deg` }}
-          className="pointer-events-none absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col items-center gap-0.5 whitespace-nowrap rounded-full border border-line/60 bg-background/75 px-3 py-1 backdrop-blur-md"
+          className="pointer-events-none absolute bottom-full left-1/2 mb-3 flex -translate-x-1/2 flex-col items-center gap-0.5 whitespace-nowrap rounded-full border border-line/60 bg-background/75 px-3 py-1 backdrop-blur-md"
         >
-          <span className="flex items-baseline gap-1">
-            <NumberPlate value={label?.widthMm ?? null} size="sm" label="width" />
-            <span className="text-xs text-muted-foreground">×</span>
-            <NumberPlate
-              value={label?.heightMm ?? null}
-              unit="mm"
-              size="sm"
-              label="height"
-            />
-          </span>
           <span
             className={cn(
               "text-[10px]",
-              resized || dimsTone(item) === "warn"
-                ? "text-warn"
-                : "text-muted-foreground"
+              dimsTone(item) === "warn" ? "text-warn" : "text-muted-foreground"
             )}
           >
-            {resized
-              ? `resized by you — ${Math.round(item.scale * 100)}% of real size`
-              : caption}
+            {caption}
           </span>
-
-          {/* one tap back to the truth, right where the lie is shown */}
-          {resized ? (
-            <button
-              type="button"
-              className="pointer-events-auto text-[10px] text-accent underline underline-offset-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                onResize(1);
-                vibrate(8);
-              }}
-            >
-              Back to real size
-            </button>
-          ) : null}
 
           {/* the kernel's verdict, printed exactly as lib/fit.ts returned it */}
           {item.fit && item.fit.verdict !== "pass" ? (
@@ -698,11 +780,15 @@ function PhotoSprite({
         </div>
       ) : null}
 
-      {item.placeholderStatus === "ready" && item.placeholderUrl ? (
+      {spriteSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={item.placeholderUrl}
-          alt={`Stand-in ${item.category}`}
+          src={spriteSrc}
+          alt={
+            item.listingCutoutUrl && item.linkedProduct
+              ? item.linkedProduct.title
+              : `Stand-in ${item.category}`
+          }
           draggable={false}
           className={cn(
             "h-full w-full select-none object-contain transition-opacity duration-300",
@@ -722,7 +808,9 @@ function PhotoSprite({
 
       {active ? (
         <p className="pointer-events-none absolute left-1/2 top-full mt-1 w-max -translate-x-1/2 text-[10px] text-muted-foreground">
-          Stand-in image — the product you pick is linked.
+          {item.listingCutoutUrl
+            ? `${item.linkedProduct?.retailer ?? "the shop"}'s own photo`
+            : "Stand-in image — the product you pick is linked."}
         </p>
       ) : null}
 

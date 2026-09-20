@@ -182,6 +182,13 @@ export type PlacedItem = {
   category: string;
   /** the generated cutout PNG; "" until /api/placeholder answers */
   placeholderUrl: string;
+  /**
+   * The LINKED listing's own photo, keyed and trimmed. Once a product is
+   * chosen the room shows the real thing; unlink and the stand-in returns,
+   * which is why this is a second field rather than an overwrite.
+   */
+  listingCutoutUrl: string | null;
+  listingWidthRatio: number | null;
   /** the cutout's natural width / height, so the plane never distorts */
   placeholderWidthRatio: number;
   placeholderStatus: AssetStatus;

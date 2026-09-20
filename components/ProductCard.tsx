@@ -124,11 +124,23 @@ export async function linkProductToItem(
   if (previous?.id === product.id) return; // tapping the linked one does nothing
 
   store.linkProduct(itemId, product);
+  // the stand-in belongs to the old choice; drop it before the new photo lands
+  store.setListingCutout(itemId, null);
   if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
     navigator.vibrate(8);
   }
 
-  const fit = await checkFit(product, useStore.getState().profile);
+  /*
+   * Swap the drawing for the thing. The listing's own photo, keyed off its
+   * white background, is a better sprite than any stand-in — so it is fetched
+   * alongside the fit check rather than after it, and neither waits on the
+   * other. A photo that will not key cleanly answers with null and the
+   * stand-in simply stays.
+   */
+  const [fit] = await Promise.all([
+    checkFit(product, useStore.getState().profile),
+    cutoutFor(itemId, product),
+  ]);
 
   // the user may have relinked while the check was in flight; only write the
   // verdict if it still belongs to what is linked now
@@ -142,6 +154,38 @@ export async function linkProductToItem(
     ) {
       navigator.vibrate(20);
     }
+  }
+}
+
+/**
+ * Ask the server for a keyed cutout of this listing's photo. Silent on every
+ * failure: the room already has something to show.
+ */
+async function cutoutFor(itemId: string, product: Product): Promise<void> {
+  const imageUrl = productImage(product);
+  if (!imageUrl) return;
+
+  try {
+    const res = await fetch(withDemo("/api/cutout"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl }),
+    });
+    if (!res.ok) return;
+
+    const body = (await res.json()) as { url?: string; widthRatio?: number };
+    if (!body.url) return;
+
+    // the user may have relinked while this was in flight
+    const current = itemById(useStore.getState().items, itemId)?.linkedProduct;
+    if (current?.id !== product.id) return;
+
+    useStore.getState().setListingCutout(itemId, {
+      url: body.url,
+      widthRatio: body.widthRatio && body.widthRatio > 0 ? body.widthRatio : 1,
+    });
+  } catch {
+    /* the stand-in stays */
   }
 }
 

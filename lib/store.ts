@@ -145,6 +145,11 @@ export type VisaActions = {
   ) => void;
   /** the user's own size for one sprite; 1 puts it back to the listing's */
   resizeItem: (id: string, scale: number) => void;
+  /** the linked listing's own photo, cut out; null drops back to the stand-in */
+  setListingCutout: (
+    id: string,
+    cutout: { url: string; widthRatio: number } | null
+  ) => void;
   removeItem: (id: string) => void;
   /** put a removed item back exactly where it was — the undo toast's action */
   restoreItem: (item: PlacedItem, index?: number) => void;
@@ -270,6 +275,8 @@ export const useStore = create<VisaStore>()(
               position: position ?? [0, 0, 0],
               rotationY: 0,
               scale: 1,
+              listingCutoutUrl: null,
+              listingWidthRatio: null,
               placed: position !== undefined,
               linkedProduct: null,
               fit: null,
@@ -335,6 +342,15 @@ export const useStore = create<VisaStore>()(
             position,
             rotationY: rotationY ?? item.rotationY,
             placed: true,
+          })),
+        })),
+
+      setListingCutout: (id, cutout) =>
+        set((s) => ({
+          items: patchItem(s.items, id, (item) => ({
+            ...item,
+            listingCutoutUrl: cutout?.url ?? null,
+            listingWidthRatio: cutout?.widthRatio ?? null,
           })),
         })),
 

@@ -316,7 +316,7 @@ const CACHE_DIR =
   process.env.PLACEHOLDER_CACHE_DIR ??
   path.join(process.cwd(), ".placeholder-cache");
 
-type CacheEntry = {
+export type CacheEntry = {
   widthRatio: number;
   category: string;
   source: PlaceholderSource;
@@ -355,7 +355,7 @@ async function readCacheEntry(key: string): Promise<CacheEntry | null> {
   }
 }
 
-async function writeCacheEntry(key: string, png: Buffer, entry: CacheEntry) {
+export async function writeCacheEntry(key: string, png: Buffer, entry: CacheEntry) {
   await mkdir(CACHE_DIR, { recursive: true });
   // The PNG lands before the manifest, so a half-written pair never reads as a
   // hit: readCacheEntry needs the manifest, and the manifest is written last.

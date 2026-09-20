@@ -147,7 +147,9 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
   const labelRef = React.useRef<Group>(null);
 
   const texture = usePlaceholderTexture(
-    item.placeholderStatus === "ready" ? item.placeholderUrl : ""
+    // the linked listing's own photo once there is one, the stand-in until then
+    item.listingCutoutUrl ??
+    (item.placeholderStatus === "ready" ? item.placeholderUrl : "")
   );
 
   const size = spriteSizeMm(item);
