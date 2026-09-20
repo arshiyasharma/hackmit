@@ -86,6 +86,21 @@ describe("retailer eligibility", () => {
     expect(retailerDomainFor("smile.amazon.com")).toBe("amazon.com");
   });
 
+  it.each(["Macy's", "Macy’s", "Macys", "macys.com"])("matches %s to Macy's actual domain", (label) => {
+    expect(retailerFromSourceLabel(label)).toBe("macys.com");
+    expect(sameRetailer(label, "macys.com")).toBe(true);
+    expect(sameRetailer("www.macys.com", label)).toBe(true);
+    expect(sameRetailer("m.macys.com", label)).toBe(true);
+    expect(retailerDomainFor("www.macys.com")).toBe("macys.com");
+  });
+
+  it.each(["macys.com.other-shop.com", "notmacys.com", "macys-other.com", "wayfair.com", "google.com"])(
+    "does not mistake %s for Macy's", (domain) => {
+      expect(sameRetailer(domain, "Macy’s")).toBe(false);
+      expect(sameRetailer("Macy's", domain)).toBe(false);
+    }
+  );
+
   it("reads a label and a domain as the same shop", () => {
     expect(sameRetailer("target.com", "target")).toBe(true);
     expect(sameRetailer("target.com", "walmart.com")).toBe(false);

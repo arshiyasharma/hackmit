@@ -79,7 +79,7 @@ describe("resolveRetailer — the URL wins", () => {
 
   it("keeps an unsupported URL unsupported even with a known name and domain", () => {
     expect(resolveRetailer(product({
-      url: "https://www.walmart.com/ip/toy/1",
+      url: "https://www.costco.com/p/toy/1",
       retailer: "IKEA",
       retailerDomain: "ikea.com",
     }))).toBeNull();
@@ -97,9 +97,9 @@ describe("resolveRetailer — the URL wins", () => {
     }
   );
 
-  it("accepts supported domain labels from sourcing without adding unsupported shops", () => {
+  it("accepts supported domain labels from sourcing", () => {
     expect(resolveRetailer(product({ retailer: "etsy.com", url: "https://www.etsy.com/listing/1" }))).toBe("etsy");
-    expect(resolveRetailer(product({ retailer: "walmart.com", url: "https://www.walmart.com/ip/toy/1" }))).toBeNull();
+    expect(resolveRetailer(product({ retailer: "walmart.com", url: "https://www.walmart.com/ip/toy/1" }))).toBe("walmart");
   });
 
   it("is not fooled by a lookalike domain", () => {
@@ -110,6 +110,35 @@ describe("resolveRetailer — the URL wins", () => {
 });
 
 describe("toBasket", () => {
+  it.each([
+    ["Wayfair", "https://www.wayfair.com/furniture/pdp/lamp-1", "wayfair"],
+    ["walmart.com", "https://www.walmart.com/ip/lamp/1", "walmart"],
+    ["Macy’s", "https://www.macys.com/shop/product/lamp?ID=1", "macys"],
+  ])("includes %s when the listing has a direct merchant link", (retailer, url, expected) => {
+    const result = toBasket([cartItem({ retailer, url })], 125000);
+    expect(result.unsupported).toEqual([]);
+    expect(result.basket.lines[0]).toMatchObject({ retailer: expected, productUrl: url });
+  });
+
+  it.each(["Wayfair", "Walmart", "Macy's"])("explains an unresolved Google link for %s without blaming the store", (retailer) => {
+    const result = toBasket([cartItem({ retailer, url: "https://www.google.com/search?ibp=oshop&q=lamp" })], 125000);
+    expect(result.basket.lines).toEqual([]);
+    expect(result.unsupported[0].reason).toContain("Direct store link needed");
+    expect(result.unsupported[0].reason).not.toContain("not supported");
+  });
+
+  it("explains Google redirect wrappers even when they contain a merchant destination", () => {
+    const result = toBasket([cartItem({ retailer: "Walmart", url: "https://www.google.com/url?q=https%3A%2F%2Fwww.walmart.com%2Fip%2Flamp%2F1" })], 125000);
+    expect(result.basket.lines).toEqual([]);
+    expect(result.unsupported[0].reason).toContain("Direct store link needed");
+  });
+
+  it.each(["http://www.wayfair.com/p/1", "https://user:pass@www.walmart.com/ip/1", "https://www.macys.com:8443/shop/1", "not-a-url"])("excludes invalid checkout links before offering the buy button: %s", (url) => {
+    const result = toBasket([cartItem({ retailer: "Wayfair", url })], 125000);
+    expect(result.basket.lines).toEqual([]);
+    expect(result.unsupported[0].reason).toMatch(/store link/);
+  });
+
   it("converts cents to minor units and [w,h,d] to the server's object", () => {
     const { basket, unsupported } = toBasket([cartItem()], 125000);
 

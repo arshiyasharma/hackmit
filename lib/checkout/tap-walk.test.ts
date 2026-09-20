@@ -103,6 +103,12 @@ function fourLinesThreeRetailers(): Basket {
 }
 
 describe("the walk, with the agent's identity switched on", () => {
+  it.each(["wayfair", "walmart", "macys"] as const)("verifies the merchant identity for %s before placing the test order", async (retailer) => {
+    const run = createRun({ basketId: crypto.randomUUID(), budgetMinor: 125000, lines: [line(retailer)] });
+    await runCheckout(run.runId, { stepMs: 1 });
+    expect(getRun(run.runId)!.lines[0].status).toMatchObject({ state: "placed", mode: "test", tap: { ok: true, tag: "payment" } });
+  });
+
   it("every line carries a tap verdict and every one of them is ok", async () => {
     const run = createRun(fourLinesThreeRetailers());
     await runCheckout(run.runId, { stepMs: 1 });

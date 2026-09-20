@@ -106,23 +106,41 @@ describe("CheckoutRun renders the idle screen", () => {
 });
 
 describe("checkout eligibility is shown before starting", () => {
-  const walmart = cartItem({
-    id: "walmart-plush",
-    retailer: "walmart.com",
-    retailerDomain: "walmart.com",
-    title: "Plush toy from Walmart",
-    url: "https://www.walmart.com/ip/plush/12345",
+  it("offers Wayfair and Walmart together and preserves the full basket total", () => {
+    const lines = [
+      cartItem({ retailer: "Wayfair", url: "https://www.wayfair.com/p/lamp-1" }),
+      cartItem({ id: "walmart-lamp", retailer: "Walmart", url: "https://www.walmart.com/ip/lamp/123", priceCents: 2550 }, 2),
+    ];
+    const body = text(renderToStaticMarkup(<CheckoutRun lines={lines} mode="test" />));
+    expect(body).toContain("Buy all 3 — $171 across 2 shops");
+    expect(body).not.toContain("Not included in checkout");
+  });
+
+  it("explains a Wayfair Google link as a missing direct link", () => {
+    const body = text(renderToStaticMarkup(<CheckoutRun lines={[cartItem({ retailer: "Wayfair", url: "https://www.google.com/search?ibp=oshop&q=lamp" })]} mode="test" />));
+    expect(body).toContain("Direct store link needed");
+    expect(body).toContain("Supported stores:");
+    expect(body).toContain("Walmart");
+    expect(body).not.toContain("Wayfair is not supported");
+  });
+
+  const costco = cartItem({
+    id: "costco-plush",
+    retailer: "costco.com",
+    retailerDomain: "costco.com",
+    title: "Plush toy from Costco",
+    url: "https://www.costco.com/ip/plush/12345",
     priceCents: 2550,
   }, 2);
 
   it("shows a store link and no dead buy button for unsupported-only baskets", () => {
-    const markup = renderToStaticMarkup(<CheckoutRun lines={[walmart]} mode="test" />);
+    const markup = renderToStaticMarkup(<CheckoutRun lines={[costco]} mode="test" />);
     const body = text(markup);
     expect(body).toContain("Not included in checkout");
-    expect(body).toContain("Plush toy from Walmart");
-    expect(body).toContain("We cannot check out at walmart.com yet.");
-    expect(body).toContain("View at walmart.com");
-    expect(markup).toContain('href="https://www.walmart.com/ip/plush/12345"');
+    expect(body).toContain("Plush toy from Costco");
+    expect(body).toContain("costco.com is not supported by our checkout demo yet.");
+    expect(body).toContain("View at costco.com");
+    expect(markup).toContain('href="https://www.costco.com/ip/plush/12345"');
     expect(markup).toContain('rel="noopener noreferrer"');
     expect(markup).not.toContain("<button");
   });
@@ -131,18 +149,18 @@ describe("checkout eligibility is shown before starting", () => {
     const lines = [
       cartItem({ retailer: "ikea.com" }, 2),
       cartItem({ id: "ikea-frame", title: "Small photo frame", priceCents: 1900 }),
-      walmart,
+      costco,
     ];
     const markup = renderToStaticMarkup(<CheckoutRun lines={lines} mode="test" />);
     const body = text(markup);
     // Two display-name spellings of IKEA still represent one supported shop.
-    // Walmart's two items and $51 never enter the checkout button's promise.
+    // Costco's two items and $51 never enter the checkout button's promise.
     expect(body).toContain("Buy 3 available items — $259 across 1 shop");
     expect(body).not.toContain("Buy all");
     expect(body).not.toContain("$310");
     expect(body).toContain("These items are excluded from this test run");
     expect(body.indexOf("Not included in checkout")).toBeLessThan(body.indexOf("Buy 3"));
-    expect(markup).toContain('href="https://www.walmart.com/ip/plush/12345"');
+    expect(markup).toContain('href="https://www.costco.com/ip/plush/12345"');
   });
 
   it("discloses a known-shop product without a price before offering the subset", () => {
@@ -215,7 +233,7 @@ describe("checkout budget enforcement", () => {
   });
 
   it("does not let a supported subset bypass an over-budget room", () => {
-    const lines = [cartItem(), cartItem({ id: "unsupported", retailer: "Walmart", url: "https://www.walmart.com/ip/1", priceCents: 60000 })];
+    const lines = [cartItem(), cartItem({ id: "unsupported", retailer: "Costco", url: "https://www.costco.com/p/1", priceCents: 60000 })];
     const markup = renderToStaticMarkup(<CheckoutRun lines={lines} mode="test" />);
     const buy = markup.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find((button) => text(button).includes("Buy 1 available"));
     expect(buy).toContain('disabled=""');

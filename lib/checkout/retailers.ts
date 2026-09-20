@@ -28,6 +28,8 @@ export const RETAILER_NAMES: Readonly<Record<Retailer, string>> = {
   westelm: "West Elm",
   cb2: "CB2",
   etsy: "Etsy",
+  walmart: "Walmart",
+  macys: "Macy's",
 };
 
 /** The registrable domain each shop answers on. No scheme, no www, no path. */
@@ -39,6 +41,8 @@ export const RETAILER_DOMAINS: Readonly<Record<Retailer, string>> = {
   westelm: "westelm.com",
   cb2: "cb2.com",
   etsy: "etsy.com",
+  walmart: "walmart.com",
+  macys: "macys.com",
 };
 
 export const RETAILERS = Object.keys(RETAILER_DOMAINS) as Retailer[];

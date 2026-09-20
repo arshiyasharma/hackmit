@@ -35,3 +35,68 @@ describe("current room aesthetics in new shopping queries", () => {
     expect(filterProductsByDesignQuery(products, "sage floor lamp")).toEqual([products[0]]);
   });
 });
+
+
+describe("explicit retailer intent", () => {
+  it.each(["Walmart desk", "a desk from Walmart", "desk at walmart.com", "desk at walmart com"])(
+    "matches %s against seller metadata without requiring Walmart in the title", (query) => {
+      const walmart = { title: "Mainstays Writing Desk", retailer: "walmart.com" };
+      const products = [walmart, { title: "Writing Desk", retailer: "wayfair.com" }, { title: "Mainstays Desk Lamp", retailer: "walmart.com" }, { title: "Walmart Writing Desk" }];
+      expect(filterProductsByDesignQuery(products, query)).toEqual([walmart]);
+    }
+  );
+  it("still allows a desk lamp when the shopper specifically asks for one", () => {
+    const lamp = { title: "Mainstays LED Desk Lamp", retailer: "walmart.com" };
+    expect(filterProductsByDesignQuery([lamp, { title: "Writing Desk", retailer: "walmart.com" }], "Walmart desk lamp")).toEqual([lamp]);
+  });
+  it("keeps Walmart table lamps and still rejects a different product category", () => {
+    const lamp = { title: "Mainstays Ceramic Table Lamp", retailer: "Walmart" };
+    expect(filterProductsByDesignQuery([
+      lamp,
+      { title: "Mainstays Side Table", retailer: "walmart.com" },
+      { title: "Ceramic Table Lamp", retailer: "target.com" },
+    ], "Walmart table lamp")).toEqual([lamp]);
+  });
+  it("keeps Wayfair floor lamps without accepting other sellers or table lamps", () => {
+    const floor = { title: "Adjustable Floor Lamp", retailer: "www.wayfair.com" };
+    expect(filterProductsByDesignQuery([
+      floor,
+      { title: "Adjustable Floor Lamp", retailer: "walmart.com" },
+      { title: "Wayfair Table Lamp", retailer: "wayfair.com" },
+    ], "Wayfair floor lamp")).toEqual([floor]);
+  });
+  it.each(["West Elm chair", "chair from westelm.com"])("recognizes the multiword shop in %s", (query) => {
+    const chair = { title: "Mid-Century Lounge Chair", retailer: "West Elm" };
+    const domain = { ...chair, retailer: "westelm.com" };
+    expect(filterProductsByDesignQuery([chair, domain, { ...chair, retailer: "wayfair.com" }], query)).toEqual([chair, domain]);
+  });
+  it.each(["Macy's vase", "Macy’s vase", "macys.com vase"])("normalizes the retailer spelling in %s", (query) => {
+    const vase = { title: "Ceramic Vase", retailer: "macys.com" };
+    expect(filterProductsByDesignQuery([vase, { ...vase, retailer: "Macy’s" }, { ...vase, retailer: "etsy.com" }], query)).toEqual([vase, { ...vase, retailer: "Macy’s" }]);
+  });
+  it("preserves explicit colour and material constraints after removing the shop name", () => {
+    const requested = { title: "Blue Velvet Chair", retailer: "walmart.com" };
+    expect(filterProductsByDesignQuery([
+      requested,
+      { title: "Red Velvet Chair", retailer: "walmart.com" },
+      { title: "Blue Leather Chair", retailer: "walmart.com" },
+      { ...requested, retailer: "wayfair.com" },
+    ], "blue velvet chair from Walmart")).toEqual([requested]);
+  });
+  it("does not mistake lookalike seller domains or a shop name in the title for metadata", () => {
+    const title = "Walmart Floor Lamp";
+    expect(filterProductsByDesignQuery([
+      { title, retailer: "walmart.com.other-shop.com" },
+      { title, retailer: "notwalmart.com" },
+      { title },
+    ], "Walmart floor lamp")).toEqual([]);
+  });
+  it("retains the requested sellers when no product phrase remains", () => {
+    const walmart = { title: "Writing Desk", retailer: "walmart.com" };
+    expect(filterProductsByDesignQuery([walmart, { ...walmart, retailer: "wayfair.com" }], "Walmart")).toEqual([walmart]);
+  });
+  it("leaves ordinary product requests independent of seller metadata", () => {
+    const products = [{ title: "Floor Lamp" }, { title: "Floor Lamp", retailer: "other-shop.com" }];
+    expect(filterProductsByDesignQuery(products, "floor lamp")).toEqual(products);
+  });
+});

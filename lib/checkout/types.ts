@@ -24,7 +24,9 @@ export type Retailer =
   | "target"
   | "westelm"
   | "cb2"
-  | "etsy";
+  | "etsy"
+  | "walmart"
+  | "macys";
 
 /**
  * One entry in the frozen catalogue: a listing as it was scraped, before

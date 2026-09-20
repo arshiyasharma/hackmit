@@ -36,6 +36,8 @@ const ALIASES: Readonly<Record<string, Retailer>> = {
   cb2com: "cb2",
   etsycom: "etsy",
   wayfaircom: "wayfair",
+  walmartcom: "walmart",
+  macyscom: "macys",
 };
 
 /**
@@ -113,17 +115,35 @@ export function toBasket(
     const product = line.product;
     const retailer = resolveRetailer(product);
 
-    if (!retailer) {
-      unsupported.push({
-        line,
-        reason: `We cannot check out at ${product.retailer || "that shop"} yet.`,
-      });
-      continue;
-    }
     if (!product.url) {
       unsupported.push({
         line,
         reason: `${product.title} has no link to the shop that sells it.`,
+      });
+      continue;
+    }
+    let url: URL;
+    try {
+      url = new URL(product.url);
+    } catch {
+      unsupported.push({ line, reason: `${product.title} has an invalid store link.` });
+      continue;
+    }
+    if (url.protocol !== "https:" || url.username || url.password || url.port) {
+      unsupported.push({ line, reason: `${product.title} needs a secure, direct store link.` });
+      continue;
+    }
+    if (/^(?:.+\.)?google(?:adservices)?\.com$/.test(url.hostname)) {
+      unsupported.push({
+        line,
+        reason: "Direct store link needed. This listing still points to Google Shopping. Search again and choose a listing with a direct store link.",
+      });
+      continue;
+    }
+    if (!retailer) {
+      unsupported.push({
+        line,
+        reason: `${product.retailer || "This shop"} is not supported by our checkout demo yet.`,
       });
       continue;
     }

@@ -123,6 +123,13 @@ function matchesHost(hostname: string, domain: string): boolean {
   return host === domain || host.endsWith(`.${domain}`);
 }
 
+/** Macy's label punctuation is not part of its merchant domain. */
+function isMacysIdentity(value: string): boolean {
+  const identity = value.trim().toLowerCase().replace(/\.$/, "");
+  return /^(?:macys|macy['’]s)$/.test(identity) ||
+    /^(?:[a-z0-9-]+\.)*macys\.com$/.test(identity);
+}
+
 /** True if hostname is exactly a preferred domain or a subdomain of one. */
 export function isWhitelistedHostname(hostname: string): boolean {
   return getWhitelistedDomain(hostname) !== null;
@@ -150,12 +157,18 @@ export function retailerDomainFor(hostname: string): string | null {
   const host = hostname.toLowerCase().replace(/^www\./, "");
   if (!host || !host.includes(".")) return null;
   if (isBlockedHostname(host)) return null;
+  if (isMacysIdentity(host)) return "macys.com";
   return getWhitelistedDomain(host) ?? host;
 }
 
 /** Two retailer names for the same shop, whether or not one carries the TLD. */
 export function sameRetailer(a: string | null, b: string | null): boolean {
   if (!a || !b) return false;
+  // Do not reduce lookalikes such as macys.com.other-shop.com to "macys".
+  // A Macy's source label may resolve only to its actual merchant domain.
+  const macysA = isMacysIdentity(a);
+  const macysB = isMacysIdentity(b);
+  if (macysA || macysB) return macysA && macysB;
   const bare = (value: string) =>
     value.toLowerCase().replace(/^www\./, "").replace(/\.[a-z.]{2,}$/, "");
   return bare(a) === bare(b);
@@ -183,6 +196,7 @@ export function retailerFromSourceLabel(
    */
   const label = source.trim().toLowerCase().split(/\s+[-—|]\s+/)[0]!.trim();
   if (!label) return null;
+  if (isMacysIdentity(label)) return "macys.com";
 
   for (const domain of RETAILER_WHITELIST) {
     const name = domain.replace(/\.com$/, "");
