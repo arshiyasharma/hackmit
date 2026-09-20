@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VISA — AI spatial shopping agent
 
-## Getting Started
+HackMIT project: upload a room photo, describe what you want, and source real products (with dimensions) from Amazon, IKEA, Wayfair, Walmart, and Etsy.
 
-First, run the development server:
+## Setup
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Create `.env.local` in the project root:
+
+```bash
+SERPAPI_KEY=...                 # required for product sourcing
+GEMINI_API_KEY=...              # required for room photo analysis
+ELASTICSEARCH_URL=...           # optional; speeds up repeat searches
+ELASTICSEARCH_API_KEY=...       # optional; Elastic Cloud auth
+```
+
+3. Run the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) → **Start discovering** → `/generate`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Flow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Home** (`/`) — entry point
+2. **Discover** (`/generate`) — upload room photo → `POST /api/analyze` (Gemini) → type a request → `POST /api/source`
+3. **Source pipeline** — Elasticsearch catalog (if configured) → SerpAPI Google Shopping → whitelist retailers → immersive buy URLs → scrape W/D/H from PDPs → upsert to Elastic
+4. Results render on the same page (grouped by room `searchTerms` when present)
 
-## Learn More
+## API
 
-To learn more about Next.js, take a look at the following resources:
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/analyze` | POST | `{ imageBase64 }` → room context JSON |
+| `/api/source` | POST | `{ query, roomContext? }` → products / result groups |
+| `/api/products/search` | GET | `?q=&retailer=&max_price=` (cents) Elastic-only catalog |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Text-only search works without a photo (`roomContext` omitted). Photo analysis needs `GEMINI_API_KEY`.

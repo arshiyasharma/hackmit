@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 
+import { sourceOptions } from "@/lib/sourcing/adapter";
 import type { Carton, DimsSource, Product, RoomContext } from "@/types";
 
 /**
@@ -312,13 +313,37 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // In-process first: Yutian's Elastic + SerpAPI pipeline lives in this app,
+  // so there is no second service to deploy and no HTTP hop to time out.
+  try {
+    const sourced = await sourceOptions({
+      query,
+      request: ask,
+      itemId,
+      budgetRemainingCents: budgetRemainingCents ?? undefined,
+    });
+    if (sourced && sourced.length > 0) {
+      return Response.json({ query, options: sourced, source: "live" });
+    }
+    if (sourced) {
+      return Response.json({
+        query,
+        options: [],
+        source: "live",
+        note: `No listings came back for “${query}”. Try fewer style words.`,
+      });
+    }
+  } catch {
+    // fall through to the external backend, then to the honest empty answer
+  }
+
   const endpoint = backendUrl();
   if (!endpoint) {
     return Response.json({
       query,
       options: [],
       source: "none",
-      note: "The shop search isn't connected yet. Set SEARCH_API_URL to point at it.",
+      note: "The shop search isn't connected yet. Add SERPAPI_KEY, or set SEARCH_API_URL.",
     });
   }
 
