@@ -57,6 +57,13 @@ export type RoomContextSource = "model" | "fallback";
  * nobody would type into a shop's search box is a useless tag.
  */
 export type RoomContext = {
+  /**
+   * The colours the USER added by hand, a subset of `palette`. Kept apart
+   * because these are intent — someone who picks sage means "find me a sage
+   * one" — while the five read off the photo are just what the room looks
+   * like. Only these go into the search query.
+   */
+  picked?: string[];
   /** words a shopper would type, lowercase, at most five */
   styleTags: string[];
   /** five hex strings, ordered by dominance */

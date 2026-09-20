@@ -1,6 +1,8 @@
 "use client";
 
 import { create } from "zustand";
+
+import { colourNames } from "@/lib/colour";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 import type {
@@ -297,7 +299,12 @@ export const useStore = create<VisaStore>()(
           if (context.palette.length >= MAX_PALETTE) return {};
 
           return {
-            roomContext: { ...context, palette: [...context.palette, colour] },
+            roomContext: {
+              ...context,
+              palette: [...context.palette, colour],
+              // picked by hand, so it is intent and it joins the search query
+              picked: [...(context.picked ?? []), colour],
+            },
           };
         }),
 
@@ -308,6 +315,7 @@ export const useStore = create<VisaStore>()(
                 roomContext: {
                   ...s.roomContext,
                   palette: s.roomContext.palette.filter((c) => c !== hex),
+                  picked: (s.roomContext.picked ?? []).filter((c) => c !== hex),
                 },
               }
             : {}
@@ -588,5 +596,12 @@ export function searchQuery(
   request: string
 ): string {
   const tags = context?.styleTags ?? [];
-  return [...tags, request.trim()].filter(Boolean).join(" ");
+  /*
+   * Hand-picked colours join the query as WORDS, because "#7b8b6f" is not
+   * something a shop can search for but "sage" is. Only the picked ones: the
+   * five read off the photo describe the room, and pushing all of them in
+   * ("brown gold rust cream black tall lamp") buries the object itself.
+   */
+  const colours = colourNames(context?.picked ?? []);
+  return [...tags, ...colours, request.trim()].filter(Boolean).join(" ");
 }

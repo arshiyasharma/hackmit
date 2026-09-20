@@ -94,6 +94,9 @@ export type SilhouetteKey = (typeof SILHOUETTE_KEYS)[number];
  * and a rug wants a wide one, so the object fills the pixels we pay for.
  * The trim decides the final ratio regardless; this only buys resolution.
  */
+/** Anything we have no shape for is drawn square; it could be any proportion. */
+const UNKNOWN_ASPECT = "1:1";
+
 const GENERATION_ASPECT: Record<SilhouetteKey, string> = {
   lamp: "2:3",
   chair: "1:1",
@@ -816,12 +819,20 @@ export async function resolvePlaceholder(
   const job = (async (): Promise<PlaceholderResult> => {
     const tint = tintFromPalette(palette);
 
-    // 1. Generated.
-    if (silhouette && generationEnabled() && Date.now() >= generationBlockedUntil) {
+    /*
+     * 1. Generated — FOR ANY OBJECT, not only the ten we drew silhouettes for.
+     *
+     * This used to require `silhouette`, so "a disco ball" or "a brass
+     * telescope" skipped generation entirely and stood in the room as the
+     * unknown grey rectangle, while "a tall lamp" got a picture. The silhouette
+     * is a FALLBACK, not a licence: all it contributes here is a sensible
+     * aspect ratio, and an unknown object gets a square one.
+     */
+    if (generationEnabled() && Date.now() >= generationBlockedUntil) {
       try {
         const raw = await generate(
           buildPrompt(category, ctx),
-          GENERATION_ASPECT[silhouette],
+          silhouette ? GENERATION_ASPECT[silhouette] : UNKNOWN_ASPECT,
           signal,
         );
         const cut = await keyOutAndTrim(raw);

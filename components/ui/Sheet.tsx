@@ -89,6 +89,14 @@ export function Sheet({
 
   return (
     <ModalSheet
+      /*
+       * The library defaults its root to z-index 9999, which put the backdrop
+       * over the room-context strip: tapping a style chip while the options
+       * were open hit the backdrop instead and just closed the sheet, so the
+       * one edit the sheet exists to react to could not be made. The sheet
+       * sits above the room and below the top chrome now.
+       */
+      style={{ zIndex: 30 }}
       isOpen={open}
       onClose={() => onOpenChange(false)}
       snapPoints={points}

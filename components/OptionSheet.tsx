@@ -147,6 +147,30 @@ export function OptionSheet() {
     queueMicrotask(() => void runSearch(target));
   }, [item, runSearch]);
 
+  /*
+   * EDITING THE STRIP RE-RUNS THE SEARCH. Removing "ornate", adding "brass",
+   * picking sage — each changes the query string this sheet is showing, and a
+   * query on screen that does not match the results under it is the thing a
+   * judge notices. So when the query moves and the sheet is open, the search
+   * runs again on its own; a short delay keeps three quick edits to one fetch.
+   */
+  const queryRef = React.useRef(query);
+  React.useEffect(() => {
+    const previous = queryRef.current;
+    queryRef.current = query;
+    if (!item || !open) return;
+    if (previous === query) return;
+    if (queriesUsed[item.id] === undefined) return; // nothing searched yet
+    if (queriesUsed[item.id] === query) return;
+
+    const target = item;
+    const timer = window.setTimeout(() => {
+      started.delete(target.id);
+      void runSearch(target);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [query, item, open, queriesUsed, runSearch]);
+
   /* a new active item brings its options up with it */
   const lastOpened = React.useRef<string | null>(null);
   React.useEffect(() => {
