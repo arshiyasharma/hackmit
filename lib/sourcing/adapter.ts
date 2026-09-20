@@ -78,6 +78,24 @@ function toCarton(dimensions: SourcedProduct["dimensions"]): {
   };
 }
 
+/**
+ * The styled query, then a loosened one, then the bare request. Duplicates and
+ * empties are dropped, so an unstyled ask is a single rung and a single call.
+ */
+function ladder(query: string, request: string): string[] {
+  const bare = request.trim();
+  const words = query.trim().split(/\s+/).filter(Boolean);
+  const bareWords = bare.split(/\s+/).filter(Boolean).length;
+  const styleWords = Math.max(0, words.length - bareWords);
+
+  const rungs = [query.trim()];
+  // one style word plus the request, when there was more than one to begin with
+  if (styleWords > 1) rungs.push([words[0], bare].join(" "));
+  if (bare) rungs.push(bare);
+
+  return rungs.filter((rung, i, all) => rung && all.indexOf(rung) === i);
+}
+
 function retailerDomain(url: string): string | undefined {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -162,16 +180,44 @@ async function fetchOptions(
    */
   console.info(`[search] "${query}" (relevance: "${request || query}")`);
 
-  const sourced = await sourceProductsForQuery({
-    shoppingQuery: query,
-    designQuery: request || query,
-    apiKey,
-    limit: LIMIT,
-    maxPrice:
-      budgetRemainingCents != null && budgetRemainingCents > 0
-        ? budgetRemainingCents / 100
-        : null,
-  });
+  const maxPrice =
+    budgetRemainingCents != null && budgetRemainingCents > 0
+      ? budgetRemainingCents / 100
+      : null;
+
+  /*
+   * A LADDER, BECAUSE GOOGLE ANSWERS PLAIN QUESTIONS.
+   *
+   * Measured against the live API: "floor lamp" returns 40 results in 2.8s,
+   * "scandinavian a floor lamp" returns listings in 3.2s, and "warm wood
+   * scandinavian floor lamp" returns
+   *     "Google hasn't returned any results for this query."
+   * Three adjectives is the cliff. So the styled query is asked first — it is
+   * the one the user is watching and the one that personalises the results —
+   * and if the shops have nothing for it, the same question is asked with one
+   * style word, then with none. The first rung that answers wins.
+   *
+   * It stops at the first non-empty result, so the usual case is still one
+   * call. Only a query the shops cannot answer costs a second.
+   */
+  const rungs = ladder(query, request);
+  let sourced: SourcedProduct[] = [];
+
+  for (const rung of rungs) {
+    sourced = await sourceProductsForQuery({
+      shoppingQuery: rung,
+      designQuery: request || rung,
+      apiKey,
+      limit: LIMIT,
+      maxPrice,
+    });
+    if (sourced.length > 0) {
+      if (rung !== query) {
+        console.info(`[search] "${query}" found nothing; "${rung}" answered`);
+      }
+      break;
+    }
+  }
 
   const options = sourced
     .map((product) => toProduct(product, itemId))

@@ -33,9 +33,27 @@ async function fetchSerpJson(
   requestUrl: string
 ): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
+  /*
+   * 10s was not enough. Google Shopping through SerpAPI regularly takes twelve
+   * to eighteen seconds, and every one of those came back to the room screen
+   * as "nothing came back from that" — a timeout wearing an empty result's
+   * clothes. The ladder tries at most three queries, so this is bounded by the
+   * deadline the caller passes rather than by this number alone.
+   */
+  const timer = setTimeout(() => controller.abort(), SERP_TIMEOUT_MS);
+  const startedAt = Date.now();
+  /** the query without the key, so a log line is safe to paste anywhere */
+  const label = (() => {
+    try {
+      const u = new URL(requestUrl);
+      return `${u.searchParams.get("engine")} "${u.searchParams.get("q") ?? u.searchParams.get("url") ?? ""}"`;
+    } catch {
+      return "serpapi";
+    }
+  })();
   try {
     const response = await fetch(requestUrl, { signal: controller.signal });
+    console.info(`[serpapi] ${label} -> ${response.status} in ${Date.now() - startedAt}ms`);
     if (!response.ok) {
       return {
         ok: false,
@@ -48,6 +66,11 @@ async function fetchSerpJson(
     }
     return { ok: true, data };
   } catch (err) {
+    console.warn(
+      `[serpapi] ${label} -> ${err instanceof Error ? err.message : "error"} after ${
+        Date.now() - startedAt
+      }ms`
+    );
     return {
       ok: false,
       error: err instanceof Error ? err.message : "SerpAPI network error",
@@ -157,6 +180,9 @@ export async function searchGoogleShopping(
  * Try the primary Shopping query, then at most one parallel fallback batch.
  * Caps Serp round-trips so empty Google pages don't cascade into 5 sequential waits.
  */
+/** Per request. The ladder below stops as soon as one answers. */
+const SERP_TIMEOUT_MS = Number(process.env.SERPAPI_TIMEOUT_MS ?? 20_000);
+
 export async function searchGoogleShoppingWithFallbacks(
   queries: string[],
   apiKey: string
@@ -170,7 +196,7 @@ export async function searchGoogleShoppingWithFallbacks(
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(q);
-    if (unique.length >= 3) break;
+    if (unique.length >= 2) break;
   }
 
   if (unique.length === 0) {
