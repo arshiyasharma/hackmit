@@ -24,9 +24,7 @@ export const RETAILER_NAMES: Readonly<Record<Retailer, string>> = {
   amazon: "Amazon",
   wayfair: "Wayfair",
   ikea: "IKEA",
-  target: "Target",
-  westelm: "West Elm",
-  cb2: "CB2",
+  walmart: "Walmart",
   etsy: "Etsy",
 };
 
@@ -35,9 +33,7 @@ export const RETAILER_DOMAINS: Readonly<Record<Retailer, string>> = {
   amazon: "amazon.com",
   wayfair: "wayfair.com",
   ikea: "ikea.com",
-  target: "target.com",
-  westelm: "westelm.com",
-  cb2: "cb2.com",
+  walmart: "walmart.com",
   etsy: "etsy.com",
 };
 

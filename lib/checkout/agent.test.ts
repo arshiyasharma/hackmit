@@ -32,7 +32,7 @@ function fourLinesThreeRetailers(): Basket {
     line("ikea"),
     line("wayfair"),
     line("ikea"),
-    line("target"),
+    line("walmart"),
   ]);
 }
 
@@ -71,7 +71,7 @@ afterEach(() => {
 describe("groupByRetailer", () => {
   it("groups lines by shop, shops in the order they first appear", () => {
     const groups = groupByRetailer(fourLinesThreeRetailers().lines);
-    expect(groups.map((g) => g.retailer)).toEqual(["ikea", "wayfair", "target"]);
+    expect(groups.map((g) => g.retailer)).toEqual(["ikea", "wayfair", "walmart"]);
     expect(groups[0].lines).toHaveLength(2);
     expect(groups[1].lines).toHaveLength(1);
   });
@@ -125,7 +125,7 @@ describe("runCheckout in test mode", () => {
       expect(l.status.state).toBe("placed");
       const status = l.status as Extract<LineStatus, { state: "placed" }>;
       expect(status.mode).toBe("test");
-      expect(status.orderRef).toMatch(/^TEST-(IKEA|WAYFAIR|TARGET)-[0-9A-F]{8}$/);
+      expect(status.orderRef).toMatch(/^TEST-(IKEA|WAYFAIR|WALMART)-[0-9A-F]{8}$/);
     }
   });
 
@@ -302,7 +302,7 @@ describe("the agent refuses itself", () => {
       budgetMinor: 13000,
       budgetSet: true,
       profileMm: null,
-      lines: [line("ikea"), line("wayfair"), line("ikea"), line("target")],
+      lines: [line("ikea"), line("wayfair"), line("ikea"), line("walmart")],
     });
 
     await runCheckout(run.runId, { stepMs: 1 });
@@ -328,7 +328,7 @@ describe("the agent refuses itself", () => {
       budgetMinor: 13000,
       budgetSet: false,
       profileMm: null,
-      lines: [line("ikea"), line("wayfair"), line("ikea"), line("target")],
+      lines: [line("ikea"), line("wayfair"), line("ikea"), line("walmart")],
     });
 
     await runCheckout(run.runId, { stepMs: 1 });

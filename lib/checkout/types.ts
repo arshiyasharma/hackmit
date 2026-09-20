@@ -21,14 +21,16 @@ import type { ProfileMm } from "@/lib/fit";
 
 export type { ProfileMm };
 
-export type Retailer =
-  | "amazon"
-  | "wayfair"
-  | "ikea"
-  | "target"
-  | "westelm"
-  | "cb2"
-  | "etsy";
+/**
+ * Every shop the app can actually check out through.
+ *
+ * THIS HAS TO MATCH lib/sourcing/whitelist.ts's RETAILER_WHITELIST, or a real
+ * search result comes back pointing at a shop this layer has never heard of —
+ * "We cannot check out at walmart.com yet" was exactly that: Walmart is
+ * whitelisted for sourcing and was never added here. If sourcing's whitelist
+ * changes, this union changes with it in the same commit.
+ */
+export type Retailer = "amazon" | "wayfair" | "ikea" | "walmart" | "etsy";
 
 /**
  * One entry in the frozen catalogue: a listing as it was scraped, before

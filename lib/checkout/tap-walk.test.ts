@@ -73,7 +73,7 @@ afterEach(() => {
 const PRODUCT_URL: Partial<Record<Retailer, string>> = {
   ikea: "https://www.ikea.com/us/en/p/lamp-70437814/",
   wayfair: "https://www.wayfair.com/furniture/pdp/frame-123",
-  target: "https://www.target.com/p/side-table/-/A-88889999",
+  walmart: "https://www.walmart.com/ip/side-table/88889999",
 };
 
 function line(retailer: Retailer, patch: Partial<BasketLine> = {}): BasketLine {
@@ -100,7 +100,7 @@ function fourLinesThreeRetailers(): Basket {
     budgetMinor: 125000,
     budgetSet: true,
     profileMm: null,
-    lines: [line("ikea"), line("wayfair"), line("ikea"), line("target")],
+    lines: [line("ikea"), line("wayfair"), line("ikea"), line("walmart")],
   };
 }
 

@@ -107,19 +107,19 @@ describe("buildMandates — the pitch", () => {
 
   it("is one mandate per shop, named the way the shop spells itself", () => {
     const mandates = buildMandates(
-      basket([line("ikea"), line("wayfair"), line("ikea"), line("target")])
+      basket([line("ikea"), line("wayfair"), line("ikea"), line("walmart")])
     );
     expect(mandates).toHaveLength(3);
     expect(mandates.map((m) => m.preferredMerchantName)).toEqual([
       "IKEA",
       "Wayfair",
-      "Target",
+      "Walmart",
     ]);
   });
 
   it("counts the quantity in each shop's group, as a string", () => {
     const mandates = buildMandates(
-      basket([line("ikea", { quantity: 2 }), line("ikea", { quantity: 1 }), line("target")])
+      basket([line("ikea", { quantity: 2 }), line("ikea", { quantity: 1 }), line("walmart")])
     );
     expect(mandates[0].quantity).toBe("3");
     expect(mandates[1].quantity).toBe("1");
@@ -141,7 +141,7 @@ describe("buildMandates — the pitch", () => {
   });
 
   it("gives every mandate its own id", () => {
-    const mandates = buildMandates(basket([line("ikea"), line("target")]));
+    const mandates = buildMandates(basket([line("ikea"), line("walmart")]));
     expect(mandates[0].mandateId).not.toBe(mandates[1].mandateId);
     expect(mandates[0].mandateId).toMatch(/^[0-9a-f-]{36}$/);
   });

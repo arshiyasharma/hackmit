@@ -42,8 +42,8 @@ describe("resolveRetailer — the URL wins", () => {
     expect(
       resolveRetailer(product({ url: "https://www.wayfair.com/furniture/pdp/lamp-1" }))
     ).toBe("wayfair");
-    expect(resolveRetailer(product({ url: "https://www.target.com/p/rug/-/A-1" }))).toBe(
-      "target"
+    expect(resolveRetailer(product({ url: "https://www.walmart.com/ip/rug/1" }))).toBe(
+      "walmart"
     );
   });
 
@@ -63,13 +63,15 @@ describe("resolveRetailer — the URL wins", () => {
 
   it("falls back to the domain field, then the display name", () => {
     expect(
-      resolveRetailer(product({ url: "not-a-url", retailerDomain: "cb2.com", retailer: "" }))
-    ).toBe("cb2");
-    expect(resolveRetailer(product({ url: "not-a-url", retailer: "West Elm" }))).toBe(
-      "westelm"
+      resolveRetailer(
+        product({ url: "not-a-url", retailerDomain: "walmart.com", retailer: "" })
+      )
+    ).toBe("walmart");
+    expect(resolveRetailer(product({ url: "not-a-url", retailer: "Walmart" }))).toBe(
+      "walmart"
     );
-    expect(resolveRetailer(product({ url: "not-a-url", retailer: "west-elm" }))).toBe(
-      "westelm"
+    expect(resolveRetailer(product({ url: "not-a-url", retailer: "wal-mart" }))).toBe(
+      "walmart"
     );
   });
 

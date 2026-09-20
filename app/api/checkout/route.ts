@@ -6,6 +6,7 @@ import {
   formatMoneyMinor,
   subtotalMinor,
 } from "@/lib/checkout/basket";
+import { isRetailer } from "@/lib/checkout/retailers";
 import { createRun } from "@/lib/checkout/runs";
 import type {
   Basket,
@@ -47,16 +48,6 @@ export const runtime = "nodejs";
  */
 export const maxDuration = 60;
 
-const RETAILERS: ReadonlySet<string> = new Set<Retailer>([
-  "amazon",
-  "wayfair",
-  "ikea",
-  "target",
-  "westelm",
-  "cb2",
-  "etsy",
-]);
-
 /** A whole, positive number of cents — or nothing. Never a float. */
 function minor(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value >= 0
@@ -97,7 +88,7 @@ function toLine(raw: unknown, index: number): BasketLine | LineProblem {
   }
 
   const retailer = str(r.retailer);
-  if (!RETAILERS.has(retailer)) {
+  if (!isRetailer(retailer)) {
     return { index, reason: `we do not know the shop behind ${title}` };
   }
 

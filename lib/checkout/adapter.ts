@@ -29,11 +29,9 @@ const BY_NAME: ReadonlyMap<string, Retailer> = new Map(
 
 /** A few spellings the shops themselves use that do not reduce to the key. */
 const ALIASES: Readonly<Record<string, Retailer>> = {
-  westelmcom: "westelm",
   ikeaus: "ikea",
   amazoncom: "amazon",
-  targetcom: "target",
-  cb2com: "cb2",
+  walmartcom: "walmart",
   etsycom: "etsy",
   wayfaircom: "wayfair",
 };
