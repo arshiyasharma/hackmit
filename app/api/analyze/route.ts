@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 
 import type { NextRequest } from "next/server";
 
+import { recordAnalyze } from "@/lib/savings/ledger";
 import type { RoomContext } from "@/types";
 
 /**
@@ -266,18 +267,81 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
   ]);
 }
 
+/**
+ * What the provider said this call cost.
+ *
+ * READ DEFENSIVELY AND NEVER ESTIMATED. Both SDKs report usage on a successful
+ * response — Gemini as `usageMetadata`, OpenAI as `usage` — but a response that
+ * does not carry it records nulls rather than a guess, and the savings panel
+ * shows a dash for it. See lib/savings/ledger.ts.
+ */
+export type Usage = {
+  promptTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+};
+
+const NO_USAGE: Usage = { promptTokens: null, outputTokens: null, totalTokens: null };
+
+function tokens(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.round(value)
+    : null;
+}
+
+/** Gemini: `usageMetadata.{promptTokenCount,candidatesTokenCount,totalTokenCount}`. */
+function geminiUsage(response: unknown): Usage {
+  if (!response || typeof response !== "object") return NO_USAGE;
+  const meta = (response as { usageMetadata?: unknown }).usageMetadata;
+  if (!meta || typeof meta !== "object") return NO_USAGE;
+  const m = meta as Record<string, unknown>;
+  return {
+    promptTokens: tokens(m.promptTokenCount),
+    outputTokens: tokens(m.candidatesTokenCount),
+    totalTokens: tokens(m.totalTokenCount),
+  };
+}
+
+/** OpenAI: `usage.{prompt_tokens,completion_tokens,total_tokens}`. */
+function openAiUsage(payload: unknown): Usage {
+  if (!payload || typeof payload !== "object") return NO_USAGE;
+  const usage = (payload as { usage?: unknown }).usage;
+  if (!usage || typeof usage !== "object") return NO_USAGE;
+  const u = usage as Record<string, unknown>;
+  return {
+    promptTokens: tokens(u.prompt_tokens),
+    outputTokens: tokens(u.completion_tokens),
+    totalTokens: tokens(u.total_tokens),
+  };
+}
+
+/** A read, plus what it cost and which model answered. */
+export type Read = { context: RoomContext; model: string; usage: Usage };
+
+/**
+ * Every response a provider billed us for during one request.
+ *
+ * A model that answers unparseable JSON still charged for the answer, and the
+ * next model in the chain charges again. Both are real spend. Collecting them
+ * here means the ledger counts what was actually billed rather than only the
+ * attempt that happened to work — which would quietly flatter the savings
+ * percentage by undercounting the denominator.
+ */
+type Billed = { model: string; usage: Usage };
+
 /** Arshiya's call from 52037d4, mapped onto the RoomContext contract. */
 async function readRoomGemini(
   dataUrl: string,
   key: string,
-): Promise<RoomContext | null> {
+  billed: Billed[],
+): Promise<Read | null> {
   const [header, data] = dataUrl.split(",", 2);
   const mimeType = header.match(/^data:(image\/[a-zA-Z+.-]+);base64$/)?.[1];
   if (!mimeType || !data) return null;
 
   const ai = new GoogleGenAI({ apiKey: key });
 
-  const ask = async (model: string): Promise<RoomContext | null> => {
+  const ask = async (model: string): Promise<Read | null> => {
     const response = await ai.models.generateContent({
       model,
       contents: [
@@ -299,8 +363,13 @@ async function readRoomGemini(
         responseSchema: ROOM_SCHEMA,
       },
     });
+    // it answered, so it billed — whether or not we can use what it said
+    const usage = geminiUsage(response);
+    billed.push({ model, usage });
+
     try {
-      return toRoomContext(JSON.parse(response.text ?? ""));
+      const context = toRoomContext(JSON.parse(response.text ?? ""));
+      return context ? { context, model, usage } : null;
     } catch (error) {
       console.warn("[analyze] gemini returned unparseable JSON:", error);
       return null;
@@ -319,8 +388,8 @@ async function readRoomGemini(
 
   for (let attempt = 0; attempt < models.length; attempt += 1) {
     try {
-      const context = await ask(models[attempt]);
-      if (context) return context;
+      const read = await ask(models[attempt]);
+      if (read) return read;
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
@@ -340,7 +409,8 @@ async function readRoomGemini(
 async function readRoomOpenAI(
   dataUrl: string,
   key: string,
-): Promise<RoomContext | null> {
+  billed: Billed[],
+): Promise<Read | null> {
   const res = await fetch(ENDPOINT, {
     method: "POST",
     headers: {
@@ -376,10 +446,15 @@ async function readRoomOpenAI(
       ? (payload as { choices?: Array<{ message?: { content?: unknown } }> })
           .choices?.[0]?.message?.content
       : undefined;
+  // it answered, so it billed — record it before deciding if it is usable
+  const usage = openAiUsage(payload);
+  billed.push({ model: OPENAI_MODEL, usage });
+
   if (typeof content !== "string") return null;
 
   try {
-    return toRoomContext(JSON.parse(content));
+    const context = toRoomContext(JSON.parse(content));
+    return context ? { context, model: OPENAI_MODEL, usage } : null;
   } catch {
     return null;
   }
@@ -456,17 +531,55 @@ export async function POST(request: NextRequest) {
     console.info(
       `[analyze] same photo as before: ${seen.styleTags.length} style words, ${seen.palette.length} colours`
     );
+    // the saving IS this branch: a read that cost nothing because we had it
+    recordAnalyze({
+      cacheKey: key,
+      cached: true,
+      imageBytes: dataUrl.length,
+      elapsedMs: 0,
+    });
     return answer(seen);
   }
 
   const startedAt = Date.now();
+  const billed: Billed[] = [];
+
+  /** Everything a provider charged for on this request, successful or not. */
+  const recordBilled = (read: Read | null) => {
+    const elapsedMs = Date.now() - startedAt;
+    for (const entry of billed) {
+      recordAnalyze({
+        cacheKey: key,
+        cached: false,
+        model: entry.model,
+        provider: entry.model === OPENAI_MODEL ? "openai" : "gemini",
+        promptTokens: entry.usage.promptTokens,
+        outputTokens: entry.usage.outputTokens,
+        totalTokens: entry.usage.totalTokens,
+        imageBytes: dataUrl.length,
+        // one request, one elapsed time; splitting it between the attempts
+        // would be an invented split, so only the call we kept carries it
+        elapsedMs: entry.model === read?.model ? elapsedMs : 0,
+        // only the answer we actually used sets the price of a future cache hit
+        fillsCache: read !== null && entry.model === read.model,
+      });
+    }
+  };
+
   try {
-    const context = gemini
-      ? ((await withTimeout(readRoomGemini(dataUrl, gemini), TIMEOUT_MS)) ??
+    const read = gemini
+      ? ((await withTimeout(readRoomGemini(dataUrl, gemini, billed), TIMEOUT_MS)) ??
         (openai
-          ? await withTimeout(readRoomOpenAI(dataUrl, openai), TIMEOUT_MS)
+          ? await withTimeout(readRoomOpenAI(dataUrl, openai, billed), TIMEOUT_MS)
           : null))
-      : await withTimeout(readRoomOpenAI(dataUrl, openai as string), TIMEOUT_MS);
+      : await withTimeout(
+          readRoomOpenAI(dataUrl, openai as string, billed),
+          TIMEOUT_MS
+        );
+
+    recordBilled(read);
+
+    const context = read?.context ?? null;
     if (!context) {
       // a 200 that carries nothing is the one failure that used to be silent
       console.warn(
@@ -485,6 +598,8 @@ export async function POST(request: NextRequest) {
      */
     return answer(context.styleTags.length > 0 ? remember(key, context) : context);
   } catch (error) {
+    // a model that answered before the chain gave up still charged for it
+    recordBilled(null);
     // timeout, network, refusal — the capture screen is already on /room.
     // It still answers 200, but it says WHY in the server log: a silent
     // neutral palette that turned out to be a quota error cost an hour.

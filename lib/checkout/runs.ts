@@ -116,6 +116,22 @@ export function findRunByBasketId(basketId: string): CheckoutRun | undefined {
   return newest;
 }
 
+/**
+ * The most recent run that actually finished, or nothing.
+ *
+ * Read-only, and the savings ledger is the only caller: "time saved" is
+ * measured against a run that really happened, so a session with no finished
+ * run has no claim to make and the counter shows a dash.
+ */
+export function latestFinishedRun(): CheckoutRun | undefined {
+  let newest: CheckoutRun | undefined;
+  for (const run of store().values()) {
+    if (run.finishedAt === null) continue;
+    if (!newest || run.finishedAt > (newest.finishedAt as number)) newest = run;
+  }
+  return newest;
+}
+
 /** Record the Visa purchase instruction this run spends under. Prompt 7 calls this. */
 export function setInstructionId(runId: string, instructionId: string): void {
   const run = store().get(runId);
