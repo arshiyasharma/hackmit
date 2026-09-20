@@ -7,6 +7,7 @@ import { money } from "@/components/BudgetHud";
 import { Sheet } from "@/components/ui/Sheet";
 import { askFor } from "@/components/AskInput";
 import { spentCents, useRoomContext, useStore } from "@/lib/store";
+import { productTermFromSuggestion } from "@/lib/sourcing/roomContext";
 import { cn } from "@/lib/utils";
 
 /**
@@ -51,13 +52,13 @@ export default function BudgetLeftSheet({
   const leftCents = budgetCents - spentCents(items);
 
   const asked = React.useMemo(
-    () => new Set(items.map((i) => i.request.toLowerCase().trim())),
+    () => new Set(items.map((i) => productTermFromSuggestion(i.request) || i.request.toLowerCase().trim())),
     [items]
   );
 
   const suggestions = React.useMemo(() => {
-    const fromRoom = roomContext?.suggestions ?? [];
-    return fromRoom.filter((s) => !asked.has(s.toLowerCase().trim())).slice(0, 4);
+    const fromRoom = (roomContext?.suggestions ?? []).map(productTermFromSuggestion).filter(Boolean);
+    return [...new Set(fromRoom)].filter((suggestion) => !asked.has(suggestion)).slice(0, 4);
   }, [roomContext, asked]);
 
   return (

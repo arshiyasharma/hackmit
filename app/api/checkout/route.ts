@@ -14,7 +14,7 @@ import type { Basket, BasketLine, Retailer } from "@/lib/checkout/types";
 /**
  * POST /api/checkout — hand the basket to the agent.
  *
- * In:  { basket: Basket, acknowledgedOverBudget?: boolean }
+ * In:  { basket: Basket }
  * Out: { runId, lines: [{ lineId, status: { state: "pending" } }] }
  *
  * IT ANSWERS BEFORE ANY WORK HAPPENS. The run is created, every line is
@@ -23,14 +23,13 @@ import type { Basket, BasketLine, Retailer } from "@/lib/checkout/types";
  * awaiting it here would leave the button spinning for fifteen seconds and
  * throw away the whole point of showing the walk.
  *
- * VALIDATION IS THE JOB. Three things are refused, each with one sentence a
- * person could read out loud:
+ * VALIDATION IS THE JOB. Invalid baskets are refused with a readable reason:
  *   - an empty basket
  *   - a line with no product URL, because the agent has nowhere to go and the
  *     judge has nothing to tap
- *   - a subtotal over the budget, unless the caller says it knows
- * Over budget is a 400 ONCE. `acknowledgedOverBudget: true` carries it through,
- * because the budget is the user's number to break, not ours to enforce.
+ *   - a missing or invalid budget
+ *   - a subtotal over the budget, including a zero budget
+ * The budget is a hard cap. A subtotal equal to it is allowed.
  *
  * No money moves here and no retailer is contacted here. This route creates a
  * record and returns its id.
@@ -54,7 +53,7 @@ const RETAILERS: ReadonlySet<string> = new Set<Retailer>([
   "etsy",
 ]);
 
-/** A whole, positive number of cents — or nothing. Never a float. */
+/** A whole, nonnegative number of cents — or nothing. Never a float. */
 function minor(value: unknown): number | undefined {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 100_000_000
     ? value
@@ -223,28 +222,28 @@ export async function POST(request: NextRequest) {
       new Set(lines.map((line) => line.placementId)).size !== lines.length) {
     return bad("An item appears twice in this checkout. Refresh the review and try again.");
   }
-  if (rawBasket.budgetMinor !== undefined && minor(rawBasket.budgetMinor) === undefined) {
-    return bad("The budget must be a valid whole number of cents.");
+  const budgetMinor = minor(rawBasket.budgetMinor);
+  if (budgetMinor === undefined) {
+    return bad("Set a valid budget in whole cents before checking out.");
   }
   if (str(rawBasket.basketId).length > 128) return bad("That basket id is not valid.");
   const basket: Basket = {
     basketId: str(rawBasket.basketId) || crypto.randomUUID(),
     lines,
-    budgetMinor: minor(rawBasket.budgetMinor) ?? 0,
+    budgetMinor,
   };
 
   const subtotal = subtotalMinor(basket);
   if (!Number.isSafeInteger(subtotal) || subtotal > 100_000_000) {
     return bad("That basket exceeds the test checkout amount limit.");
   }
-  const acknowledged = body.acknowledgedOverBudget === true;
-  if (basket.budgetMinor > 0 && subtotal > basket.budgetMinor && !acknowledged) {
+  if (subtotal > basket.budgetMinor) {
     const over = subtotal - basket.budgetMinor;
     return bad(
       `This basket comes to ${formatMoneyMinor(subtotal)}, which is ` +
         `${formatMoneyMinor(over)} more than the ` +
-        `${formatMoneyMinor(basket.budgetMinor)} you set. Remove something, ` +
-        `raise your budget, or say you want to go over.`
+        `${formatMoneyMinor(basket.budgetMinor)} you set. Remove an item or ` +
+        `choose a lower-priced listing to stay within your budget.`
     );
   }
 

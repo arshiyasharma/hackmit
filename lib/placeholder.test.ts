@@ -39,3 +39,27 @@ describe("placeholder fallback", () => {
     expect(library.cleanPalette([null, 2, {}, "#abc", "#112233"])).toEqual(["#abc", "#112233"]);
   });
 });
+
+
+describe("placeholder aesthetic intent", () => {
+  it("keeps explicit object colour and current style in the image prompt", () => {
+    const prompt = library.buildPrompt("floor lamp", { palette: ["#2e7d32"], picked: ["#2e7d32"], styleTags: ["red velvet", "minimalist"], lighting: "neutral" }, "a blue floor lamp");
+    expect(prompt).toContain("A single blue floor lamp");
+    expect(prompt).toContain("velvet, minimalist character");
+    expect(prompt).toContain("must be blue");
+    expect(prompt).not.toContain("red velvet");
+    expect(prompt).not.toContain("must be green");
+  });
+  it("does not restore modern styling or a colour after both are cleared", () => {
+    const prompt = library.buildPrompt("chair", { palette: [], picked: [], styleTags: [], lighting: "neutral" });
+    expect(prompt).not.toContain("modern");
+    expect(prompt).not.toContain("must be");
+  });
+  it("does not reuse a different explicitly coloured object from cache", async () => {
+    const roomContext = { palette: ["#2e7d32"], styleTags: ["minimalist"] };
+    const blue = await library.resolvePlaceholder({ category: "chair", request: "a blue chair", roomContext });
+    const red = await library.resolvePlaceholder({ category: "chair", request: "a red chair", roomContext });
+    expect(blue.url).not.toBe(red.url);
+    expect((await library.resolvePlaceholder({ category: "chair", request: "a blue chair", roomContext })).cached).toBe(true);
+  });
+});

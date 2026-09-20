@@ -30,6 +30,7 @@ import * as React from "react";
 import { ArrowUp } from "lucide-react";
 
 import { withDemo } from "@/lib/demo";
+import { productTermFromSuggestion } from "@/lib/sourcing/roomContext";
 import { roomContextFor, useRoomContext, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { RoomContext } from "@/types";
@@ -103,8 +104,9 @@ const ASKS_DEFAULT = ["a tall lamp", "a floor rug", "a framed picture", "a side 
 export function buildAsks(context: RoomContext | null): string[] {
   if (!context) return [];
 
+  // Model adjectives may predate the user's edits; chips suggest only objects.
   const given = (context.suggestions ?? [])
-    .map((s) => s.trim())
+    .map(productTermFromSuggestion)
     .filter((s) => s.length > 0 && s.length <= 28);
 
   const roomType = (context.roomType ?? "").toLowerCase();
@@ -122,7 +124,7 @@ export function buildAsks(context: RoomContext | null): string[] {
 
   const seen = new Set<string>();
   return asks.filter((ask) => {
-    const key = ask.toLowerCase();
+    const key = ask.toLowerCase().replace(/^(?:a|an|the)\s+/, "");
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

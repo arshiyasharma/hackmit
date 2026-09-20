@@ -6,6 +6,7 @@ import type { NextConfig } from "next";
 const devOrigin = process.env.DEV_ORIGIN;
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["onnxruntime-node"],
   allowedDevOrigins: devOrigin ? [devOrigin] : [],
   // the dev badge sits bottom-left, exactly on the landing page's sound tile,
   // and swallows the tap. Compile and runtime errors still surface.

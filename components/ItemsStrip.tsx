@@ -59,22 +59,22 @@ export function ItemsStrip() {
   const move = reduced ? REDUCED : { duration: DUR.micro, ease: EASE.out };
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col font-sans" aria-label="Items in your room">
-      <header className="mb-3 flex items-center justify-between gap-2 px-2">
-        <h2 className="text-xs font-medium text-muted-foreground">Your items</h2>
-        <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>
+    <section className="room-items flex min-h-0 min-w-0 flex-1 flex-col font-sans" aria-label="Items in your room">
+      <header className="room-items-heading">
+        <h2 className="text-xs font-medium">In your room</h2>
+        <span className="room-items-count text-xs tabular-nums text-muted-foreground">{items.length}</span>
       </header>
 
       {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-line px-4 py-6 text-center">
-          <Armchair className="mx-auto mb-3 size-6 text-muted-foreground/70" aria-hidden />
-          <p className="text-sm font-medium">A little room to imagine</p>
+        <div className="room-items-empty">
+          <Armchair className="mx-auto mb-3 size-5 text-muted-foreground/70" aria-hidden />
+          <p className="text-sm font-medium">Your pieces live here</p>
           <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-            Ask for a piece you love. Everything you add will live here.
+            Add a piece from the matches on the left.
           </p>
         </div>
       ) : (
-        <ul className="no-scrollbar -m-1 flex min-h-0 flex-col gap-1 overflow-y-auto p-1">
+        <ul className="room-items-list no-scrollbar">
           <AnimatePresence initial={false} mode="popLayout">
             {items.map((item) => {
               const active = item.id === activeItemId;
@@ -96,7 +96,7 @@ export function ItemsStrip() {
                   exit={{ opacity: 0, transition: reduced ? REDUCED : EXIT }}
                   transition={move}
                   className={cn(
-                    "group flex min-w-0 items-center gap-1 rounded-xl p-1.5 transition-colors",
+                    "room-item group transition-colors",
                     active ? "bg-accent-wash" : "hover:bg-muted/70"
                   )}
                 >
@@ -109,9 +109,9 @@ export function ItemsStrip() {
                     data-item-select=""
                     aria-current={active ? "true" : undefined}
                     aria-label={`${label}, ${status}. View options`}
-                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className="room-item-select focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
-                    <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line/70 bg-white/70">
+                    <span className="room-item-image relative flex shrink-0 items-center justify-center overflow-hidden border border-line/70 bg-white/70">
                       {thumbnail ? (
                         <Image src={thumbnail} alt="" fill sizes="40px" unoptimized className="object-contain p-1" />
                       ) : pending ? (
@@ -120,9 +120,9 @@ export function ItemsStrip() {
                         <Armchair className="size-4 text-muted-foreground" aria-hidden />
                       )}
                     </span>
-                    <span className="min-w-0 flex-1 py-1">
-                      <span className={cn("block truncate text-[13px] font-medium", active && "text-accent")}>{label}</span>
-                      <span className={cn("mt-0.5 block truncate text-xs tabular-nums", isOver ? "text-warn" : "text-muted-foreground")}>
+                    <span className="room-item-copy min-w-0 flex-1">
+                      <span className={cn("room-item-name block truncate font-medium", active && "text-accent")}>{label}</span>
+                      <span className={cn("room-item-status mt-0.5 block truncate tabular-nums", isOver ? "text-warn" : "text-muted-foreground")}>
                         {status}{isOver ? " · Over budget" : ""}
                       </span>
                     </span>
@@ -130,7 +130,7 @@ export function ItemsStrip() {
                   <RemoveButton
                     itemId={item.id}
                     label={label}
-                    className="border-transparent bg-transparent opacity-70 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                    className="room-item-remove border-transparent bg-transparent opacity-70 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   />
                 </motion.li>
               );

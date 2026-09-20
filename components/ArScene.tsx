@@ -113,7 +113,6 @@ const noopSubscribe = () => () => {};
 /* ==================================================================== scene */
 
 export function ArScene() {
-  const roomImage = useStore((s) => s.roomImage);
 
   /** false during the server render and the first client render, then true */
   const mounted = React.useSyncExternalStore(
@@ -185,16 +184,8 @@ export function ArScene() {
     };
   }, [mounted]);
 
-  /* never a button that cannot work: the offer when AR is there, the honest
-     note when it is not, and nothing at all while we are still asking */
-  const footnote =
-    store && arSupported === true ? (
-      <EnterArButton store={store} />
-    ) : arSupported === false && roomImage ? (
-      <p className="glass-pill pointer-events-none max-w-full px-4 py-2 text-center text-[12px] text-muted-foreground">
-        Photo mode · live AR is unavailable in this browser.
-      </p>
-    ) : null;
+  // Offer live AR only when supported. The photo needs no mode disclaimer.
+  const footnote = store && arSupported === true ? <EnterArButton store={store} /> : null;
 
   return (
     <div className="relative h-full w-full overflow-hidden">

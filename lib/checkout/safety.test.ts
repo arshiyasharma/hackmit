@@ -7,7 +7,7 @@ import { POST as confirm } from "@/app/api/visa/confirm/route";
 import { POST as mandate } from "@/app/api/visa/mandate/route";
 import { POST as enroll } from "@/app/api/visa/enroll/route";
 import { POST as payment } from "@/app/api/payments/authorize/route";
-import { createRun, getRun, setInstructionId, setTransactionReference, updateLine } from "./runs";
+import { createRun, findRunByBasketId, getRun, setInstructionId, setTransactionReference, updateLine } from "./runs";
 import type { Basket } from "./types";
 
 vi.mock("@/lib/checkout/agent", () => ({ runCheckout: vi.fn(async () => {}) }));
@@ -57,6 +57,50 @@ describe("checkout adversarial inputs", () => {
   });
   it("refuses cross-site writes before creating a run", async () => {
     expect((await checkout(request({ basket: basket() }, "", { origin: "https://attacker.test" }))).status).toBe(403);
+  });
+});
+
+describe("checkout budget cap", () => {
+  it.each([undefined, false, true])("blocks a basket one cent over budget even with acknowledgment %s", async (acknowledgedOverBudget) => {
+    const input = basket();
+    input.budgetMinor = 4199;
+    const response = await checkout(request({ basket: input, acknowledgedOverBudget }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("$0.01 more");
+    expect(findRunByBasketId(input.basketId)).toBeUndefined();
+  });
+  it.each([4200, 4201])("allows a basket at or below its %s-cent cap", async (budgetMinor) => {
+    const input = basket();
+    input.budgetMinor = budgetMinor;
+    const response = await checkout(request({ basket: input }));
+    expect(response.status).toBe(200);
+    const { runId } = await response.json();
+    expect(getRun(runId)?.basket.budgetMinor).toBe(budgetMinor);
+  });
+  it("counts quantities and all lines against the cap", async () => {
+    const input = basket();
+    input.budgetMinor = 12599;
+    input.lines[0].quantity = 2;
+    input.lines.push({ ...input.lines[0], lineId: "line-2", placementId: "placement-2", quantity: 1 });
+    const response = await checkout(request({ basket: input, acknowledgedOverBudget: true }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("$126.00");
+    expect(findRunByBasketId(input.basketId)).toBeUndefined();
+  });
+  it("treats zero as a cap rather than disabling budget enforcement", async () => {
+    const input = basket();
+    input.budgetMinor = 0;
+    const response = await checkout(request({ basket: input, acknowledgedOverBudget: true }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("$0.00 you set");
+    expect(findRunByBasketId(input.basketId)).toBeUndefined();
+  });
+  it.each([undefined, null, -1, 4200.5, "50000", 100_000_001])("rejects a missing or invalid cap %s before creating a run", async (budgetMinor) => {
+    const input = { ...basket(), budgetMinor };
+    const response = await checkout(request({ basket: input, acknowledgedOverBudget: true }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("Set a valid budget");
+    expect(findRunByBasketId(input.basketId)).toBeUndefined();
   });
 });
 

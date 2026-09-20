@@ -183,6 +183,7 @@ export type Profile = {
 
 /** Whether an async job attached to an item has landed. */
 export type AssetStatus = "pending" | "ready" | "failed";
+export type ListingCutoutStatus = "idle" | AssetStatus;
 
 /**
  * One object the user asked for, standing in the room.
@@ -191,8 +192,8 @@ export type AssetStatus = "pending" | "ready" | "failed";
  * `options` is empty until they land, which is what lets the UI show a skeleton
  * in the right place instead of a blank screen.
  *
- * The sprite's PICTURE never changes when a different listing is linked. Its
- * SIZE does — that is the part that tells the truth.
+ * A linked listing replaces the generated picture once its extracted photo
+ * is ready. Its physical size and the user's placement remain independent.
  */
 export type PlacedItem = {
   id: string;
@@ -209,6 +210,13 @@ export type PlacedItem = {
    */
   listingCutoutUrl: string | null;
   listingWidthRatio: number | null;
+  listingCutoutStatus: ListingCutoutStatus;
+  /** A short explanation when the listing photo could not replace the illustration. */
+  listingCutoutNote: string | null;
+  /** Unique per link, even when the same product is selected again after another. */
+  linkedProductVersion: number;
+  /** Latest extraction attempt; stale responses must not change this item. */
+  listingCutoutRequestId: number | null;
   /** the cutout's natural width / height, so the plane never distorts */
   placeholderWidthRatio: number;
   placeholderStatus: AssetStatus;

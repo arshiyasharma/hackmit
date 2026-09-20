@@ -118,7 +118,7 @@ function AddStyleTag() {
         )}
       >
         <Plus className="size-3.5" aria-hidden />
-        word
+        Add keyword
       </button>
     );
   }
@@ -321,12 +321,13 @@ export function RoomContextStrip() {
   const generic = roomContext.source === "fallback";
 
   return (
-    <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+    <div className="aesthetic-editor flex w-full min-w-0 flex-col gap-6">
       {/* ------------------------------------------------------ the palette */}
       {/* the capsule and the form that hangs from it are siblings, so the
           form is glass over the photo and not glass inside glass */}
-      <div className="relative z-10 shrink-0">
-        <div className="glass-pill pointer-events-auto flex h-11 items-center gap-2 pl-2 pr-3">
+      <div className="relative z-10 min-w-0">
+        <h3 className="mb-2 text-sm font-medium">Your colours</h3>
+        <div className="glass-pill pointer-events-auto flex min-h-11 flex-wrap items-center gap-2 p-2">
           {/* THE WAY IN COMES FIRST, so it is in the same place however many
               colours follow it */}
           <button
@@ -398,7 +399,7 @@ export function RoomContextStrip() {
             ))}
           </AnimatePresence>
           <span className="sr-only">
-            The colours read from your photo: {palette.join(", ")}
+            Your current colours: {palette.join(", ")}
           </span>
         </div>
 
@@ -417,7 +418,8 @@ export function RoomContextStrip() {
       {/* -------------------------------------------------------- the words */}
       {/* `relative`: a chip that is leaving is lifted out of the row against
           this box, so its neighbours close the gap while it fades */}
-      <ul className="relative flex min-w-0 flex-1 basis-64 flex-wrap items-center gap-2">
+      <ul className="relative flex min-w-0 flex-wrap items-center gap-2" aria-label="Your style keywords">
+        <li className="w-full text-sm font-medium">Your keywords</li>
         {/* same rule as the palette: the way in is first, and never moves */}
         <li className="shrink-0">
           <AddStyleTag />

@@ -26,7 +26,8 @@
 
 import { createHash } from "node:crypto";
 
-import { colourNames } from "@/lib/colour";
+import { colourHex, colourNames } from "@/lib/colour";
+import { explicitColourNames, stylesForRequest } from "@/lib/sourcing/roomContext";
 import { fetchPublicImage } from "@/lib/remoteImage";
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -291,9 +292,9 @@ function cleanCategoryForPrompt(category: string): string {
  * to be keyed out, and a generated drop shadow survives the key-out as a grey
  * smear that reads as broken against a camera feed.
  */
-export function buildPrompt(category: string, ctx: RoomContext): string {
+export function buildPrompt(category: string, ctx: RoomContext, request = category): string {
   const cat = cleanCategoryForPrompt(category) || DEFAULT_CATEGORY;
-  const style = ctx.styleTags.length ? ctx.styleTags.join(", ") : "plain modern";
+  const style = stylesForRequest(ctx, request).join(", ");
 
   /*
    * A PICKED COLOUR IS AN INSTRUCTION, NOT CONTEXT.
@@ -314,11 +315,12 @@ export function buildPrompt(category: string, ctx: RoomContext): string {
    * dominant colour now stands in for a pick, so the object always belongs to
    * the room it is standing in. A real pick still overrides it.
    */
-  const picked = (ctx.picked ?? []).filter(Boolean);
-  const chosen = picked.length > 0 ? picked : ctx.palette.slice(0, 1);
-  const names = colourNames(chosen);
+  const explicit = explicitColourNames(request);
+  const picked = (ctx.picked ?? []).filter((hex) => ctx.palette.includes(hex));
+  const chosen = explicit.length ? [] : picked.length > 0 ? picked : ctx.palette.slice(0, 1);
+  const names = explicit.length ? explicit : colourNames(chosen);
   const object = names.length
-    ? `${names.join(" and ")} (${chosen.join(", ")}) ${cat}`
+    ? `${names.join(" and ")}${chosen.length ? ` (${chosen.join(", ")})` : ""} ${cat}`
     : cat;
 
   const room = ctx.palette.length
@@ -332,7 +334,7 @@ export function buildPrompt(category: string, ctx: RoomContext): string {
       ? `the ${cat} itself is ${names.join(" and ")};`
       : "",
     room ? `it sits in a room whose colours are ${room};` : "",
-    `${style} character, on a plain white background, no room, no floor,`,
+    `${style ? `${style} character` : "simple form"}, on a plain white background, no room, no floor,`,
     `no shadow, no text, no people.`,
     names.length ? `The ${cat} must be ${names.join(" and ")}.` : "",
   ]
@@ -350,9 +352,10 @@ export function cacheKeyFor(
   category: string,
   palette: string[],
   styleTags: string[],
+  explicitColours: string[] = [],
 ): string {
   return createHash("sha256")
-    .update(`${category}|${palette.join()}|${styleTags.join()}`)
+    .update(`aesthetic-v2|${category}|${palette.join()}|${styleTags.join()}|${explicitColours.join()}`)
     .digest("hex");
 }
 
@@ -846,8 +849,10 @@ export async function resolvePlaceholder(
   const lighting = input.roomContext?.lighting ?? "neutral";
   const ctx: RoomContext = { palette, styleTags, lighting, picked };
 
-  // picked colours change the object itself, so they change the image
-  const key = cacheKeyFor(category, [...palette, ...picked], styleTags);
+  // Explicit object colours and edited room aesthetics must never share a stale sprite.
+  const request = input.request || input.category;
+  const explicitColours = explicitColourNames(request);
+  const key = cacheKeyFor(category, [...palette, ...picked], styleTags, explicitColours);
 
   const hit = await readCacheEntry(key);
   if (hit) {
@@ -864,7 +869,8 @@ export async function resolvePlaceholder(
   if (running) return running;
 
   const job = (async (): Promise<PlaceholderResult> => {
-    const tint = tintFromPalette(palette);
+    const requestedPalette = explicitColours.map(colourHex).filter((hex): hex is string => hex !== null);
+    const tint = tintFromPalette(explicitColours.length ? requestedPalette : palette);
 
     /*
      * 1. Generated — FOR ANY OBJECT, not only the ten we drew silhouettes for.
@@ -878,7 +884,7 @@ export async function resolvePlaceholder(
     if (generationEnabled() && Date.now() >= generationBlockedUntil) {
       try {
         const raw = await generate(
-          buildPrompt(category, ctx),
+          buildPrompt(category, ctx, request),
           silhouette ? GENERATION_ASPECT[silhouette] : UNKNOWN_ASPECT,
           signal,
         );

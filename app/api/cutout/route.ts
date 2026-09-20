@@ -6,7 +6,7 @@ import { cutoutFromListing } from "@/lib/cutout";
  * POST /api/cutout — { imageUrl } in, { url, widthRatio } out.
  *
  * The sprite standing in the room becomes the product the user actually linked:
- * the listing's own photo, keyed off its white background and trimmed to the
+ * the listing's own photo, with its background removed and trimmed to the
  * object. Cached by URL, so relinking back and forth costs one fetch each.
  *
  * NEVER 500s and never blocks the link. A photo that will not key cleanly
@@ -16,7 +16,7 @@ import { cutoutFromListing } from "@/lib/cutout";
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 20;
+export const maxDuration = 90;
 
 export async function POST(request: NextRequest) {
   let imageUrl: string | null = null;
@@ -38,11 +38,11 @@ export async function POST(request: NextRequest) {
       console.info(`[cutout] refused ${imageUrl.slice(0, 90)}`);
       return Response.json({
         url: null,
-        note: "That photo is not on a plain background — keeping the stand-in.",
+        note: "We couldn’t isolate that product photo cleanly. Keeping the shape preview.",
       });
     }
     console.info(
-      `[cutout] ${cut.keyed ? "keyed" : "kept as it is"} ${imageUrl.slice(0, 70)} — ` +
+      `[cutout] keyed ${imageUrl.slice(0, 70)} — ` +
         `keyed ${cut.keyedRatio.toFixed(2)}, trimmed ${cut.trimmedRatio.toFixed(2)}`
     );
     return Response.json({

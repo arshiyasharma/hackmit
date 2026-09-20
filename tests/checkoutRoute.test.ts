@@ -125,12 +125,13 @@ describe("POST /api/checkout", () => {
     expect(error).toContain("$1,250.00");
   });
 
-  it("lets the same basket through once the caller acknowledges it", async () => {
+  it("keeps an over-budget basket blocked when the caller acknowledges it", async () => {
     const res = await post({
       basket: basket([line({ priceMinor: 140000 })], 125000),
       acknowledgedOverBudget: true,
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    expect(runCheckout).not.toHaveBeenCalled();
   });
 
   it("refuses a body that is not a basket at all", async () => {

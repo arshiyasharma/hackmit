@@ -7,21 +7,15 @@ import { signRequest, type MerchantCredentials } from "./httpSignature";
 /**
  * A real card authorization against a Visa-operated sandbox.
  *
- * WHAT THIS IS, SAID PRECISELY, because the precision is the point. This sends
- * a genuinely signed request to `apitest.visaacceptance.com`, a Visa-operated
- * endpoint, and gets back a genuine `AUTHORIZED` with a reconciliation id. It
- * is not a mock and it is not a stub.
+ * Sends a signed authorization request to the configured, allowlisted Visa
+ * Acceptance test endpoint and reports Visa's response and reconciliation id.
+ * Credentials may belong to our own sandbox merchant or to Visa's published
+ * shared test merchant; this module does not infer account ownership.
  *
- * WHAT IT IS NOT. The merchant is a SHARED TEST MERCHANT that Visa publishes
- * in its own public sample repository for exactly this purpose, not an account
- * of ours. The card is Visa's published test PAN, not anybody's card. Nothing
- * is captured — `capture: false` means the authorization is never turned into
- * a charge. No money moves, and no money could.
- *
- * Say both halves at the booth. "A real signed authorization from a Visa
- * sandbox, against Visa's shared test merchant, not captured" is a stronger
- * answer than a bluff, and a payments judge rewards the team that names its
- * own boundary.
+ * The card and billing data are Visa's published test fixtures. Nothing is
+ * captured: `capture: false` prevents capture, and no real money moves.
+ * A successful response proves sandbox authorization, not VIC enrollment or
+ * a retailer order.
  *
  * Server only. The shared secret must never reach the browser.
  */

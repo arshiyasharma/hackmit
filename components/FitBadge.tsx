@@ -10,6 +10,7 @@ import { fits, type FitResult, type Profile as KernelProfile } from "@/lib/fit";
 import { DUR, EASE, cssEase } from "@/lib/motion";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { profileToFitProfile } from "@/lib/fitProfile";
 import type { Product, Profile } from "@/types";
 
 /**
@@ -33,13 +34,7 @@ const FitSheet = dynamic(() => import("@/components/FitSheet"), { ssr: false });
  * names. One translation, in one place, so nothing else has to know.
  */
 export function toKernelProfile(profile: Profile): KernelProfile {
-  return {
-    doorW: profile.doorWidthMm,
-    doorH: profile.doorHeightMm,
-    hallW: profile.hallwayWidthMm,
-    stairW: profile.landingWidthMm,
-    ceiling: profile.ceilingHeightMm,
-  };
+  return profileToFitProfile(profile);
 }
 
 /** The verdict for one product, or null when the listing quoted no size. */
@@ -48,7 +43,7 @@ export function fitForProduct(
   profile: Profile
 ): FitResult | null {
   if (!product.dimsMm) return null;
-  return fits(product.dimsMm, toKernelProfile(profile));
+  return fits(product.dimsMm, { ...toKernelProfile(profile), dimensionsSource: product.dimsSource });
 }
 
 /** Does this candidate get through the door and round the landing? */
@@ -72,12 +67,12 @@ const mm = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 export function failHeadline(binding: FitResult["binding"]): string {
   switch (binding) {
     case "door":
-      return "Won't fit through your door";
+      return "Door clearance risk";
     case "corner":
     case "corner_flat":
-      return "Won't turn your landing";
+      return "Stair-turn clearance risk";
     default:
-      return "Won't fit your stairs";
+      return "Headroom clearance risk";
   }
 }
 
@@ -95,7 +90,7 @@ export type FitTone = "ok" | "warn" | "accent" | "muted";
  * was already relying on.
  */
 export function fitTone(result: FitResult | null): FitTone {
-  if (!result) return "muted";
+  if (!result || result.verdict === "unknown") return "muted";
   if (result.verdict === "pass") return "ok";
   return "warn";
 }
@@ -119,15 +114,12 @@ const hoverClass: Record<FitTone, string> = {
 
 /** Plain-text version of the badge, for aria-labels and the cart. */
 export function fitSummary(result: FitResult | null): string {
-  if (!result) return "Can't check — no dimensions listed";
-  if (result.marginMm === null) {
-    return result.verdict === "pass"
-      ? "Fits — flat-packed"
-      : failHeadline(result.binding);
-  }
-  if (result.verdict === "pass") return `Fits — ${mm.format(result.marginMm)} mm to spare`;
-  if (result.verdict === "tight") return `Tight — ${mm.format(result.marginMm)} mm to spare`;
-  return failHeadline(result.binding);
+  if (!result) return "Product dimensions needed";
+  if (result.verdict === "unknown") return result.binding === "flat_pack" ? "Packed dimensions needed" : "Measurements needed";
+  const prefix = result.confidence === "estimated" ? "Estimated · " : "";
+  if (result.verdict === "fail") return prefix + failHeadline(result.binding);
+  if (result.marginMm === null) return prefix + "Tilt needed · verify route";
+  return `${prefix}${result.verdict === "pass" ? "Model clearance" : "Tight"} · ${mm.format(result.marginMm)} mm`;
 }
 
 /* ------------------------------------------------------------------- badge */
@@ -167,7 +159,7 @@ export function FitBadge({ product }: FitBadgeProps) {
   const body =
     result && result.marginMm !== null && result.verdict !== "fail" ? (
       <span className="inline-flex items-baseline gap-[0.5ch] whitespace-nowrap">
-        <span>{result.verdict === "pass" ? "Fits —" : "Tight —"}</span>
+        <span>{result.confidence === "estimated" ? "Estimated · " : ""}{result.verdict === "pass" ? "Clearance —" : "Tight —"}</span>
         <NumberPlate
           value={result.marginMm}
           size="xs"

@@ -66,7 +66,7 @@ export default function CheckoutPage() {
     return map;
   }, [items]);
 
-  const overBudget = budgetCents > 0 && subtotalCents > budgetCents;
+  const overBudget = subtotalCents > budgetCents;
 
   /* ----------------------------------------------------------------- the run */
 
@@ -186,8 +186,8 @@ export default function CheckoutPage() {
         {overBudget ? (
           <p className="mt-2 text-xs text-warn">
             {formatMoney(subtotalCents - budgetCents, currency)} over the{" "}
-            {formatMoney(budgetCents, currency)} you set. Nothing is removed for
-            you.
+            {formatMoney(budgetCents, currency)} budget. Checkout is blocked until
+            your total is within budget.
           </p>
         ) : null}
       </div>

@@ -240,3 +240,31 @@ describe("the checkout page mounts the chip where it cannot be missed", () => {
     expect(line).not.toContain("&&");
   });
 });
+
+
+describe("checkout budget enforcement", () => {
+  // The store starts with a $600 budget. Include exact cent boundaries.
+  it.each([59999, 60000])("allows a total of %i cents within the cap", (priceCents) => {
+    const markup = renderToStaticMarkup(<CheckoutRun lines={[cartItem({ priceCents })]} mode="test" />);
+    const buy = markup.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find((button) => text(button).includes("Buy all"));
+    expect(buy).toBeDefined();
+    expect(buy).not.toContain('disabled=""');
+    expect(text(markup)).not.toContain("over budget");
+  });
+
+  it("disables buying even one cent over budget and explains how to continue", () => {
+    const markup = renderToStaticMarkup(<CheckoutRun lines={[cartItem({ priceCents: 60001 })]} mode="test" />);
+    const buy = markup.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find((button) => text(button).includes("Buy all"));
+    expect(buy).toContain('disabled=""');
+    expect(buy).toContain("aria-describedby=");
+    expect(text(markup)).toContain("$0.01 over budget. Remove an item or choose a cheaper option to continue.");
+  });
+
+  it("does not let a supported subset bypass an over-budget room", () => {
+    const lines = [cartItem(), cartItem({ id: "unsupported", retailer: "Walmart", url: "https://www.walmart.com/ip/1", priceCents: 60000 })];
+    const markup = renderToStaticMarkup(<CheckoutRun lines={lines} mode="test" />);
+    const buy = markup.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find((button) => text(button).includes("Buy 1 available"));
+    expect(buy).toContain('disabled=""');
+    expect(text(markup)).toContain("$120 over budget");
+  });
+});

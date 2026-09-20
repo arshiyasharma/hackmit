@@ -30,7 +30,20 @@ describe("media request boundaries", () => {
   });
   it("fit still handles valid numeric-string dimensions", async () => {
     const response = await fit(request({ carton: ["1200", "600", "400"] }));
-    expect(await response.json()).toMatchObject({ checked: true, carton: [1200, 600, 400], fit: { verdict: "pass" } });
+    expect(await response.json()).toMatchObject({ checked: true, carton: [1200, 600, 400], fit: { verdict: "unknown" } });
+  });
+  it("fit preserves unmeasured route flags even when numeric defaults were sent", async () => {
+    const response = await fit(request({ carton: [1200, 600, 400], profile: {
+      doorWidthMm: 762, doorHeightMm: 2032, hallwayWidthMm: 914,
+      landingWidthMm: 914, ceilingHeightMm: 2438, measured: {},
+    } }));
+    expect(await response.json()).toMatchObject({ fit: { verdict: "unknown", confidence: "unknown" } });
+  });
+  it("fit keeps estimated product sizes distinct from supplied route dimensions", async () => {
+    const response = await fit(request({ carton: [1200, 600, 400], dimsSource: "estimated", profile: {
+      doorW: 900, doorH: 2100, hallW: 1200, stairW: 1200, ceiling: 2500,
+    } }));
+    expect(await response.json()).toMatchObject({ fit: { verdict: "pass", confidence: "estimated" } });
   });
   it.each([null, [], {}, { category: 12 }, { category: "x".repeat(121) }])("placeholder rejects malformed asks without starting generation: %j", async (body) => {
     const response = await draw(request(body));

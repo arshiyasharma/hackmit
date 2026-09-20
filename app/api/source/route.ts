@@ -5,6 +5,7 @@ import { parseShoppingQuery } from "@/lib/sourcing/parseQuery";
 import {
   buildContextualShoppingQuery,
   buildSimpleShoppingQuery,
+  explicitColourNames,
   resolveSearchTermsForQuery,
   type RoomContext,
 } from "@/lib/sourcing/roomContext";
@@ -53,9 +54,8 @@ export async function POST(req: NextRequest) {
 
     for (const shoppingQuery of uniqueQueries) {
       // Relevance filter against the furniture term, not the scene sentence.
-      const termForFilter =
-        shoppingByTerm.find((t) => t.shoppingQuery === shoppingQuery)
-          ?.searchTerm ?? shoppingQuery;
+      const term = shoppingByTerm.find((t) => t.shoppingQuery === shoppingQuery)?.searchTerm ?? shoppingQuery;
+      const termForFilter = [...explicitColourNames(query), term].join(" ");
 
       productsByQuery.set(
         shoppingQuery,
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Simple / specific product query (e.g. "pink lamp") — one result list.
-  // Still uses room lighting/style when present; ignores unrelated searchTerms.
+  // Uses current edited colours/styles; ignores stale model searchTerms.
   const { searchQuery, maxPrice } = parseShoppingQuery(query);
   const shoppingQuery = buildSimpleShoppingQuery(searchQuery, roomContext);
 

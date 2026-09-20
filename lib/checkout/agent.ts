@@ -235,7 +235,7 @@ async function authorizeLine(
         authorizedAmount: result.authorizedAmount,
         approvalCode: result.approvalCode,
         correlationId: result.correlationId,
-        merchant: "shared-test",
+        merchant: "sandbox",
         captured: false,
       },
     };
@@ -314,7 +314,7 @@ export async function runCheckout(
 
       // the payment beat. Absent unless PAYMENT_PROVIDER=acceptance, in which
       // case this is a real signed authorization against a Visa sandbox — a
-      // hold on a shared test merchant, never captured.
+      // authorization for the configured sandbox merchant, never captured.
       const authorized = await authorizeLine(line);
       if (authorized && "failure" in authorized) {
         updateLine(runId, line.lineId, {

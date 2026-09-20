@@ -4,12 +4,12 @@ import * as React from "react";
 import { ExternalLink } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
-import { fitFor, fitObstacle, formatMoney } from "@/components/CartLine";
+import { fitFor, formatMoney } from "@/components/CartLine";
 import type { RunRow } from "@/components/CheckoutRun";
 import { Button } from "@/components/ui/button";
 import NumberPlate, { centsToUnits } from "@/components/ui/NumberPlate";
 import { useStore } from "@/lib/store";
-import type { CartItem } from "@/types";
+import type { CartItem, Profile } from "@/types";
 
 /**
  * Where the run got to, once every row has settled.
@@ -27,6 +27,26 @@ export type ConfirmationProps = {
   lines: CartItem[];
   onPlaceAnother: () => void;
 };
+
+/** Checkout completion cannot upgrade an unknown or estimated fit to a pass. */
+export function confirmationFitSummary(lines: CartItem[], profile: Profile): string | null {
+  const counts = { pass: 0, tight: 0, fail: 0, unverified: 0 };
+  for (const line of lines) {
+    const result = fitFor(line.product, profile);
+    if (!result || result.verdict === "unknown" || result.confidence !== "measured" || line.product.dimsSource !== "quoted") {
+      counts.unverified += line.quantity;
+    } else {
+      counts[result.verdict] += line.quantity;
+    }
+  }
+  const noun = (count: number) => `${count} ${count === 1 ? "item" : "items"}`;
+  const statements: string[] = [];
+  if (counts.pass) statements.push(`${noun(counts.pass)} ${counts.pass === 1 ? "passes" : "pass"} the modeled doorway, turn, and headroom checks.`);
+  if (counts.tight) statements.push(`${noun(counts.tight)} ${counts.tight === 1 ? "has" : "have"} tight modeled clearance. Confirm the carrying route with the delivery team.`);
+  if (counts.fail) statements.push(`${noun(counts.fail)} ${counts.fail === 1 ? "has" : "have"} a modeled clearance risk.`);
+  if (counts.unverified) statements.push(`Delivery fit is still unverified for ${noun(counts.unverified)}. Confirm product or packed-carton dimensions and measure the doorway, turn, and headroom.`);
+  return statements.length ? statements.join(" ") : null;
+}
 
 export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps) {
   const profile = useStore((s) => s.profile);
@@ -56,30 +76,10 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
           : "Ordered."
         : `${ready.length} of ${rows.length} done.`;
 
-  /* The fit line, measured from the same kernel the review used. */
-  const fitLine = React.useMemo(() => {
-    let checked = 0;
-    const blocked: string[] = [];
-    let obstacle = "your stair landing";
-    for (const line of lines) {
-      const verdict = fitFor(line.product, profile);
-      if (!verdict) continue;
-      checked += 1;
-      if (verdict.verdict === "fail") {
-        blocked.push(line.product.title);
-        obstacle = fitObstacle(verdict);
-      }
-    }
-    if (checked === 0) return null;
-    if (blocked.length === 0) {
-      return `All ${checked} ${
-        checked === 1 ? "item clears" : "items clear"
-      } your door and your stair landing.`;
-    }
-    return `${checked - blocked.length} of ${checked} items clear the way in — ${
-      blocked[0]
-    } still has to get past ${obstacle}.`;
-  }, [lines, profile]);
+  const fitLine = React.useMemo(
+    () => confirmationFitSummary(lines, profile),
+    [lines, profile]
+  );
 
   const spring = reduced
     ? { duration: 0.15 }

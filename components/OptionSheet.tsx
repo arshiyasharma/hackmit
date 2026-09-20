@@ -319,8 +319,8 @@ export function OptionSheet() {
               <button
                 type="button"
                 onClick={closeOptions}
-                aria-label="Back to your items"
-                title="Back to your items (Esc)"
+                aria-label="Close matches"
+                title="Close matches (Esc)"
                 className={cn(
                   "grid size-7 shrink-0 cursor-pointer place-items-center rounded-none text-muted-foreground",
                   "transition-colors hover:bg-white/70 hover:text-foreground",

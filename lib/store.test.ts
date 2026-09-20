@@ -100,3 +100,28 @@ describe("room context edits", () => {
     expect(roomContextFor(useStore.getState())).toBeNull();
   });
 });
+
+
+describe("new object searches after aesthetic edits", () => {
+  beforeEach(reset);
+  it("reads edits made between consecutive object requests", () => {
+    const store = useStore.getState();
+    store.setRoomContext(MODEL_ANSWER);
+    const first = searchQuery(roomContextFor(useStore.getState()), "a sofa");
+    for (const tag of MODEL_ANSWER.styleTags) store.removeStyleTag(tag);
+    for (const hex of MODEL_ANSWER.palette) store.removePaletteColor(hex);
+    store.addStyleTag("mid-century modern");
+    store.addPaletteColor("#2f6fb5");
+    const next = searchQuery(roomContextFor(useStore.getState()), "a sofa");
+    expect(next).toBe("blue mid-century modern sofa");
+    expect(next).not.toBe(first);
+    expect(next).not.toMatch(/traditional|ornate|wood/);
+  });
+  it("does not turn cleared aesthetics back into model defaults", () => {
+    const store = useStore.getState();
+    store.setRoomContext(MODEL_ANSWER);
+    for (const tag of MODEL_ANSWER.styleTags) store.removeStyleTag(tag);
+    for (const hex of MODEL_ANSWER.palette) store.removePaletteColor(hex);
+    expect(searchQuery(roomContextFor(useStore.getState()), "a sofa")).toBe("sofa");
+  });
+});

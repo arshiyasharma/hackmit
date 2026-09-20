@@ -107,8 +107,8 @@ export interface PaymentLineResult {
   approvalCode: string | null;
   /** the id Visa support acts on */
   correlationId: string | null;
-  /** the shared test merchant, not ours. Said in the data, not only the pitch. */
-  merchant: "shared-test";
+  /** Sandbox account ownership is unspecified; shared-test is legacy persisted data. */
+  merchant: "sandbox" | "shared-test";
   captured: false;
 }
 

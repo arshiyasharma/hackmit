@@ -11,17 +11,15 @@ import {
  *
  * In:  { amountMinor, currency?, lineId? }
  * Out: { status, reconciliationId, authorizedAmount, currency, approvalCode,
- *        correlationId, merchant: "shared-test", captured: false }
+ *        correlationId, merchant: "sandbox", captured: false }
  *
- * THIS IS THE INSURANCE POLICY. It needs no Visa onboarding of any kind, so it
- * works tonight whatever the VIC dashboard does, and it is the difference
- * between "we would have called Visa" and "here is Visa's answer".
+ * Uses the configured Visa Acceptance sandbox merchant credentials. These
+ * may belong to our sandbox account or to Visa's published shared test merchant.
+ * This authorization does not depend on Visa Intelligent Commerce onboarding.
  *
- * BE EXACT ABOUT WHAT IT PROVES. The request is genuinely signed and the
- * endpoint is genuinely Visa's. The merchant is the SHARED TEST MERCHANT that
- * Visa publishes in its own public samples, not ours; the card is Visa's
- * published test PAN, not anybody's; and `capture: false` means the hold is
- * never turned into a charge. Nothing is captured anywhere in this repo.
+ * The request is signed and sent to Visa's sandbox using published test-card
+ * data. `capture: false` prevents capture; no real money moves. A successful
+ * response proves sandbox authorization, not VIC enrollment or a retailer order.
  *
  * 503 when the credentials are not configured — with the sentence that says
  * where to get them. 502 when Visa answered something we could not use, with
@@ -89,7 +87,7 @@ export async function POST(request: NextRequest) {
         correlationId: result.correlationId,
         clientReferenceCode,
         // said in the payload as well as in the pitch
-        merchant: "shared-test",
+        merchant: "sandbox",
         captured: false,
       },
       { headers: { "Cache-Control": "no-store" } }

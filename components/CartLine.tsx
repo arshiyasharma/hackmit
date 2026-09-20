@@ -9,6 +9,7 @@ import { fits, type FitResult, type Profile as FitProfile } from "@/lib/fit";
 import { ENTER, EXIT, REDUCED } from "@/lib/motion";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { profileToFitProfile } from "@/lib/fitProfile";
 import { productImage, type CartItem, type Product, type Profile } from "@/types";
 
 /**
@@ -68,19 +69,13 @@ export function formatMoney(
  * so the mismatch lives in exactly one place until the two agree.
  */
 export function toFitProfile(profile: Profile): FitProfile {
-  return {
-    doorW: profile.doorWidthMm,
-    doorH: profile.doorHeightMm,
-    hallW: profile.hallwayWidthMm,
-    stairW: profile.landingWidthMm,
-    ceiling: profile.ceilingHeightMm,
-  };
+  return profileToFitProfile(profile);
 }
 
 /** null means the listing never published a size — a UI state, not a verdict. */
 export function fitFor(product: Product, profile: Profile): FitResult | null {
   if (!product.dimsMm) return null;
-  return fits(product.dimsMm, toFitProfile(profile));
+  return fits(product.dimsMm, { ...toFitProfile(profile), dimensionsSource: product.dimsSource });
 }
 
 /** Plain words for what the item would hit on the way in. */
@@ -91,21 +86,24 @@ export function fitObstacle(result: FitResult): string {
 }
 
 const verdictLabel: Record<FitResult["verdict"], string> = {
-  pass: "Fits",
+  pass: "Model clearance",
   tight: "Tight",
-  fail: "Won't fit",
+  fail: "Clearance risk",
+  unknown: "Measurements needed",
 };
 
 const verdictClass: Record<FitResult["verdict"], string> = {
   pass: "border-ok/35 text-ok",
   tight: "border-warn/45 text-warn",
   fail: "border-warn/70 text-warn",
+  unknown: "border-line text-muted-foreground",
 };
 
 const verdictDot: Record<FitResult["verdict"], string> = {
   pass: "bg-ok",
   tight: "bg-warn/60",
   fail: "bg-warn",
+  unknown: "bg-muted-foreground",
 };
 
 /**
@@ -144,7 +142,7 @@ export function LineFit({ product }: { product: Product }) {
         aria-hidden
         className={cn("size-1.5 shrink-0 rounded-full", verdictDot[result.verdict])}
       />
-      <span className="whitespace-nowrap font-medium">{verdictLabel[result.verdict]}</span>
+      <span className="whitespace-nowrap font-medium">{result.confidence === "estimated" ? "Estimated · " : ""}{verdictLabel[result.verdict]}</span>
       {/* a measurement, so it is set like one */}
       {margin ? (
         <span className="tabular whitespace-nowrap font-mono text-[11px]">· {margin}</span>

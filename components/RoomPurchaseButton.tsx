@@ -4,6 +4,7 @@ import * as React from "react";
 import { ShoppingBag } from "lucide-react";
 
 import BudgetLeftSheet from "@/components/BudgetLeftSheet";
+import { formatMoney } from "@/components/CartLine";
 import { demoHref } from "@/lib/demo";
 import { useAppNav } from "@/lib/nav";
 import { linkedItems, spentCents, useStore } from "@/lib/store";
@@ -17,11 +18,23 @@ export function RoomPurchaseButton({ className }: { className?: string }) {
   const [asking, setAsking] = React.useState(false);
   const disabledReasonId = React.useId();
   const linkedCount = linkedItems(items).length;
-  const disabled = linkedCount === 0;
-  const disabledReason = "Choose a product for an item to review your purchase.";
+  const overCents = spentCents(items) - budgetCents;
+  const overBudget = overCents > 0;
+  const invalidBudget = !Number.isSafeInteger(budgetCents) || budgetCents < 0;
+  const disabled = linkedCount === 0 || overBudget || invalidBudget;
+  const disabledReason = invalidBudget
+    ? "Set a valid budget before checking out."
+    : overBudget
+      ? `Your selected products are ${formatMoney(overCents)} over your ${formatMoney(budgetCents)} budget. Remove an item or choose a cheaper option to continue.`
+      : "Choose a product for an item to review your purchase.";
 
   function continueToReview() {
     setAsking(false);
+    // A budget or linked price can change while the budget-left dialog is open.
+    // Read the current store at the navigation boundary, not a render snapshot.
+    const latest = useStore.getState();
+    if (!Number.isSafeInteger(latest.budgetCents) || latest.budgetCents < 0 ||
+        linkedItems(latest.items).length === 0 || spentCents(latest.items) > latest.budgetCents) return;
     nav.push(demoHref("/checkout"));
   }
 
@@ -33,7 +46,11 @@ export function RoomPurchaseButton({ className }: { className?: string }) {
         aria-describedby={disabled ? disabledReasonId : undefined}
         title={disabled ? disabledReason : `Review ${linkedCount} selected product${linkedCount === 1 ? "" : "s"}`}
         onClick={() => {
-          if (budgetCents - spentCents(items) > 0) setAsking(true);
+          const latest = useStore.getState();
+          const total = spentCents(latest.items);
+          if (!Number.isSafeInteger(latest.budgetCents) || latest.budgetCents < 0 ||
+              linkedItems(latest.items).length === 0 || total > latest.budgetCents) return;
+          if (latest.budgetCents > total) setAsking(true);
           else continueToReview();
         }}
         className={cn(
@@ -44,7 +61,7 @@ export function RoomPurchaseButton({ className }: { className?: string }) {
         )}
       >
         <ShoppingBag className="size-4" aria-hidden />
-        Review &amp; buy
+        {overBudget ? "Over budget" : "Review & buy"}
         {linkedCount > 0 ? (
           <span className="flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 text-[11px] leading-5 tabular-nums">{linkedCount}</span>
         ) : null}

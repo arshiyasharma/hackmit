@@ -1,5 +1,8 @@
+import { colourNames } from "@/lib/colour";
+
 export type RoomContext = {
   palette?: string[];
+  picked?: string[];
   styleTags?: string[];
   lighting?: string;
   searchTerms?: string[];
@@ -78,6 +81,9 @@ const PRODUCT_NOUNS = new Set([
   "curtains",
   "sconce",
   "frame",
+  "armchair", "loveseat", "cabinet", "cabinets", "light", "lights",
+  "plushie", "plushies", "plush", "bookshelf", "picture", "pictures",
+  "art", "painting", "paintings", "cushion", "cushions",
 ]);
 
 /** Significant words from text (for alignment / relevance checks). */
@@ -109,71 +115,95 @@ export function isSearchTermAligned(
  */
 export function isProductFocusedQuery(designQuery: string): boolean {
   const words = contentWords(designQuery);
-  if (words.length === 0 || words.length > 5) return false;
+  if (words.length === 0) return false;
   return words.some((w) => PRODUCT_NOUNS.has(w));
 }
 
 /**
- * Decide which searchTerms to fan out for.
- * - Specific product query with no overlapping terms → [] (use simple query path)
- * - Otherwise → up to `limit` terms (all of them for scene vibes)
+ * Model suggestions supply object categories only. Their adjectives describe an
+ * earlier photo read and must not bring deleted colours or styles back.
  */
+export function productTermFromSuggestion(term: string): string {
+  const phrase = cleanPhrase(term).toLowerCase();
+  const compound = phrase.match(/\b(?:floor|table|desk|wall|ceiling|pendant) (?:lamps?|lights?)\b|\b(?:coffee|side|end|dining|console|bedside) tables?\b|\b(?:dining|accent|office) chairs?\b|\bbar stools?\b|\bthrow (?:pillows?|blankets?)\b|\b(?:area|runner) rugs?\b|\bwall shel(?:f|ves)\b|\bframed pictures?\b/);
+  if (compound) return compound[0];
+  return phrase.split(/[^a-z]+/).find((word) => PRODUCT_NOUNS.has(word)) ?? "";
+}
+
+/** A specific request always owns its wording; model terms only fan out scenes. */
 export function resolveSearchTermsForQuery(
   designQuery: string,
   roomContext?: RoomContext | null,
   limit = 3
 ): string[] {
-  const terms = getSearchTerms(roomContext);
-  if (terms.length === 0) return [];
+  if (isProductFocusedQuery(designQuery)) return [];
+  return [...new Set(getSearchTerms(roomContext).map(productTermFromSuggestion).filter(Boolean))]
+    .slice(0, limit);
+}
 
-  const aligned = terms.filter((t) => isSearchTermAligned(t, designQuery));
+const REQUEST_COLOURS = new Set([
+  "pink", "rose", "blush", "red", "blue", "navy", "green", "yellow",
+  "gold", "brass", "black", "white", "ivory", "cream", "brown", "beige",
+  "gray", "grey", "purple", "orange", "teal", "silver", "charcoal", "tan",
+  "walnut", "oak", "rust", "terracotta", "sage", "olive", "mustard", "burgundy",
+  "maroon", "coral", "turquoise", "lavender", "lilac", "magenta", "cyan",
+]);
 
-  // "pink lamp" + chair/rug/blanket → do NOT invent fake sections; search the lamp once.
-  if (isProductFocusedQuery(designQuery) && aligned.length === 0) {
-    return [];
-  }
+function cleanPhrase(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
 
-  // If the user named a product that overlaps some terms, only keep those.
-  if (isProductFocusedQuery(designQuery) && aligned.length > 0) {
-    return aligned.slice(0, limit);
-  }
+/** Explicit object colour/finish takes priority over inferred or picked colours. */
+export function explicitColourNames(request: string): string[] {
+  const words = request.toLowerCase().match(/[a-z]+/g) ?? [];
+  const hexes = request.match(/#[a-f0-9]{6}\b|#[a-f0-9]{3}\b/gi) ?? [];
+  return [...new Set([...words.filter((word) => REQUEST_COLOURS.has(word)), ...colourNames(hexes)])];
+}
 
-  // Scene / vibe query → each Gemini searchTerm is a product to find.
-  return terms.slice(0, limit);
+/** Current styles, without colour words that contradict an explicit request. */
+export function stylesForRequest(roomContext: RoomContext | null | undefined, request: string): string[] {
+  const explicit = explicitColourNames(request);
+  return [...new Set((roomContext?.styleTags ?? []).map((tag) => {
+    if (explicit.length === 0) return cleanPhrase(tag);
+    return cleanPhrase(tag.replace(/\b[a-z]+\b/gi, (word) =>
+      REQUEST_COLOURS.has(word.toLowerCase()) && !explicit.includes(word.toLowerCase()) ? "" : word));
+  }).filter(Boolean))];
 }
 
 /**
- * Build a Shopping-oriented query for one furniture searchTerm.
- * Term is primary — avoid lighting/style suffixes that cause empty Google pages.
+ * Shared by the client and API: preserve complete style phrases, use the newest
+ * two, and send one current picked colour (or the current dominant palette colour).
+ * Empty edits stay empty. The person's explicit colour wins over room colours.
  */
-export function buildContextualShoppingQuery(
-  searchTerm: string,
-  _roomContext?: RoomContext | null,
-  _designQuery?: string | null
-): string {
-  return searchTerm.trim().replace(/\s+/g, " ");
-}
-
-/** Style-aware single-product shopping string (no searchTerm fanout). */
 export function buildSimpleShoppingQuery(
   designQuery: string,
   roomContext?: RoomContext | null
 ): string {
-  const scene = designQuery.trim().replace(/\s+/g, " ");
-  if (!scene) return "";
+  const request = cleanPhrase(designQuery).replace(/^(?:a|an|the)\s+/i, "");
+  if (!request) return "";
+  const explicit = explicitColourNames(request);
+  const scene = request.replace(/#[a-f0-9]{6}\b|#[a-f0-9]{3}\b/gi, (hex) => colourNames([hex])[0] ?? hex);
+  const palette = roomContext?.palette ?? [];
+  const picked = (roomContext?.picked ?? []).filter((hex) =>
+    roomContext?.palette === undefined || palette.some((current) => current.toLowerCase() === hex.toLowerCase()));
+  const colours = explicit.length ? [] : colourNames(picked.length ? picked : palette.slice(0, 1)).slice(-1);
+  const tags = stylesForRequest(roomContext, request).slice(-2);
+  const existing = ` ${scene.toLowerCase()} `;
+  const hints = [...colours, ...tags].filter((hint, index, all) =>
+    !existing.includes(` ${hint.toLowerCase()} `) && all.findIndex((other) => other.toLowerCase() === hint.toLowerCase()) === index);
+  return [...hints, scene].join(" ");
+}
 
-  // One short style hint helps "lamp" escape a pink-only Elastic cache via Serp,
-  // without the long suffixes that previously caused empty Google pages.
-  const tag = (roomContext?.styleTags || [])
-    .map((t) => (typeof t === "string" ? t.trim() : ""))
-    .find((t) => t.length > 0 && t.split(/\s+/).length <= 3);
-
-  if (!tag) return scene;
-
-  // Use the last style token ("french romantic" → "romantic") when the tag is long.
-  const hint = tag.split(/\s+/).slice(-1)[0]!;
-  if (scene.toLowerCase().includes(hint.toLowerCase())) return scene;
-  return `${scene} ${hint}`;
+/** A model suggestion names the object; only current context supplies its look. */
+export function buildContextualShoppingQuery(
+  searchTerm: string,
+  roomContext?: RoomContext | null,
+  designQuery?: string | null
+): string {
+  const object = productTermFromSuggestion(searchTerm);
+  if (!object) return "";
+  const explicit = explicitColourNames(designQuery ?? "");
+  return buildSimpleShoppingQuery([...explicit, object].join(" "), roomContext);
 }
 
 /**
@@ -194,10 +224,7 @@ function titleHas(title: string, word: string): boolean {
 }
 
 
-const EXPLICIT_DESCRIPTORS = new Set([
-  "pink", "red", "blue", "green", "yellow", "black", "white", "purple", "orange",
-  "teal", "navy", "brass", "gold", "silver", "oak", "walnut", "leather", "velvet",
-]);
+const EXPLICIT_DESCRIPTORS = new Set([...REQUEST_COLOURS, "leather", "velvet"]);
 
 /**
  * Keep products whose titles match the design query (e.g. pink + lamp).

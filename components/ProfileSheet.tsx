@@ -7,7 +7,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { Sheet } from "@/components/ui/Sheet";
 import { Input } from "@/components/ui/input";
 import { DUR, EASE, REDUCED, cssEase } from "@/lib/motion";
-import { useStore } from "@/lib/store";
+import { DEFAULT_PROFILE, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { ProfileField } from "@/types";
 
@@ -79,7 +79,7 @@ const FIELDS: FieldSpec[] = [
   {
     id: "doorWidthMm",
     label: "Door width",
-    help: "Inside the frame, at the narrowest door it has to pass.",
+    help: "Clear space at the narrowest door, allowing for the open door and handles.",
   },
   {
     id: "doorHeightMm",
@@ -89,17 +89,17 @@ const FIELDS: FieldSpec[] = [
   {
     id: "hallwayWidthMm",
     label: "Hallway width",
-    help: "Wall to wall, where the hallway runs into the stairs.",
+    help: "The narrowest clear approach to the turn, between walls or protrusions.",
   },
   {
     id: "landingWidthMm",
-    label: "Stair landing width",
-    help: "The flat square where the stairs turn — wall to banister, not the step.",
+    label: "Landing / stairway width",
+    help: "The clear exit width after the 90° turn, between walls, handrails or posts.",
   },
   {
     id: "ceilingHeightMm",
     label: "Ceiling at the landing",
-    help: "Floor to ceiling at that landing — this is the one that stops tall boxes.",
+    help: "Landing floor to the lowest beam, light or ceiling over the turning area.",
   },
 ];
 
@@ -111,9 +111,10 @@ function toDisplay(valueMm: number, units: "mm" | "in"): string {
 }
 
 function toMm(raw: string, units: "mm" | "in"): number | null {
-  const n = Number.parseFloat(raw.replace(/,/g, ""));
+  const n = Number(raw.replace(/,/g, ""));
   if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.round(units === "in" ? n * MM_PER_INCH : n);
+  const value = Math.round(units === "in" ? n * MM_PER_INCH : n);
+  return value >= 1 && value <= 100_000 ? value : null;
 }
 
 function focusField(id: ProfileField) {
@@ -280,9 +281,11 @@ function WayIn({
 export type ProfileSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Optional setup sequencing; fires on Save, including an intentionally blank form. */
+  onSaved?: () => void;
 };
 
-export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
+export function ProfileSheet({ open, onOpenChange, onSaved }: ProfileSheetProps) {
   const profile = useStore((s) => s.profile);
   const measure = useStore((s) => s.measure);
   const setProfile = useStore((s) => s.setProfile);
@@ -291,6 +294,21 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
   // raw keystrokes live here so "76" on the way to "762" is not committed as 76
   const [draft, setDraft] = React.useState<Partial<Record<ProfileField, string>>>({});
   const clearDrafts = React.useCallback(() => setDraft({}), []);
+  const invalidDraft = Object.values(draft).some((raw) => raw !== undefined && raw.trim() !== "" && toMm(raw, units) === null);
+  function commitField(field: ProfileField, raw: string) {
+    if (!raw.trim()) {
+      useStore.setState((state) => ({ profile: {
+        ...state.profile,
+        [field]: DEFAULT_PROFILE[field],
+        measured: { ...state.profile.measured, [field]: false },
+      } }));
+      return true;
+    }
+    const next = toMm(raw, units);
+    if (next === null) return false;
+    measure(field, next);
+    return true;
+  }
 
   /*
    * Which dimension the drawing lights up: the field being typed into, else
@@ -321,7 +339,7 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
       }}
       snapPoints={[0.9]}
       initialSnap={0}
-      label="Your doorways"
+      label="Optional delivery measurements"
       // two columns need a little more than the dialog's default measure
       className="desk:max-w-[54rem]"
     >
@@ -330,11 +348,13 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
           <div className="min-w-0">
             <p className="eyebrow text-muted-foreground">Fit check</p>
             <h2 className="mt-2 font-display text-[2.5rem] font-normal leading-none tracking-[0.01em] desk:text-[3rem]">
-              Your doorways
+              Doorways &amp; stairs
             </h2>
             <p className="mt-3 max-w-[58ch] text-sm leading-relaxed text-muted-foreground">
-              Five numbers decide whether furniture reaches the room. Measure the ones
-              you can; the rest stay assumptions and say so.
+              Optional. Add the measurements you know, or leave fields blank.
+              Unmeasured parts of the route stay unknown. The check covers a
+              clear doorway and one level 90° turn; stairs and tight corners
+              still need a delivery-team check.
             </p>
           </div>
 
@@ -372,7 +392,8 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
           <ul className="flex flex-col border-b border-line">
             {FIELDS.map((field, index) => {
               const isMeasured = Boolean(profile.measured[field.id]);
-              const value = draft[field.id] ?? toDisplay(profile[field.id], units);
+              const value = draft[field.id] ?? (isMeasured ? toDisplay(profile[field.id], units) : "");
+              const invalid = value.trim() !== "" && toMm(value, units) === null;
               const isActive = field.id === active;
 
               return (
@@ -419,12 +440,13 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
                         type="text"
                         autoComplete="off"
                         value={value}
+                        placeholder={`e.g. ${toDisplay(DEFAULT_PROFILE[field.id], units)}`}
+                        aria-invalid={invalid || undefined}
+                        aria-describedby={invalid ? `profile-${field.id}-error` : undefined}
                         className="tabular h-11 w-28 rounded-xl border-line bg-surface px-3 text-right font-mono text-base md:text-base"
                         onChange={(e) => {
                           const raw = e.target.value;
                           setDraft((d) => ({ ...d, [field.id]: raw }));
-                          const next = toMm(raw, units);
-                          if (next !== null) measure(field.id, next);
                         }}
                         onFocus={(e) => {
                           setFocused(field.id);
@@ -440,8 +462,11 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
                           if (next) focusField(next.id);
                           else doneRef.current?.focus();
                         }}
-                        onBlur={() => {
+                        onBlur={(event) => {
                           setFocused(null);
+                          // Read the input itself so a rapid focus change cannot
+                          // commit a stale draft from the previous render.
+                          if (!commitField(field.id, event.currentTarget.value)) return;
                           setDraft((d) => {
                             // drop the raw keystrokes and fall back to the stored mm
                             const next = { ...d };
@@ -453,7 +478,8 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
                       <span className="w-6 font-mono text-sm text-muted-foreground">{units}</span>
                     </div>
 
-                    {units === "in" ? (
+                    {invalid ? <span id={`profile-${field.id}-error`} className="max-w-40 text-right text-[11px] text-warn">Enter a positive measurement, or leave blank.</span> : null}
+                    {units === "in" && isMeasured ? (
                       <span className="tabular pr-8 font-mono text-[11px] text-muted-foreground">
                         = {mm.format(profile[field.id])} mm
                       </span>
@@ -468,13 +494,13 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
           <Blueprint className="order-first self-start p-4 desk:sticky desk:top-2 desk:order-none">
             <WayIn
               active={active}
-              figure={(id) => `${mm.format(profile[id])} mm`}
+              figure={(id) => profile.measured[id] ? `${mm.format(profile[id])} mm` : "Not measured"}
               onPick={focusField}
               onHover={hover}
             />
             <p className="mt-3 flex items-baseline justify-between gap-3 border-t border-accent-pale pt-3">
               <span className="eyebrow text-accent">{activeField.label}</span>
-              <span className="tabular font-mono text-sm">{mm.format(profile[active])} mm</span>
+              <span className="tabular text-sm">{profile.measured[active] ? `${mm.format(profile[active])} mm` : "Not measured"}</span>
             </p>
           </Blueprint>
         </div>
@@ -483,24 +509,30 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
           <p className="text-[13px] text-muted-foreground">
             <span className="tabular font-mono text-foreground">{measuredCount}</span> of{" "}
             <span className="tabular font-mono text-foreground">{FIELDS.length}</span> measured.
-            Kept in this browser, so you are never asked again.
+            Optional and saved in this browser. Update them when your route changes.
           </p>
 
           <button
             ref={doneRef}
             type="button"
+            disabled={invalidDraft}
             onClick={() => {
+              for (const field of FIELDS) {
+                const raw = draft[field.id];
+                if (raw !== undefined && !commitField(field.id, raw)) return;
+              }
               clearDrafts();
               onOpenChange(false);
+              onSaved?.();
             }}
             style={MICRO}
             className={cn(
               "glass-blue h-11 w-full cursor-pointer !rounded-full px-10 text-sm font-medium",
-              "transition-[filter,transform] hover:brightness-110 active:scale-[0.98] desk:w-auto",
+              "transition-[filter,transform] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 desk:w-auto",
               FOCUS_RING
             )}
           >
-            Done
+            Save measurements
           </button>
         </div>
       </div>
@@ -522,7 +554,7 @@ function MeasuredFlag({ measured }: { measured: boolean }) {
       )}
     >
       {measured ? <Check className="size-3" aria-hidden /> : <Ruler className="size-3" aria-hidden />}
-      {measured ? "you measured this" : "assumed"}
+      {measured ? "You measured this" : "Not measured · optional"}
     </motion.span>
   );
 }
@@ -544,7 +576,7 @@ export function ProfileButton({ className }: { className?: string }) {
 
   const count = FIELDS.filter((f) => measured[f.id]).length;
   const state =
-    count === 0 ? "assumed" : count === FIELDS.length ? "measured" : `${count} of 5 measured`;
+    count === 0 ? "optional" : count === FIELDS.length ? "measured" : `${count} of 5 measured`;
 
   return (
     <>
@@ -561,7 +593,7 @@ export function ProfileButton({ className }: { className?: string }) {
         )}
       >
         <Ruler className="size-4 text-accent" aria-hidden />
-        <span>Your doorways</span>
+        <span>Doorways &amp; stairs</span>
         <span
           className={cn(
             "tabular font-mono text-[11px]",

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { readRoomContext as readContext } from "@/lib/roomAnalysis";
 import exifr from "exifr";
 import {
   AnimatePresence,
@@ -16,7 +17,7 @@ import { DUR, EASE, ENTER, EXIT, REDUCED, STAGGER, cssEase } from "@/lib/motion"
 import { NEUTRAL_ROOM_CONTEXT, useStore } from "@/lib/store";
 import { useAppNav } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import type { Room, RoomContext } from "@/types";
+import type { Room } from "@/types";
 import "./capture-glass.css";
 
 /**
@@ -286,48 +287,6 @@ async function roomFromFile(file: File): Promise<Room> {
 
 /* ---------------------------------------------------------------- analysis */
 
-const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
-
-function readStrings(source: unknown, key: string, limit: number): string[] {
-  if (!source || typeof source !== "object") return [];
-  const value = (source as Record<string, unknown>)[key];
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item): item is string => typeof item === "string" && item.length > 0)
-    .slice(0, limit);
-}
-
-function readText(source: unknown, key: string): string | undefined {
-  if (!source || typeof source !== "object") return undefined;
-  const value = (source as Record<string, unknown>)[key];
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-const LIGHTING = new Set(["warm", "cool", "neutral"]);
-
-/** Whatever /api/analyze answers, we only keep what we can actually render. */
-function readContext(payload: unknown): RoomContext | null {
-  const palette = readStrings(payload, "palette", 5).filter((hex) =>
-    HEX.test(hex)
-  );
-  if (palette.length === 0) return null;
-  const lighting = readText(payload, "lighting");
-  return {
-    palette,
-    // shopping words, lowercase, so they read the same in the search string
-    styleTags: readStrings(payload, "styleTags", 5).map((t) =>
-      t.trim().toLowerCase()
-    ),
-    lighting:
-      lighting && LIGHTING.has(lighting)
-        ? (lighting as RoomContext["lighting"])
-        : "neutral",
-    roomType: readText(payload, "roomType"),
-    suggestions: readStrings(payload, "suggestions", 6),
-    source: "model",
-  };
-}
-
 /**
  * Fire-and-forget: this outlives the component, because we route to /room the
  * moment the shutter fires and the answer lands in the store either way.
@@ -335,6 +294,7 @@ function readContext(payload: unknown): RoomContext | null {
  */
 async function runAnalysis(room: Room): Promise<void> {
   const setRoomContext = useStore.getState().setRoomContext;
+  const isCurrentRoom = () => useStore.getState().roomImage === room;
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), ANALYZE_TIMEOUT_MS);
   try {
@@ -352,8 +312,10 @@ async function runAnalysis(room: Room): Promise<void> {
     if (!res.ok) throw new Error(`analyze answered ${res.status}`);
     const context = readContext(await res.json());
     if (!context) throw new Error("analyze sent no palette");
-    setRoomContext(context);
+    if (isCurrentRoom()) setRoomContext(context);
   } catch {
+    // A late result from a previous upload must not replace this room's aesthetic.
+    if (!isCurrentRoom()) return;
     // never block: a neutral palette, no style words, and the strip says so
     setRoomContext(NEUTRAL_ROOM_CONTEXT);
     toast("Couldn't read the style in that photo — the search will be generic.");

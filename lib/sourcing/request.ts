@@ -10,7 +10,7 @@ export function isRequestObject(value: unknown): value is Record<string, unknown
 export function validRoomContext(value: unknown): value is RoomContext | null | undefined {
   if (value == null) return true;
   if (!isRequestObject(value)) return false;
-  for (const key of ["palette", "styleTags", "searchTerms"]) {
+  for (const key of ["palette", "picked", "styleTags", "searchTerms"]) {
     const list = value[key];
     if (list === undefined) continue;
     if (!Array.isArray(list) || list.length > 20) return false;

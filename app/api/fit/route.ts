@@ -56,6 +56,16 @@ function toKernelProfile(raw: unknown, flatPack: boolean | undefined): KernelPro
     hallW: mm(p.hallW ?? p.hallwayWidthMm) ?? DEFAULTS.hallW,
     stairW: mm(p.stairW ?? p.landingWidthMm ?? p.stairWidthMm) ?? DEFAULTS.stairW,
     ceiling: mm(p.ceiling ?? p.ceilingHeightMm) ?? DEFAULTS.ceiling,
+    measured: Object.fromEntries([
+      ["doorW", "doorWidthMm"], ["doorH", "doorHeightMm"],
+      ["hallW", "hallwayWidthMm"], ["stairW", "landingWidthMm"],
+      ["ceiling", "ceilingHeightMm"],
+    ].map(([short, long]) => {
+      const flags = p.measured && typeof p.measured === "object" ? p.measured as Record<string, unknown> : null;
+      // Defaults remain unknown; explicitly supplied API measurements are
+      // usable unless the caller marks them as assumptions.
+      return [short, flags ? (flags[short] ?? flags[long]) === true : mm(p[short] ?? p[long] ?? (short === "stairW" ? p.stairWidthMm : undefined)) !== undefined];
+    })),
     flatPack:
       flatPack === true
         ? true
@@ -118,6 +128,9 @@ export async function POST(request: NextRequest) {
     body.profile,
     typeof body.flatPack === "boolean" ? body.flatPack : undefined
   );
+
+  const source = body.dimsSource ?? (body.product && typeof body.product === "object" ? (body.product as Record<string, unknown>).dimsSource : undefined);
+  if (source === "quoted" || source === "estimated" || source === "approx" || source === "missing") profile.dimensionsSource = source;
 
   try {
     // verbatim: whatever the kernel returns is what the badge, the sprite label

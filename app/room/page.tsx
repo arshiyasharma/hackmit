@@ -2,15 +2,18 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { ArrowUpRight, Camera, ChevronRight, Maximize2, MessageSquare, PanelLeft, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { ArrowUpRight, Camera, ChevronRight, Maximize2, MessageSquare, PanelLeft, Ruler, Search, Trash2, X } from "lucide-react";
 import AgentThread from "@/components/AgentThread";
 import ArScene from "@/components/ArScene";
 import AskInput, { useAsking } from "@/components/AskInput";
 import BudgetHud, { useRemoveItem } from "@/components/BudgetHud";
 import BudgetPrompt from "@/components/BudgetPrompt";
 import ItemsStrip from "@/components/ItemsStrip";
-import OptionSheet, { closeOptions, openOptionsFor, useOptionsOpen } from "@/components/OptionSheet";
+import OptionSheet, { openOptionsFor, useOptionsOpen } from "@/components/OptionSheet";
 import { ADJUST_ITEM_EVENT, OPEN_OPTIONS_EVENT, PHOTO_REVEALED_EVENT, REMOVE_ITEM_EVENT } from "@/components/PhotoMode";
+import ProfileSheet from "@/components/ProfileSheet";
+import FitBadge from "@/components/FitBadge";
+import RoomAesthetic from "@/components/RoomAesthetic";
 import { RoomContextStrip } from "@/components/RoomContextStrip";
 import RoomPurchaseButton from "@/components/RoomPurchaseButton";
 import Sheet from "@/components/ui/Sheet";
@@ -36,6 +39,8 @@ export default function RoomPage() {
   const items = useStore((s) => s.items);
   const activeItemId = useStore((s) => s.activeItemId);
   const roomContext = useRoomContext();
+  const profile = useStore((s) => s.profile);
+  const [measurementsOpen, setMeasurementsOpen] = React.useState(false);
   const asking = useAsking();
   const optionsOpen = useOptionsOpen();
   const nav = useAppNav();
@@ -49,7 +54,6 @@ export default function RoomPage() {
   const phase = derivePhase(items, active, asking);
   const removeItem = useRemoveItem();
   const trayVisible = optionsOpen && active !== null;
-  const showingMatches = optionsOpen || items.length === 0;
   const previewProduct = usePreviewFor(active);
   const selectedProduct = previewProduct ?? active?.linkedProduct;
   const canPreviewSize = !!previewProduct?.dimsMm && previewProduct.dimsMm[1] > 0;
@@ -183,39 +187,39 @@ export default function RoomPage() {
 
   return (
     <main ref={workspaceRef} className="room-workspace" data-phase={phase} data-tray={trayVisible ? "open" : "closed"} data-sidebar={sidebarOpen ? "open" : "closed"} data-selected={active ? "true" : "false"}>
-      {sidebarOpen ? <button type="button" tabIndex={-1} className="room-sidebar-backdrop" aria-label="Close items" onClick={() => closeSidebar()} /> : null}
-      <aside ref={sidebarRef} className="room-sidebar" aria-label="Room workspace" id="room-items">
+      {sidebarOpen ? <button type="button" tabIndex={-1} className="room-sidebar-backdrop" aria-label="Close matches" onClick={() => closeSidebar()} /> : null}
+      <aside ref={sidebarRef} className="room-sidebar" aria-label="Matching products" id="room-matches">
         <div className="room-brand">
           <Image className="room-brand-mark" src="/assets/brand/room-logo.png" alt="" width={1320} height={1164} sizes="52px" />
           <span className="room-brand-name">PIXX<span className="room-brand-suffix">-AR</span></span>
-          <button className="room-sidebar-close room-tool" aria-label="Close items" onClick={() => closeSidebar()}><X size={17} aria-hidden /></button>
+          <button className="room-sidebar-close room-tool" aria-label="Close matches" onClick={() => closeSidebar()}><X size={17} aria-hidden /></button>
         </div>
-        <nav className="room-panel-tabs" aria-label="Product panel">
-          <button type="button" aria-pressed={showingMatches} disabled={!active && items.length > 0} onClick={showMatches}>Matches</button>
-          <button type="button" aria-pressed={!showingMatches} disabled={items.length === 0} onClick={closeOptions}>In your room <span>{items.length}</span></button>
-        </nav>
+        <div className="room-panel-heading"><h2>Matches</h2><span>Find the right piece</span></div>
         <div className="room-matches">
           <OptionSheet />
-          {!showingMatches ? <div className="room-inventory"><ItemsStrip /></div> : null}
-          {showingMatches && !active ? (
+          {!trayVisible ? (
             <div className="room-matches-empty">
               <Search size={23} strokeWidth={1.4} aria-hidden />
-              <h2>Find your next piece.</h2>
-              <p>Describe what you want below. Matching products will appear here.</p>
-              <ol><li><span>01</span> Ask for a piece</li><li><span>02</span> Preview your matches</li><li><span>03</span> Add your favourite</li></ol>
+              <h2>{active ? "Explore your matches." : "Find your next piece."}</h2>
+              <p>{active ? "Compare products for your selected piece, or choose another item on the right." : "Describe what you want below. Matching products will appear here."}</p>
+              {active ? <button type="button" className="room-tool room-show-matches" onClick={showMatches}>Show matches <ChevronRight size={15} aria-hidden /></button> : <ol><li><span>01</span> Ask for a piece</li><li><span>02</span> Preview your matches</li><li><span>03</span> Add your favourite</li></ol>}
             </div>
           ) : null}
         </div>
+        <button type="button" className="room-fit-entry" onClick={() => setMeasurementsOpen(true)}>
+          <Ruler size={18} aria-hidden />
+          <span><strong>Delivery fit</strong><small>{Object.values(profile.measured).filter(Boolean).length === 5 ? "Your doorway & stair measurements" : "Add door & stair sizes · optional"}</small></span>
+          <ChevronRight size={15} aria-hidden />
+        </button>
         <div className="room-sidebar-footer">
           {nav.embedded ? <span className="room-account-label">Account &amp; settings</span> : <AppLink href="/landing" className="room-tool">Back to rooms <ChevronRight size={15} aria-hidden /></AppLink>}
         </div>
       </aside>
       <header className="room-toolbar">
         <div className="room-toolbar-title">
-          <button ref={sidebarToggleRef} className="room-sidebar-toggle room-tool" aria-label="Show products" aria-expanded={sidebarOpen} aria-controls="room-items" onClick={() => setSidebarOpen((open) => !open)}><PanelLeft size={18} aria-hidden /></button>
+          <button ref={sidebarToggleRef} className="room-sidebar-toggle room-tool" aria-label="Show products" aria-expanded={sidebarOpen} aria-controls="room-matches" onClick={() => setSidebarOpen((open) => !open)}><PanelLeft size={18} aria-hidden /></button>
           <h1>{roomName}<span>Room studio</span></h1>
           <span className="room-toolbar-divider" aria-hidden />
-          <button className="room-tool" onClick={() => setPanel("style")} aria-label="Edit room style" title="Edit room style"><SlidersHorizontal size={16} aria-hidden /><span className="room-tool-label">Style</span></button>
           <button className="room-tool" onClick={() => setPanel("activity")} aria-label="Open conversation" title="Conversation"><MessageSquare size={16} aria-hidden /><span className="room-tool-label">History</span></button>
         </div>
         <div className="room-toolbar-actions">
@@ -224,20 +228,22 @@ export default function RoomPage() {
           <RoomPurchaseButton className="room-purchase" />
         </div>
       </header>
+      <RoomAesthetic onEdit={() => setPanel("style")} />
       <div className="room-stage">
         <ArScene />
+        <aside className="room-inventory" aria-label="Your room inventory"><ItemsStrip /></aside>
         {offerBudget ? <BudgetPrompt /> : null}
         <div className="room-bottom">
           {active ? (
             <section className="room-selection" aria-label="Selected piece">
               <div className="room-selection-details">
-                <span className="room-selection-state">{previewProduct ? (canPreviewSize ? "Trying a match · not added" : "Match details · size preview unavailable") : active.linkedProduct ? "In your room" : "Preview · choose a product"}</span>
+                <span className="room-selection-state">{previewProduct ? (canPreviewSize ? "Trying a match · not added" : "Match details · size preview unavailable") : active.linkedProduct ? (active.listingCutoutUrl ? "In your cart · product cutout" : "In your cart · illustrated preview") : "Preview · choose a product"}</span>
                 <h2 title={selectedProduct?.title || active.category}>{selectedProduct?.title || active.category}</h2>
                 <p>
                   {selectedProduct ? <>{selectedProduct.retailer} · {selectedProduct.priceCents > 0 ? formatPrice(selectedProduct.priceCents, selectedProduct.currency || "USD") : "Price unavailable"}<span className="room-selection-separator"> / </span>{selectedProduct.dimsMm && selectedProduct.dimsSource !== "missing" ? <>{selectedProduct.dimsMm.join(" × ")} mm · {selectedProduct.dimsSource === "quoted" ? "listed size" : "estimated size"}</> : "Dimensions not listed"}</> : "Choose a match on the left to see its price and dimensions."}
                   {active.scale !== 1 ? <span> · Preview resized to {Math.round(active.scale * 100)}%</span> : null}
                 </p>
-                {!previewProduct && active.fit && active.fit.verdict !== "pass" ? <p className="room-selection-warning">{active.fit.reason}</p> : null}
+                {selectedProduct ? <div className="room-selection-fit"><FitBadge product={selectedProduct} /></div> : null}
               </div>
               <div className="room-selection-actions">
                 <button type="button" className="room-tool" onClick={() => window.dispatchEvent(new CustomEvent(ADJUST_ITEM_EVENT, { detail: { itemId: active.id } }))} title="Show resize and rotate handles"><Maximize2 size={15} aria-hidden /><span>Adjust</span></button>
@@ -249,10 +255,11 @@ export default function RoomPage() {
           <div className="room-composer"><AskInput /></div>
         </div>
       </div>
-      <Sheet open={panel === "style"} onOpenChange={(open) => { if (!open) setPanel(null); }} label="Room style" className="room-studio-dialog">
+      <ProfileSheet open={measurementsOpen} onOpenChange={setMeasurementsOpen} />
+      <Sheet open={panel === "style"} onOpenChange={(open) => { if (!open) setPanel(null); }} label="Your aesthetic" className="room-studio-dialog">
         <div className="room-settings">
-          <h2>Room style</h2>
-          <p>Fine-tune the colours and style used to find pieces for your room.</p>
+          <h2>Your aesthetic</h2>
+          <p>We start with the colours and style in your photo. Add or remove anything here—your changes are saved for this room and used in your next object search.</p>
           <RoomContextStrip />
         </div>
       </Sheet>

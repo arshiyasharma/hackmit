@@ -19,7 +19,7 @@ import {
 } from "@/lib/checkout/lineView";
 import { RETAILER_NAMES } from "@/lib/checkout/retailers";
 import type { Retailer } from "@/lib/checkout/types";
-import { useStore } from "@/lib/store";
+import { cartSubtotalCents, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { CartItem } from "@/types";
 
@@ -217,6 +217,14 @@ export function CheckoutRun({
   );
   const currency = eligibleLines[0]?.currency ?? "USD";
   const shops = new Set(eligibleLines.map((line) => line.retailer)).size;
+  const basketTotalCents = cartSubtotalCents(lines);
+  const invalidBudget = !Number.isSafeInteger(budgetCents) || budgetCents < 0;
+  const overBudget = basketTotalCents > budgetCents;
+  const budgetBlocked = invalidBudget || overBudget;
+  const budgetReasonId = React.useId();
+  const budgetReason = invalidBudget
+    ? "Set a valid budget before checking out."
+    : `${formatMoney(basketTotalCents - budgetCents, currency)} over budget. Remove an item or choose a cheaper option to continue.`;
 
   /** One place that writes a line, so no update can miss one. */
   const applyLine = React.useCallback(
@@ -316,6 +324,12 @@ export function CheckoutRun({
 
   const start = React.useCallback(async () => {
     if (review.basket.lines.length === 0) return;
+    // Check the current cap again before any checkout or payment request.
+    const currentBudget = useStore.getState().budgetCents;
+    if (!Number.isSafeInteger(currentBudget) || currentBudget < 0 || cartSubtotalCents(lines) > currentBudget) {
+      setProblem("Checkout is blocked until your total is within your budget.");
+      return;
+    }
     cancelled.current = false;
     settled.current = false;
     setProblem(null);
@@ -355,12 +369,7 @@ export function CheckoutRun({
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          basket,
-          // the review already showed the over-budget line in warn colour, so
-          // the person has seen it. The budget is theirs to break.
-          acknowledgedOverBudget: true,
-        }),
+        body: JSON.stringify({ basket }),
       });
       const body = (await res.json()) as { runId?: string; error?: string };
       if (!res.ok || !body.runId) {
@@ -509,6 +518,8 @@ export function CheckoutRun({
             <Button
               className="min-h-[52px] w-full whitespace-normal rounded-none px-4 py-3 text-base"
               onClick={start}
+              disabled={budgetBlocked}
+              aria-describedby={budgetBlocked ? budgetReasonId : undefined}
             >
               {review.unsupported.length > 0
                 ? `Buy ${count} available ${count === 1 ? "item" : "items"}`
@@ -520,6 +531,12 @@ export function CheckoutRun({
               Choose an item from a supported shop to run checkout here.
             </p>
           )}
+
+          {budgetBlocked ? (
+            <p id={budgetReasonId} role="status" className="mt-2 text-center text-sm text-warn">
+              {budgetReason}
+            </p>
+          ) : null}
 
           <p className="mt-2 text-center text-xs leading-relaxed text-muted-foreground">
             {mode === "test"

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, RotateCcw, Ruler, TriangleAlert, XCircle } from "lucide-react";
+import { Check, RotateCcw, Ruler, TriangleAlert } from "lucide-react";
 import { motion, useReducedMotion, type Transition } from "motion/react";
 
 import { InsideFitSheet, failHeadline, fitTone, productPasses } from "@/components/FitBadge";
@@ -9,11 +9,11 @@ import ProductCard from "@/components/ProductCard";
 import { Blueprint, ProfileSheet } from "@/components/ProfileSheet";
 import { Sheet } from "@/components/ui/Sheet";
 import { NumberPlate, formatCarton } from "@/components/ui/NumberPlate";
-import { planarCornerLimit, type FitResult } from "@/lib/fit";
+import { planarCornerLimit, cornerTilt, type FitResult } from "@/lib/fit";
 import { DUR, EASE, ENTER, REDUCED, STAGGER, cssEase } from "@/lib/motion";
 import { itemById, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import type { Product, Profile, ProfileField } from "@/types";
+import type { Product } from "@/types";
 
 /**
  * The fit check, explained — beat 07, "nobody measures the stairwell".
@@ -120,10 +120,8 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
       profile.landingWidthMm,
       s
     );
-    const phi =
-      limit !== null && limit > 0 && l > limit
-        ? Math.acos(Math.min(1, limit / l))
-        : 0;
+    const tilt = limit !== null ? cornerTilt(l, m, limit) : null;
+    const phi = tilt?.phi ?? 0;
     return {
       l,
       m,
@@ -131,7 +129,7 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
       limit,
       atDeg,
       phi,
-      headroom: l * Math.sin(phi) + m * Math.cos(phi),
+      headroom: tilt?.finalHeight ?? m,
     };
   }, [product.dimsMm, profile.hallwayWidthMm, profile.landingWidthMm]);
 
@@ -147,11 +145,13 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
   const tone = fitTone(result);
   const headline = !result
     ? "Can't check this one"
-    : result.verdict === "pass"
-      ? "It fits"
-      : result.verdict === "tight"
-        ? "It fits, barely"
-        : failHeadline(result.binding);
+    : result.verdict === "unknown"
+      ? "Measurements needed"
+      : result.verdict === "pass"
+        ? "Clear in this model"
+        : result.verdict === "tight"
+          ? "Tight clearance"
+          : failHeadline(result.binding);
 
   const binding = result?.binding ?? null;
   /* the kernel only works out a lean once the door and the flat turn are behind it */
@@ -160,7 +160,7 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
   /* the edge that stopped it, or nearly did, is drawn in warn */
   const alarm = result !== null && result.verdict !== "pass";
 
-  const drawn = Boolean(result && geometry && binding !== "flat_pack");
+  const drawn = Boolean(result && result.verdict !== "unknown" && geometry && binding !== "flat_pack");
   /* the sentence lands when the drawing has finished saying it */
   const settle = reduced ? 0 : drawn ? DUR.scene : DUR.element;
 
@@ -237,8 +237,8 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
             <Blueprint className="self-start p-4 desk:sticky desk:top-2 desk:col-start-1 desk:row-span-2 desk:row-start-1 desk:p-5">
               {!result || !geometry ? (
                 <NoDrawing label="No size on the listing" />
-              ) : binding === "flat_pack" ? (
-                <NoDrawing label="Flat-packed" />
+              ) : result.verdict === "unknown" ? (
+                <NoDrawing label={binding === "flat_pack" ? "Packed dimensions needed" : "Add delivery measurements"} />
               ) : (
                 <div className="flex flex-col gap-4">
                   {binding === "door" ? (
@@ -257,6 +257,7 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
                       hallMm={profile.hallwayWidthMm}
                       landingMm={profile.landingWidthMm}
                       lengthMm={geometry.l}
+                      verticalMm={geometry.m}
                       depthMm={geometry.s}
                       turnDeg={geometry.atDeg ?? 45}
                       tiltDeg={tiltDeg}
@@ -315,18 +316,17 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
                 </motion.div>
               ) : null}
 
-              <Checks result={result} geometry={geometry} profile={profile} rise={rise} />
+              <Checks result={result} rise={rise} />
 
               <motion.p
                 {...rise(5)}
                 className="max-w-[64ch] text-[13px] leading-relaxed text-muted-foreground"
               >
-                Measured against your doorways: <N>{mm.format(profile.doorWidthMm)}</N> ×{" "}
-                <N>{mm.format(profile.doorHeightMm)}</N> mm door,{" "}
-                <N>{mm.format(profile.hallwayWidthMm)}</N> mm hallway into a{" "}
-                <N>{mm.format(profile.landingWidthMm)}</N> mm landing,{" "}
-                <N>{mm.format(profile.ceilingHeightMm)}</N> mm ceiling. The box is treated as a
-                rectangular prism; the corridor&rsquo;s length is not counted.
+                Optional route measurements are marked as measured or unknown. This
+                check models a rectangular box, a clear doorway, and one level 90°
+                turn. It does not model stair slopes, winding stairs, corridor length,
+                handrails, people carrying the item, or a complete 3D path. Verify
+                packed dimensions and all obstructions with the delivery team.
               </motion.p>
 
               <motion.div {...rise(6)}>
@@ -342,7 +342,7 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
                   )}
                 >
                   <Ruler className="size-4 text-accent" aria-hidden />
-                  Change your measurements
+                  Add or edit measurements
                 </button>
               </motion.div>
             </div>
@@ -519,6 +519,7 @@ type PlanProps = {
   hallMm: number;
   landingMm: number;
   lengthMm: number;
+  verticalMm: number;
   depthMm: number;
   turnDeg: number;
   tiltDeg: number;
@@ -537,6 +538,7 @@ function PlanView({
   hallMm,
   landingMm,
   lengthMm,
+  verticalMm,
   depthMm,
   turnDeg,
   tiltDeg,
@@ -556,7 +558,8 @@ function PlanView({
   const len = lengthMm * k;
   const depth = depthMm * k;
 
-  const foreshortened = Math.cos((tiltDeg * Math.PI) / 180);
+  const tilt = (tiltDeg * Math.PI) / 180;
+  const foreshortened = Math.cos(tilt) + (verticalMm / lengthMm) * Math.sin(tilt);
   const turn = 90 - turnDeg;
 
   const hallX = pad + hall / 2;
@@ -753,8 +756,8 @@ function Elevation({
         </motion.g>
       </svg>
       <figcaption className="mt-1 text-[12px] leading-snug text-muted-foreground">
-        Leaning it <N>{tiltDeg.toFixed(1)}</N>° is what turns the corner — and what costs the
-        headroom.
+        Final orientation at <N>{tiltDeg.toFixed(1)}</N>°. The check also reserves the
+        maximum headroom swept while tilting; the full carry path needs verification.
       </figcaption>
     </figure>
   );
@@ -858,243 +861,35 @@ function DoorSection({
 
 /* -------------------------------------------------------------- the checks */
 
-type Geometry = {
-  l: number;
-  m: number;
-  s: number;
-  limit: number | null;
-  atDeg: number | null;
-  phi: number;
-  headroom: number;
-};
-
-/** One line of the schedule. `field` marks a number that came from the shopper. */
-type Figure = { label: string; value: string; field?: ProfileField };
-
-type Row = {
-  key: string;
-  name: string;
-  state: "pass" | "fail" | "skip";
-  decisive: boolean;
-  detail: string;
-  /** only what the kernel actually worked out on the way to its verdict */
-  figures: Figure[];
-};
-
 type Rise = (order: number) => {
   initial: { opacity: number; y?: number };
   animate: { opacity: number; y?: number };
   transition: Transition;
 };
 
-function Checks({
-  result,
-  geometry,
-  profile,
-  rise,
-}: {
-  result: FitResult | null;
-  geometry: Geometry | null;
-  profile: Profile;
-  rise: Rise;
-}) {
-  if (!result || !geometry) {
-    return (
-      <motion.p
-        {...rise(1)}
-        className="max-w-[64ch] rounded-[22px] border border-line bg-surface/70 p-4 text-sm leading-relaxed text-muted-foreground"
-      >
-        Three checks run on every box — the door, the turn onto the landing, and the
-        headroom it needs while it leans. None of them can run without a size.
-      </motion.p>
-    );
-  }
-
-  const doorWidthMm = profile.doorWidthMm;
-  const doorHeightMm = profile.doorHeightMm;
-  const ceilingMm = profile.ceilingHeightMm;
-
-  const b = result.binding;
-  const flatPack = b === "flat_pack";
-  const clearedDoor = !flatPack && b !== "door";
-  const turnedFlat = b === "corner_flat";
-  const neededTilt = b === "corner_tilted" || b === "headroom";
-
-  const cornerFigures: Figure[] = [
-    { label: "longest side", value: `${mm.format(geometry.l)} mm` },
-    { label: "hallway", value: `${mm.format(profile.hallwayWidthMm)} mm`, field: "hallwayWidthMm" },
-    { label: "landing", value: `${mm.format(profile.landingWidthMm)} mm`, field: "landingWidthMm" },
-  ];
-  if (geometry.limit !== null && geometry.atDeg !== null) {
-    cornerFigures.push(
-      { label: "longest that turns flat", value: `${mm.format(Math.round(geometry.limit))} mm` },
-      { label: "turning at", value: `${geometry.atDeg.toFixed(1)}°` }
-    );
-  }
-
-  const rows: Row[] = flatPack
-    ? [
-        {
-          key: "flat",
-          name: "Flat-packed",
-          state: "pass",
-          decisive: true,
-          detail: "It arrives in boxes, so the assembled size never has to turn a corner.",
-          figures: [],
-        },
-      ]
-    : [
-        {
-          key: "door",
-          name: "Door",
-          state: b === "door" ? "fail" : "pass",
-          decisive: b === "door",
-          detail:
-            b === "door"
-              ? result.reason
-              : `Its ${mm.format(geometry.s)} × ${mm.format(geometry.m)} mm face goes through your ${mm.format(doorWidthMm)} × ${mm.format(doorHeightMm)} mm opening.`,
-          figures: [
-            {
-              label: "smallest face",
-              value: `${mm.format(geometry.s)} × ${mm.format(geometry.m)} mm`,
-            },
-            { label: "door width", value: `${mm.format(doorWidthMm)} mm`, field: "doorWidthMm" },
-            { label: "door height", value: `${mm.format(doorHeightMm)} mm`, field: "doorHeightMm" },
-          ],
-        },
-        {
-          key: "corner",
-          name: "Corner",
-          state: b === "corner" ? "fail" : clearedDoor ? "pass" : "skip",
-          decisive: b === "corner" || turnedFlat,
-          detail:
-            b === "corner"
-              ? "No angle turns something this thick between those two widths."
-              : !clearedDoor
-                ? "Not reached — it stopped at the door."
-                : turnedFlat
-                  ? `Turns flat at ${geometry.atDeg?.toFixed(1)}°; your landing takes ${mm.format(
-                      Math.round(geometry.limit ?? 0)
-                    )} mm lying down and it is ${mm.format(geometry.l)} mm.`
-                  : `Flat it would have to be under ${mm.format(
-                      Math.round(geometry.limit ?? 0)
-                    )} mm. It is ${mm.format(geometry.l)} mm, so it has to lean.`,
-          figures: clearedDoor ? cornerFigures : [],
-        },
-        {
-          key: "headroom",
-          name: "Headroom",
-          state: !clearedDoor || b === "corner" ? "skip" : neededTilt ? (result.verdict === "fail" ? "fail" : "pass") : "skip",
-          decisive: neededTilt,
-          detail:
-            !clearedDoor || b === "corner"
-              ? "Not reached."
-              : neededTilt
-                ? `Leaning it needs ${mm.format(Math.round(geometry.headroom))} mm above the landing; you have ${mm.format(ceilingMm)} mm.`
-                : "Not needed — it never leaves the floor.",
-          figures: neededTilt
-            ? [
-                { label: "tilt", value: `${((geometry.phi * 180) / Math.PI).toFixed(1)}°` },
-                {
-                  label: "headroom needed",
-                  value: `${mm.format(Math.round(geometry.headroom))} mm`,
-                },
-                {
-                  label: "ceiling at the landing",
-                  value: `${mm.format(ceilingMm)} mm`,
-                  field: "ceilingHeightMm",
-                },
-              ]
-            : [],
-        },
-      ];
-
+function Checks({ result, rise }: { result: FitResult | null; rise: Rise }) {
+  if (!result?.checks) return (
+    <p className="text-[13px] leading-relaxed text-muted-foreground">
+      Add product dimensions and optional route measurements to check the door,
+      the stair turn and the headroom separately.
+    </p>
+  );
+  const names = { door: "Doorway", corner: "90° stair turn", headroom: "Landing headroom" };
+  const states = { pass: "Clear in model", tight: "Tight / verify", fail: "Clearance risk", unknown: "Not checked" };
   return (
-    <ul className="flex flex-col border-b border-line">
-      {rows.map((row, index) => {
-        /* a decisive row that did not pass cleanly is the one to look at */
-        const troubled = row.decisive && result.verdict !== "pass";
-        return (
-          <motion.li
-            key={row.key}
-            {...rise(index + 1)}
-            className={cn(
-              "flex gap-3 border-t border-line px-3 py-3.5",
-              row.decisive && "bg-accent-wash/60"
-            )}
-          >
-            <span
-              aria-hidden
-              className={cn(
-                "tabular w-5 shrink-0 pt-0.5 font-mono text-[11px]",
-                row.decisive ? (troubled ? "text-warn" : "text-ok") : "text-muted-foreground"
-              )}
-            >
-              {String(index + 1).padStart(2, "0")}
+    <ul className="divide-y divide-line border-y border-line">
+      {result.checks.map((check, index) => (
+        <motion.li key={check.key} {...rise(index + 1)} className="py-3">
+          <div className="flex items-center justify-between gap-3 text-sm font-medium">
+            <span>{names[check.key]}</span>
+            <span className={cn("inline-flex items-center gap-1.5 text-[11px]", check.verdict === "unknown" ? "text-muted-foreground" : check.verdict === "pass" ? "text-ok" : "text-warn")}>
+              {check.verdict === "pass" ? <Check size={13} aria-hidden /> : check.verdict === "unknown" ? <Ruler size={13} aria-hidden /> : <TriangleAlert size={13} aria-hidden />}
+              {result.confidence === "estimated" && check.verdict !== "unknown" ? "Estimated · " : ""}{states[check.verdict]}
             </span>
-
-            <div className="min-w-0 flex-1">
-              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-medium leading-tight">
-                {row.name}
-                {row.decisive ? (
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5",
-                      "font-mono text-[11px] font-normal uppercase tracking-[0.08em]",
-                      troubled
-                        ? "border-warn/40 bg-warn/10 text-warn"
-                        : "border-ok/35 bg-ok/10 text-ok"
-                    )}
-                  >
-                    {troubled ? <TriangleAlert className="size-3" aria-hidden /> : null}
-                    decided it
-                  </span>
-                ) : null}
-                <span className="ml-auto shrink-0">
-                  {row.state === "pass" ? (
-                    <Check className="size-4 text-ok" aria-hidden />
-                  ) : row.state === "fail" ? (
-                    <XCircle className="size-4 text-warn" aria-hidden />
-                  ) : (
-                    <Ruler className="size-4 text-muted-foreground" aria-hidden />
-                  )}
-                </span>
-              </p>
-              <p className="mt-1 max-w-[58ch] text-[13px] leading-snug text-muted-foreground">
-                <Verbatim text={row.detail} />
-              </p>
-
-              {row.figures.length > 0 ? (
-                <dl className="mt-2.5">
-                  {row.figures.map((figure) => (
-                    <div
-                      key={figure.label}
-                      className="flex items-baseline justify-between gap-4 border-t border-line/80 py-1.5"
-                    >
-                      <dt className="font-mono text-[11px] text-muted-foreground">
-                        {figure.label}
-                        {figure.field ? (
-                          <span
-                            className={cn(
-                              "ml-2",
-                              profile.measured[figure.field] ? "text-ok" : "text-muted-foreground"
-                            )}
-                          >
-                            · {profile.measured[figure.field] ? "you measured this" : "assumed"}
-                          </span>
-                        ) : null}
-                      </dt>
-                      <dd className="tabular shrink-0 font-mono text-[13px] text-foreground">
-                        {figure.value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : null}
-            </div>
-          </motion.li>
-        );
-      })}
+          </div>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{check.reason}</p>
+        </motion.li>
+      ))}
     </ul>
   );
 }

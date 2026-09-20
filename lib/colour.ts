@@ -91,3 +91,9 @@ export function colourNames(hexes: readonly string[]): string[] {
   }
   return out;
 }
+
+/** Representative swatch for the same shopping colour names used in queries. */
+export function colourHex(name: string): string | null {
+  const match = NAMED.find(([word]) => word === name.toLowerCase());
+  return match ? `#${match[1].map((channel) => channel.toString(16).padStart(2, "0")).join("")}` : null;
+}

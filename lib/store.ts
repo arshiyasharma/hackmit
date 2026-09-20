@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { create } from "zustand";
 
-import { colourNames } from "@/lib/colour";
+import { buildSimpleShoppingQuery } from "@/lib/sourcing/roomContext";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 import type {
@@ -64,28 +64,6 @@ const MAX_STYLE_TAGS = 6;
 
 /** Five come off the photo; a couple more by hand is a palette, not a swatch book. */
 const MAX_PALETTE = 8;
-
-/** How much of the strip actually reaches a shop's search box. */
-/*
- * ONE STYLE WORD AND ONE COLOUR. NOT THREE AND TWO.
- *
- * Measured against the live API, from the dev log:
- *   "warm wood modern minimalist decorative floor pillows"  -> 0 results
- *   "warm decorative floor pillows"                         -> 0 results
- *   "minimalist luxury glass coffee table"                  -> 0 results
- *   "minimalist glass coffee table"                         -> 40 results
- * Google Shopping falls off a cliff in front of a multi-word object, and
- * every word past that buys nothing. So the query carries ONE colour and the
- * TWO newest style words — the aesthetic is the whole point of the strip, and
- * a search that only ever says "cream" is not searching for the room.
- *
- * The rungs below it in lib/sourcing/adapter.ts are what make that safe: the
- * full query and a shorter one that keeps the colour and the first style word
- * go out together, and the bare object is the last word. The strip still shows
- * every word and every colour; the newest of each is what goes to the shops.
- */
-const MAX_QUERY_TAGS = 2;
-const MAX_QUERY_COLOURS = 1;
 
 /** "#ABC", "abc123", "#AABBCC" all become "#aabbcc"; anything else is null. */
 function normalizeHex(input: string): string | null {
@@ -212,10 +190,14 @@ export type VisaActions = {
   ) => void;
   /** the user's own size for one sprite; 1 puts it back to the listing's */
   resizeItem: (id: string, scale: number) => void;
-  /** the linked listing's own photo, cut out; null drops back to the stand-in */
+  /** Begin one extraction for the current link; null when there is none or it is busy. */
+  startListingCutout: (id: string) => number | null;
+  /** Complete only the matching extraction; null keeps the illustrated stand-in. */
   setListingCutout: (
     id: string,
-    cutout: { url: string; widthRatio: number } | null
+    cutout: { url: string; widthRatio: number } | null,
+    requestId?: number,
+    note?: string
   ) => void;
   removeItem: (id: string) => void;
   /** put a removed item back exactly where it was — the undo toast's action */
@@ -261,6 +243,9 @@ const initialState: VisaState = {
 /* ------------------------------------------------------------------- store */
 
 let itemSeq = 0;
+// Items are not persisted. This counter is never reset with the room, so an
+// old async response cannot match a link or retry from a later room/undo.
+let listingJobSeq = 0;
 function nextItemId() {
   itemSeq += 1;
   return `item-${itemSeq}-${Date.now().toString(36)}`;
@@ -384,6 +369,10 @@ export const useStore = create<VisaStore>()(
               scale: 1,
               listingCutoutUrl: null,
               listingWidthRatio: null,
+              listingCutoutStatus: "idle",
+              listingCutoutNote: null,
+              linkedProductVersion: 0,
+              listingCutoutRequestId: null,
               placed: position !== undefined,
               linkedProduct: null,
               fit: null,
@@ -424,15 +413,21 @@ export const useStore = create<VisaStore>()(
 
       /*
        * Linking changes the size of the thing standing in the room and moves
-       * the budget. It does NOT change the sprite's picture. The fit result is
-       * cleared here and set by whoever calls /api/fit, so a stale verdict can
-       * never survive a relink.
+       * the budget. Clear the old photo and verdict atomically, keeping the
+       * position and user scale. Each link gets a new generation, including
+       * A → B → A, so asynchronous work cannot attach to an older choice.
        */
       linkProduct: (id, product) =>
         set((s) => ({
           items: patchItem(s.items, id, (item) => ({
             ...item,
             linkedProduct: product,
+            linkedProductVersion: ++listingJobSeq,
+            listingCutoutUrl: null,
+            listingWidthRatio: null,
+            listingCutoutStatus: "idle",
+            listingCutoutNote: null,
+            listingCutoutRequestId: null,
             fit: null,
           })),
         })),
@@ -452,13 +447,39 @@ export const useStore = create<VisaStore>()(
           })),
         })),
 
-      setListingCutout: (id, cutout) =>
+      startListingCutout: (id) => {
+        const current = get().items.find((item) => item.id === id);
+        if (!current?.linkedProduct || current.listingCutoutStatus === "pending") return null;
+        const requestId = ++listingJobSeq;
         set((s) => ({
           items: patchItem(s.items, id, (item) => ({
             ...item,
-            listingCutoutUrl: cutout?.url ?? null,
-            listingWidthRatio: cutout?.widthRatio ?? null,
+            listingCutoutUrl: null,
+            listingWidthRatio: null,
+            listingCutoutStatus: "pending",
+            listingCutoutNote: null,
+            listingCutoutRequestId: requestId,
           })),
+        }));
+        return requestId;
+      },
+
+      setListingCutout: (id, cutout, requestId, note) =>
+        set((s) => ({
+          items: patchItem(s.items, id, (item) => {
+            if (requestId !== undefined && (
+              item.listingCutoutRequestId !== requestId || item.listingCutoutStatus !== "pending"
+            )) return item;
+            return {
+              ...item,
+              listingCutoutUrl: cutout?.url ?? null,
+              listingWidthRatio: cutout?.widthRatio ?? null,
+              listingCutoutStatus: cutout ? "ready" : requestId === undefined ? "idle" : "failed",
+              listingCutoutNote: cutout ? null : note ?? null,
+              // Legacy direct clears also invalidate any in-flight attempt.
+              listingCutoutRequestId: requestId ?? null,
+            };
+          }),
         })),
 
       resizeItem: (id, scale) =>
@@ -490,7 +511,15 @@ export const useStore = create<VisaStore>()(
             index === undefined
               ? items.length
               : Math.min(Math.max(index, 0), items.length);
-          items.splice(at, 0, item);
+          items.splice(at, 0, {
+            ...item,
+            linkedProductVersion: ++listingJobSeq,
+            listingCutoutRequestId: null,
+            listingCutoutStatus: item.listingCutoutStatus === "pending" ? "failed" : item.listingCutoutStatus,
+            listingCutoutNote: item.listingCutoutStatus === "pending"
+              ? "Product photo was interrupted. Try again."
+              : item.listingCutoutNote,
+          });
           return { items, activeItemId: item.id };
         }),
 
@@ -711,60 +740,7 @@ export function cartByRetailer(lines: CartItem[]): Array<{
   }));
 }
 
-/** The styled search query, built in one place so the screen and the call agree. */
-/**
- * "a plushie" is how a person asks and "plushie" is how a shop is asked.
- *
- * The leading article went straight through to Google Shopping, where it is
- * one more word to match: the dev log has "plushie" answering in 2.5s and
- * "a plushie" timing out at 12s on the same afternoon. Stripped here rather
- * than at the call so the strip on screen still shows the query that ran.
- */
-function shoppable(request: string): string {
-  return request.trim().replace(/^(?:a|an|the)\s+/i, "");
-}
-
-export function searchQuery(
-  context: RoomContext | null,
-  request: string
-): string {
-  /*
-   * A SHORT QUERY FINDS THINGS; A LONG ONE FINDS NOTHING.
-   *
-   * "modern velvet minimalist geometric luxury expensive rug" is seven
-   * adjectives and a noun, and Google Shopping answers it with an empty page —
-   * which is how "nothing came back from that" happens. Shops match on a few
-   * words, so the query carries the THREE most recent style words and TWO
-   * picked colours at most. The strip still shows everything; the user can see
-   * exactly which words are in play, and removing one changes the query.
-   *
-   * Newest first, because a word someone just typed is what they are chasing
-   * right now — the model's own adjectives are the ones that get dropped.
-   */
-  const tags = [...(context?.styleTags ?? [])].slice(-MAX_QUERY_TAGS);
-  /*
-   * Hand-picked colours join the query as WORDS, because "#7b8b6f" is not
-   * something a shop can search for but "sage" is. Only the picked ones: the
-   * five read off the photo describe the room, and pushing all of them in
-   * ("brown gold rust cream black tall lamp") buries the object itself.
-   */
-  /*
-   * A COLOUR ALWAYS GOES TO THE SHOPS.
-   *
-   * Only hand-picked colours used to, and most people never open the picker —
-   * so "the colours are not being sent" was exactly right: a room read as
-   * five browns searched as if it had no colour at all. A picked colour is an
-   * instruction and still wins; with none, the room's dominant colour goes
-   * instead, by name, because "#8c5a3b" is not something a shop can search
-   * for and "brown" is.
-   */
-  const pickedNames = colourNames(context?.picked ?? []);
-  const colours = (
-    pickedNames.length > 0
-      ? pickedNames
-      : colourNames((context?.palette ?? []).slice(0, 1))
-  ).slice(-MAX_QUERY_COLOURS);
-
-  // colour, then style, then the thing — the order a listing title uses
-  return [...colours, ...tags, shoppable(request)].filter(Boolean).join(" ");
+/** Shared with the server so current edits and explicit object colours agree. */
+export function searchQuery(context: RoomContext | null, request: string): string {
+  return buildSimpleShoppingQuery(request, context);
 }

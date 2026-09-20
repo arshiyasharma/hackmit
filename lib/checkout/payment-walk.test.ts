@@ -130,7 +130,7 @@ describe("the walk with PAYMENT_PROVIDER=acceptance", () => {
         status: "AUTHORIZED",
         reconciliationId: "7898716909956640004807",
         approvalCode: "299502",
-        merchant: "shared-test",
+        merchant: "sandbox",
         captured: false,
       });
     }

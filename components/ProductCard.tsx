@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ExternalLink, Plus } from "lucide-react";
+import { Check, ExternalLink, LoaderCircle, Plus, RotateCw } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import FitBadge, { fitForProduct } from "@/components/FitBadge";
@@ -10,6 +10,8 @@ import { NumberPlate, centsToUnits, formatCarton } from "@/components/ui/NumberP
 import { withDemo } from "@/lib/demo";
 import type { FitResult } from "@/lib/fit";
 import { DUR, EASE } from "@/lib/motion";
+import { retryListingCutout } from "@/lib/listingCutout";
+export { retryListingCutout } from "@/lib/listingCutout";
 import { usePreview } from "@/lib/preview";
 import { useStore, itemById } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -99,7 +101,9 @@ export async function checkFit(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         carton: product.dimsMm,
+        dimsSource: product.dimsSource,
         profile: {
+          measured: profile.measured,
           doorWidthMm: profile.doorWidthMm,
           doorHeightMm: profile.doorHeightMm,
           hallwayWidthMm: profile.hallwayWidthMm,
@@ -133,32 +137,30 @@ export async function linkProductToItem(
   product: Product
 ): Promise<void> {
   const store = useStore.getState();
-  const previous = itemById(store.items, itemId)?.linkedProduct ?? null;
-  if (previous?.id === product.id) return; // clicking the linked one does nothing
+  const previous = itemById(store.items, itemId);
+  if (!previous) return;
+  if (previous.linkedProduct?.id === product.id) {
+    await retryListingCutout(itemId);
+    return;
+  }
 
   store.linkProduct(itemId, product);
-  // the stand-in belongs to the old choice; drop it before the new photo lands
-  store.setListingCutout(itemId, null);
+  const version = itemById(useStore.getState().items, itemId)?.linkedProductVersion;
   if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
     navigator.vibrate(8);
   }
 
   /*
-   * Swap the drawing for the thing. The listing's own photo, keyed off its
-   * white background, is a better sprite than any stand-in — so it is fetched
+   * Swap the drawing for the thing. The listing's own extracted photo is
+   * a better sprite than any stand-in — so it is fetched
    * alongside the fit check rather than after it, and neither waits on the
-   * other. A photo that will not key cleanly answers with null and the
-   * stand-in simply stays.
+   * other. A failed extraction keeps the illustration and offers a retry.
    */
-  const [fit] = await Promise.all([
-    checkFit(product, useStore.getState().profile),
-    cutoutFor(itemId, product),
-  ]);
-
-  // the user may have relinked while the check was in flight; only write the
-  // verdict if it still belongs to what is linked now
-  const current = itemById(useStore.getState().items, itemId)?.linkedProduct;
-  if (current?.id === product.id) {
+  const fitWork = checkFit(product, useStore.getState().profile).then((fit) => {
+    // Publish independently of background removal. Matching the link version
+    // also rejects an old A result after the user chooses A → B → A.
+    const current = itemById(useStore.getState().items, itemId);
+    if (current?.linkedProduct?.id !== product.id || current.linkedProductVersion !== version) return;
     useStore.getState().setFit(itemId, fit);
     if (
       fit?.verdict === "fail" &&
@@ -167,39 +169,8 @@ export async function linkProductToItem(
     ) {
       navigator.vibrate(20);
     }
-  }
-}
-
-/**
- * Ask the server for a keyed cutout of this listing's photo. Silent on every
- * failure: the room already has something to show.
- */
-async function cutoutFor(itemId: string, product: Product): Promise<void> {
-  const imageUrl = productImage(product);
-  if (!imageUrl) return;
-
-  try {
-    const res = await fetch(withDemo("/api/cutout"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageUrl }),
-    });
-    if (!res.ok) return;
-
-    const body = (await res.json()) as { url?: string; widthRatio?: number };
-    if (!body.url) return;
-
-    // the user may have relinked while this was in flight
-    const current = itemById(useStore.getState().items, itemId)?.linkedProduct;
-    if (current?.id !== product.id) return;
-
-    useStore.getState().setListingCutout(itemId, {
-      url: body.url,
-      widthRatio: body.widthRatio && body.widthRatio > 0 ? body.widthRatio : 1,
-    });
-  } catch {
-    /* the stand-in stays */
-  }
+  });
+  await Promise.all([fitWork, retryListingCutout(itemId)]);
 }
 
 /**
@@ -211,24 +182,24 @@ async function cutoutFor(itemId: string, product: Product): Promise<void> {
 function useLinking(product: Product) {
   const activeItemId = useStore((s) => s.activeItemId);
   const itemId = product.itemId ?? activeItemId;
-  const linkedId = useStore(
-    (s) => itemById(s.items, itemId)?.linkedProduct?.id ?? null
-  );
-  const linked = linkedId === product.id;
-
-  const [linking, setLinking] = React.useState(false);
+  const item = useStore((s) => itemById(s.items, itemId));
+  const linked = item?.linkedProduct?.id === product.id;
+  const linking = linked && item?.listingCutoutStatus === "pending";
+  const failed = linked && item?.listingCutoutStatus === "failed";
+  const needsPhoto = linked && item?.listingCutoutStatus === "idle";
 
   const link = React.useCallback(() => {
-    if (!itemId || linked) return;
-    setLinking(true);
-    const done = linkProductToItem(itemId, product);
-    // the link has landed (that part is synchronous): what was being tried on
-    // is now simply what is there, so there is nothing left to preview
+    if (!itemId || (linked && !failed && !needsPhoto)) return;
+    if (linked) {
+      void retryListingCutout(itemId);
+      return;
+    }
+    void linkProductToItem(itemId, product);
+    // The synchronous link becomes the committed selection immediately.
     usePreview.getState().clear();
-    void done.finally(() => setLinking(false));
-  }, [itemId, linked, product]);
+  }, [itemId, linked, failed, needsPhoto, product]);
 
-  return { itemId, linked, linking, link };
+  return { itemId, linked, linking, failed, needsPhoto, link };
 }
 
 /* -------------------------------------------------------------- the pieces */
@@ -403,7 +374,7 @@ const FIT_STYLING =
 
 function CompactCard({ product }: { product: Product }) {
   const reduced = useReducedMotion();
-  const { itemId, linked, linking, link } = useLinking(product);
+  const { itemId, linked, linking, failed, needsPhoto, link } = useLinking(product);
 
   return (
     <div
@@ -427,7 +398,7 @@ function CompactCard({ product }: { product: Product }) {
         <Dimensions product={product} compact />
         <div className={FIT_STYLING}><FitBadge product={product} /></div>
       </div>
-      <LinkButton compact linked={linked} busy={linking} disabled={!itemId} onLink={link} reduced={reduced} />
+      <LinkButton compact linked={linked} busy={linking} failed={failed} needsPhoto={needsPhoto} disabled={!itemId} onLink={link} reduced={reduced} />
     </div>
   );
 }
@@ -435,7 +406,7 @@ function CompactCard({ product }: { product: Product }) {
 /** One quiet, compact match. Hover preview is owned by the surrounding result list. */
 function TrayCard({ product, index }: { product: Product; index?: number }) {
   const reduced = useReducedMotion();
-  const { itemId, linked, linking, link } = useLinking(product);
+  const { itemId, linked, linking, failed, needsPhoto, link } = useLinking(product);
   const trying = usePreview((s) => s.product?.id === product.id && s.itemId === itemId) && !linked;
 
   return (
@@ -486,7 +457,7 @@ function TrayCard({ product, index }: { product: Product; index?: number }) {
         </details>
       </div>
       <div className="mt-auto">
-        <LinkButton linked={linked} busy={linking} disabled={!itemId} onLink={link} reduced={reduced} />
+        <LinkButton linked={linked} busy={linking} failed={failed} needsPhoto={needsPhoto} disabled={!itemId} onLink={link} reduced={reduced} />
       </div>
     </article>
   );
@@ -496,6 +467,8 @@ function TrayCard({ product, index }: { product: Product; index?: number }) {
 function LinkButton({
   linked,
   busy,
+  failed,
+  needsPhoto,
   disabled,
   onLink,
   reduced,
@@ -503,35 +476,37 @@ function LinkButton({
 }: {
   linked: boolean;
   busy: boolean;
+  failed: boolean;
+  needsPhoto: boolean;
   disabled: boolean;
   onLink: () => void;
   reduced: boolean | null;
   compact?: boolean;
 }) {
-  const label = linked ? "In your room" : busy ? "Adding to room" : "Use in room";
+  const label = busy ? "Removing background…" : failed ? "Retry product photo" : needsPhoto ? "Use product photo" : linked ? "In your room" : "Use in room";
   return (
     <motion.button
       type="button"
       data-card-link=""
       onClick={onLink}
       aria-pressed={linked}
-      aria-disabled={linked || undefined}
+      aria-disabled={(linked && !failed && !needsPhoto) || undefined}
       aria-busy={busy || undefined}
-      disabled={disabled}
-      title={disabled ? "Ask for an item first, then choose a product for it" : undefined}
+      disabled={disabled || busy}
+      title={disabled ? "Ask for an item first, then choose a product for it" : failed ? "Background removal failed. The illustration is still shown; retry the product photo." : compact ? label : undefined}
       className={cn(
         "inline-flex items-center justify-center gap-1.5 rounded-none border font-sans text-[12px] font-medium",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         compact ? "tap size-10 shrink-0" : "h-9 w-full",
-        linked
+        linked && !failed && !needsPhoto
           ? "cursor-default border-accent/30 bg-accent/5 text-accent"
           : "cursor-pointer border-accent bg-accent text-white transition-colors hover:bg-accent-bright",
         disabled && "cursor-not-allowed opacity-50"
       )}
-      whileTap={reduced || disabled || linked ? undefined : { y: 1 }}
+      whileTap={reduced || disabled || busy || (linked && !failed && !needsPhoto) ? undefined : { y: 1 }}
       transition={{ duration: DUR.micro, ease: EASE.out }}
     >
-      {linked ? <Check className="size-4" aria-hidden /> : <Plus className="size-4" aria-hidden />}
+      {busy ? <LoaderCircle className={cn("size-4", !reduced && "animate-spin")} aria-hidden /> : failed ? <RotateCw className="size-4" aria-hidden /> : linked ? <Check className="size-4" aria-hidden /> : <Plus className="size-4" aria-hidden />}
       {compact ? <span className="sr-only">{label}</span> : <span>{label}</span>}
     </motion.button>
   );

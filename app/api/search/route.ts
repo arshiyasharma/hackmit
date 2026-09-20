@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { isRequestObject, MAX_QUERY_LENGTH, validRoomContext } from "@/lib/sourcing/request";
 import { sourceOptions } from "@/lib/sourcing/adapter";
+import { buildSimpleShoppingQuery } from "@/lib/sourcing/roomContext";
 import type { Carton, DimsSource, Product, RoomContext } from "@/types";
 
 /**
@@ -10,17 +11,9 @@ import type { Carton, DimsSource, Product, RoomContext } from "@/types";
  * In:  { request, category, roomContext, budgetRemainingCents, itemId?, query? }
  * Out: { query, options: Product[], source, note? }
  *
- * THE QUERY IS THE WHOLE TRICK, and it is one line of string building:
- *     `${styleTags.join(" ")} ${request}`
- *   -> "traditional middle eastern ornate classic tall lamp"
- * The sheet shows that exact string in mono at the top, so the client sends the
- * string it is showing and this route uses it verbatim. When the client sends
- * nothing, the same join happens here and the two cannot diverge.
- *
- * There is no scraper behind this yet — that is a teammate's work. Point
- * SEARCH_API_URL at it and every listing flows through. Until then the route
- * answers 200 with an empty option list and a plain-words note, because a sheet
- * that says "nothing came back yet" is a working sheet and a 500 is not.
+ * The client and this route share the current-context query builder. The
+ * request's explicit colour wins; the room contributes its current colour
+ * and latest style phrases. Client-supplied query text cannot restore old edits.
  *
  * DIMENSIONS AND PRICE ARE THE ONLY TWO FIELDS THE PRODUCT CONSUMES. Everything
  * else is display. A listing with no dimensions still comes back, with dimsMm
@@ -45,17 +38,6 @@ const MAX_OPTIONS = 8;
 const TIMEOUT_MS = 12_000;
 
 /* ------------------------------------------------------------------- query */
-
-/**
- * The same join as `searchQuery()` in lib/store.ts. It is duplicated here on
- * purpose: lib/store.ts is a "use client" zustand module and must not be pulled
- * into a route handler. The client sends the string it is displaying anyway, so
- * this is the fallback, not the source of truth.
- */
-function buildQuery(context: RoomContext | null, request: string): string {
-  const tags = Array.isArray(context?.styleTags) ? context.styleTags : [];
-  return [...tags, request.trim()].filter(Boolean).join(" ").trim();
-}
 
 /* --------------------------------------------------------------- normalise */
 
@@ -319,8 +301,8 @@ export async function POST(request: NextRequest) {
       ? (body.roomContext as RoomContext)
       : null;
 
-  // the string the sheet is displaying wins, so screen and call cannot diverge
-  const query = str(body.query) ?? buildQuery(roomContext, ask);
+  // Rebuild from the current request/context; stale client query text must not undo edits.
+  const query = buildSimpleShoppingQuery(ask || str(body.query) || "", roomContext);
   const budgetRemainingCents = num(body.budgetRemainingCents);
   if (!query || query.length > MAX_QUERY_LENGTH) {
     return Response.json({ error: "query or request must contain 1–500 characters", options: [] }, { status: 400 });
@@ -378,6 +360,7 @@ export async function POST(request: NextRequest) {
         request: ask,
         category,
         styleTags: roomContext?.styleTags ?? [],
+        roomContext,
         budgetRemainingCents,
         limit: TARGET_OPTIONS,
       }),

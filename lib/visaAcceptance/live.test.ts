@@ -13,8 +13,8 @@ import { buildAuthorizationPayload, getCredentials, hasCredentials } from "./pay
  * because two of Prompt 9's claims cannot be proved offline: that the endpoint
  * really authorizes, and that the signature is really doing work.
  *
- * The credentials are Visa's published SHARED TEST MERCHANT, the card is
- * Visa's published test PAN, and nothing is captured.
+ * Uses the configured Visa Acceptance sandbox merchant credentials and
+ * Visa's published test-card data. Nothing is captured.
  */
 
 const live = process.env.VA_LIVE_TEST === "1" && hasCredentials();
