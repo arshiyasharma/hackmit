@@ -452,6 +452,11 @@ export function enrichVisualMatches(
  * Dimension scraping is deferred to the caller (`fillMissingDimensions`) so we
  * only hit retailer PDPs for products we actually return.
  */
+/**
+ * How many Buy-link lookups one search may spend. Each is a SerpAPI credit.
+ */
+const MAX_IMMERSIVE_LOOKUPS = Number(process.env.SERPAPI_MAX_IMMERSIVE ?? 4);
+
 export async function enrichShoppingResults(
   results: SerpShoppingResult[] | null | undefined,
   options?: {
@@ -491,15 +496,38 @@ export async function enrichShoppingResults(
 
   candidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
 
-  // Prefer direct PDP links — they skip immersive entirely.
+  /*
+   * NINE IMMERSIVE LOOKUPS IS NINE SERPAPI CREDITS FOR ONE QUESTION.
+   *
+   * Every candidate without a direct Buy link used to get its own immersive
+   * fetch, so a single search cost 2 Shopping calls and 9 immersive ones —
+   * eleven credits, on a key a whole team shares for a weekend. The immersive
+   * call buys one listing's Buy link and its dimension features: worth having,
+   * not worth eleven of.
+   *
+   * So direct PDP links are taken first — they cost nothing extra — and only
+   * a few of the rest are looked up. A search is a handful of credits now,
+   * and a listing that would have needed the tenth lookup simply doesn't
+   * appear.
+   */
   const withDirect = candidates.filter((c) => c.existing_direct_url);
   const needImmersive = candidates.filter((c) => !c.existing_direct_url);
+  const shortfall = Math.max(
+    0,
+    maxProducts - Math.min(withDirect.length, maxProducts)
+  );
+  const lookups = Math.min(shortfall, MAX_IMMERSIVE_LOOKUPS);
+  if (needImmersive.length > lookups) {
+    console.info(
+      `[serpapi] ${lookups} immersive lookup${lookups === 1 ? "" : "s"}, ` +
+        `${needImmersive.length - lookups} listing${
+          needImmersive.length - lookups === 1 ? "" : "s"
+        } left unresolved to save credits`
+    );
+  }
   const top = [
     ...withDirect.slice(0, maxProducts),
-    ...needImmersive.slice(
-      0,
-      Math.max(0, maxProducts - Math.min(withDirect.length, maxProducts))
-    ),
+    ...needImmersive.slice(0, lookups),
   ].slice(0, maxProducts);
 
   const apiKey = options?.apiKey;
