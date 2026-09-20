@@ -7,6 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 
 import AppShell from "@/components/AppShell";
+import { resolveRetailer } from "@/lib/checkout/adapter";
 import CartLine, { fitFor, fitObstacle, formatMoney } from "@/components/CartLine";
 import CheckoutRun, {
   DEFAULT_RUN_MODE,
@@ -54,7 +55,20 @@ export default function CheckoutPage() {
 
   /* ------------------------------------------------------------- the basket */
 
-  const lines = React.useMemo(() => cartLines(items), [items]);
+  /**
+   * A linked item whose shop we cannot check out at is dropped here, silently
+   * — not shown, not counted, not apologised for. This can only happen from
+   * stale or hand-edited data: sourcing's own whitelist (lib/sourcing/whitelist.ts)
+   * never returns a shop this layer does not know, so a real search result
+   * cannot produce one. But if one ever reaches the store anyway, the review
+   * screen is not the place to explain that — the sprite still stands in the
+   * room, unlinked in spirit, and the person can pick a different listing for
+   * it without reading a sentence about a shop they never chose.
+   */
+  const lines = React.useMemo(
+    () => cartLines(items).filter((line) => resolveRetailer(line.product) !== null),
+    [items]
+  );
   const groups = React.useMemo(() => cartByRetailer(lines), [lines]);
   const subtotalCents = React.useMemo(() => cartSubtotalCents(lines), [lines]);
   const currency = lines[0]?.product.currency ?? "USD";

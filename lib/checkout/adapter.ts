@@ -118,13 +118,13 @@ export function toBasket(
     const product = line.product;
     const retailer = resolveRetailer(product);
 
-    if (!retailer) {
-      unsupported.push({
-        line,
-        reason: `We cannot check out at ${product.retailer || "that shop"} yet.`,
-      });
-      continue;
-    }
+    // Dropped, not reported. A shop we do not support is not the person's
+    // mistake to read about — it is dropped from the basket the same way it
+    // never appeared in a search result, because sourcing's own whitelist
+    // (lib/sourcing/whitelist.ts) is supposed to keep it from reaching here in
+    // the first place. A genuinely broken listing below — no link, no price —
+    // is a different kind of problem and still gets said out loud.
+    if (!retailer) continue;
     if (!product.url) {
       unsupported.push({
         line,

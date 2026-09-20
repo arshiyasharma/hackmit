@@ -126,14 +126,17 @@ describe("toBasket", () => {
     expect(basket.lines[0].dimensionsMm).toBeNull();
   });
 
-  it("reports a shop it cannot check out at rather than dropping it silently", () => {
+  it("drops a shop it cannot check out at, silently — not the person's mistake to read about", () => {
+    // sourcing's own whitelist never returns a shop like this, so a real
+    // basket cannot contain one. If stale or hand-edited data ever does, the
+    // line disappears the same way it never appeared in a search result —
+    // no message, because a shop the person never chose is not theirs to
+    // explain away.
     const bad = cartItem({ url: "https://www.costco.com/p/1", retailer: "Costco" });
     const { basket, unsupported } = toBasket([cartItem(), bad], 125000);
 
     expect(basket.lines).toHaveLength(1);
-    expect(unsupported).toHaveLength(1);
-    expect(unsupported[0].line).toBe(bad);
-    expect(unsupported[0].reason).toContain("Costco");
+    expect(unsupported).toHaveLength(0);
   });
 
   it("reports a line with no link and a line with no price", () => {
