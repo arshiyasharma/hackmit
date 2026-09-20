@@ -24,7 +24,7 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { Maximize2, RotateCw, Trash2 } from "lucide-react";
+import { Check, Maximize2, RotateCw, Trash2 } from "lucide-react";
 import { useDrag, usePinch } from "@use-gesture/react";
 import { toast } from "sonner";
 
@@ -230,6 +230,19 @@ export const SCALE_CHOICES: Array<{
   hint: string;
 }> = [
   {
+    /*
+     * THE WALL FIRST, because every room has one and it is the easiest thing
+     * in the photo to point at: ceiling, then floor. 2,438 mm is the standard
+     * US ceiling (eight feet), offered as the suggestion rather than assumed
+     * silently — the number is editable the moment the two taps land, because
+     * a nine or ten foot room is common enough to get wrong.
+     */
+    kind: "wall",
+    label: "the wall, ceiling to floor",
+    realMm: 2438,
+    hint: "Tap where the wall meets the ceiling, then where it meets the floor.",
+  },
+  {
     kind: "door",
     label: "a standard interior door",
     realMm: 2032,
@@ -261,6 +274,7 @@ export function PhotoMode() {
   const setActiveItem = useStore((s) => s.setActiveItem);
   const moveItem = useStore((s) => s.moveItem);
   const resizeItem = useStore((s) => s.resizeItem);
+  const measure = useStore((s) => s.measure);
 
   /*
    * THE BIN. Removal is a destination, not a gesture: it only exists while a
@@ -541,9 +555,21 @@ export function PhotoMode() {
                 setMeasuring({ index: 0, firstY: null });
               }}
             >
-              Set the scale
+              {scale ? "Measure again" : "Set the scale"}
             </button>
-            {scale ? null : (
+
+            {/* the measured thing's real size, which is the part we guessed */}
+            {scale ? (
+              <WallHeightField
+                scale={scale}
+                onHeight={(realMm) => {
+                  setScale({ ...scale, realMm });
+                  // a wall IS the ceiling, so the fit check gets it too
+                  if (scale.kind === "wall") measure("ceilingHeightMm", realMm);
+                  vibrate(8);
+                }}
+              />
+            ) : (
               <button
                 type="button"
                 className="tap min-h-11 whitespace-nowrap rounded-full border border-line bg-background/80 px-3 py-1 text-xs text-muted-foreground backdrop-blur-md"
@@ -552,7 +578,7 @@ export function PhotoMode() {
                   setMeasuring({ index: 1, firstY: null });
                 }}
               >
-                Use an outlet
+                Use a door
               </button>
             )}
           </div>
@@ -935,5 +961,113 @@ function SpriteHandle({
         <RotateCw className="size-4" aria-hidden />
       )}
     </button>
+  );
+}
+
+/* --------------------------------------------------------- the wall height */
+
+/** 8, 9 and 10 feet in millimetres — what US rooms actually are. */
+const WALL_PRESETS: Array<{ label: string; mm: number }> = [
+  { label: "8 ft", mm: 2438 },
+  { label: "9 ft", mm: 2743 },
+  { label: "10 ft", mm: 3048 },
+];
+
+/**
+ * How tall the thing they just measured really is.
+ *
+ * Everything in the photo is sized against this one number, so it is the one
+ * number worth being right — and it is the one we were guessing. Two taps set
+ * WHERE the wall is; this sets HOW TALL it is, offering the standard 8-foot US
+ * ceiling as the answer most rooms want and making the other two a tap away.
+ *
+ * It says what it is assuming until the user says otherwise, which is the same
+ * rule the dimension labels follow.
+ */
+function WallHeightField({
+  scale,
+  onHeight,
+}: {
+  scale: { kind: ScaleReference["kind"]; label: string; realMm: number };
+  onHeight: (realMm: number) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
+
+  const feet = scale.realMm / 304.8;
+  const asLabel =
+    WALL_PRESETS.find((p) => p.mm === scale.realMm)?.label ??
+    `${feet.toFixed(1)} ft`;
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className={cn(
+          "tap min-h-11 whitespace-nowrap rounded-full border border-line",
+          "bg-background/80 px-3 py-1 text-xs text-foreground backdrop-blur-md"
+        )}
+      >
+        {scale.kind === "wall" ? "Ceiling" : "Size"}: {asLabel}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className={cn(
+        "flex flex-wrap items-center gap-1.5 rounded-2xl border border-accent",
+        "bg-surface px-2 py-1.5 backdrop-blur-md"
+      )}
+    >
+      {WALL_PRESETS.map((preset) => (
+        <button
+          key={preset.mm}
+          type="button"
+          onClick={() => {
+            onHeight(preset.mm);
+            setOpen(false);
+          }}
+          className={cn(
+            "tap min-h-9 rounded-full border px-2.5 text-xs",
+            preset.mm === scale.realMm
+              ? "border-accent text-accent"
+              : "border-line text-foreground"
+          )}
+        >
+          {preset.label}
+        </button>
+      ))}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const value = Number(draft.replace(/[^\d.]/g, ""));
+          // typed in feet if it is small, in millimetres if it is not
+          const mm = value > 0 && value < 30 ? Math.round(value * 304.8) : Math.round(value);
+          if (mm >= 500 && mm <= 6000) {
+            onHeight(mm);
+            setOpen(false);
+          }
+        }}
+        className="flex items-center gap-1"
+      >
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          inputMode="decimal"
+          placeholder="ft or mm"
+          aria-label="How tall it really is, in feet or millimetres"
+          className="w-20 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
+        />
+        <button type="submit" aria-label="Use this height" className="tap text-accent">
+          <Check className="size-3.5" aria-hidden />
+        </button>
+      </form>
+    </div>
   );
 }

@@ -34,11 +34,18 @@ export async function POST(request: NextRequest) {
   try {
     const cut = await cutoutFromListing(imageUrl);
     if (!cut) {
+      // a refusal is a decision, and a silent one looks like a broken feature
+      console.info(`[cutout] refused ${imageUrl.slice(0, 90)}`);
       return Response.json({
         url: null,
         note: "That photo is not on a plain background — keeping the stand-in.",
       });
     }
+    console.info(
+      `[cutout] kept ${imageUrl.slice(0, 70)} — keyed ${cut.keyedRatio.toFixed(
+        2
+      )}, trimmed ${cut.trimmedRatio.toFixed(2)}`
+    );
     return Response.json({
       url: cut.url,
       widthRatio: cut.widthRatio,

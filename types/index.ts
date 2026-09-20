@@ -85,7 +85,7 @@ export type RoomContext = {
 
 /** What the user tapped to give the photo a real-world scale (photo mode). */
 export type ScaleReference = {
-  kind: "door" | "outlet" | "brick" | "custom";
+  kind: "wall" | "door" | "outlet" | "brick" | "custom";
   /** what we show the user, e.g. "a standard interior door" */
   label: string;
   /** the assumed real size of that object */
