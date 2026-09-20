@@ -138,6 +138,12 @@ export type VisaState = {
 
   /* money */
   budgetCents: number;
+  /**
+   * Has the user actually chosen this number, or is it still our $600 guess?
+   * The room asks once, right after the photo, because a budget that was never
+   * set is a budget nobody is playing against.
+   */
+  budgetSet: boolean;
 
   /* the optional sponsor counters, behind a tap on the budget */
   savings: Savings;
@@ -225,6 +231,7 @@ const initialState: VisaState = {
   items: [],
   activeItemId: null,
   budgetCents: DEFAULT_BUDGET_CENTS,
+  budgetSet: false,
   savings: EMPTY_SAVINGS,
   profile: DEFAULT_PROFILE,
 };
@@ -471,6 +478,8 @@ export const useStore = create<VisaStore>()(
       setBudget: (budgetCents) =>
         set((s) => ({
           budgetCents,
+          // chosen, so the room stops asking
+          budgetSet: true,
           // the persisted profile keeps it for the next session
           profile: { ...s.profile, budgetCents },
         })),

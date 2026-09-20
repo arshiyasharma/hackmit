@@ -31,7 +31,7 @@ import type { Carton, DimsSource, Product, RoomContext } from "@/types";
 export const maxDuration = 30;
 
 /** About five, never more than eight. */
-const TARGET_OPTIONS = 5;
+const TARGET_OPTIONS = 8;
 const MAX_OPTIONS = 8;
 
 /** A shop search that hangs is a sheet full of skeletons. Cut it off. */

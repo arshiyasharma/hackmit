@@ -41,7 +41,7 @@ export type Product = {
 };
 
 const MIN_PRODUCTS = 3;
-const MAX_PRODUCTS = 5;
+const MAX_PRODUCTS = 10;
 
 type ShoppingCandidate = {
   title: string;

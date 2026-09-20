@@ -10,10 +10,11 @@ import { cn } from "@/lib/utils";
 /**
  * EVERY FLOATING +/− AMOUNT IN THE APP.
  *
- * A "+$49" springs up beside the budget, holds, and fades. A refund is "−$49"
- * in muted, and it FALLS instead of rising — the direction of travel carries
- * the meaning even for someone who never reads the sign. Games do this because
- * it works.
+ * It reads like a hit-point number in a game, because that is exactly what it
+ * is: the budget is what you have left, so linking a $49 lamp floats "−$49"
+ * off the bar in the warn colour, and removing it floats "+$49" in the ok
+ * colour. Cost falls, refund rises — the direction carries the meaning even
+ * for someone who never reads the sign.
  *
  * On a relink, pass the DIFFERENCE, not the new price. `deltaCents(prev, next)`
  * in lib/store.ts does that arithmetic. A delta that shows the full price makes
@@ -24,7 +25,7 @@ import { cn } from "@/lib/utils";
  */
 
 export type DeltaProps = {
-  /** signed cents. Positive rises in accent, negative falls in muted. */
+  /** signed against the budget: negative is a cost, positive is a refund. */
   cents: number;
   /** ISO 4217, for the symbol */
   currency?: string;
@@ -87,7 +88,7 @@ export function Delta({
   const travel = reduced ? 0 : direction * TRAVEL_PX;
   const exit = reduced ? 0 : direction * EXIT_PX;
 
-  const spoken = `${rising ? "Added" : "Removed"} ${new Intl.NumberFormat(
+  const spoken = `${rising ? "Refunded" : "Spent"} ${new Intl.NumberFormat(
     "en-US",
     { ...moneyFormat(cents, currency), signDisplay: "never" }
   ).format(Math.abs(cents) / 100)}${label ? ` — ${label}` : ""}`;
@@ -120,15 +121,15 @@ export function Delta({
           "pointer-events-none absolute right-0 top-full z-20 select-none",
           "rounded-full px-2 py-0.5 backdrop-blur-sm",
           rising
-            ? "bg-accent/12 text-accent"
-            : "bg-foreground/8 text-muted-foreground",
+            ? "bg-warn/15 text-warn"
+            : "bg-ok/15 text-ok",
           className
         )}
       >
         <NumberPlate
           value={cents / 100}
           size="sm"
-          tone={rising ? "accent" : "muted"}
+          tone={rising ? "warn" : "ok"}
           format={moneyFormat(cents, currency)}
         />
       </motion.span>

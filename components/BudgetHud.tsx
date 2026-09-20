@@ -106,7 +106,14 @@ function useLinkedPriceDeltas(
       const now = next.get(id)?.cents ?? 0;
       if (now === was) continue;
       changes.push({
-        cents: now - was,
+        /*
+         * SIGNED AGAINST THE BUDGET, not against the spend. Linking a $49 lamp
+         * takes $49 out of what is left, so it reads "−$49"; removing it gives
+         * the $49 back and reads "+$49". The number on screen and the bar
+         * beside it move the same way, which is the whole point of showing it
+         * where the money lives.
+         */
+        cents: was - now,
         label: next.get(id)?.label ?? before.get(id)?.label ?? "",
       });
     }
@@ -261,9 +268,17 @@ export function BudgetHud() {
   /* derived every render — the only way this number is ever produced */
   const spent = spentCents(items);
   const overCents = Math.max(0, spent - budgetCents);
+  /*
+   * WHAT IS LEFT, not what is gone. The budget reads like a health bar: it
+   * starts full, every link takes a bite out of it, and removing something
+   * gives it back. "$272 left" is the number a person acts on; "$328 spent"
+   * is the number an accountant does.
+   */
+  const leftCents = budgetCents - spent;
   const ratio = budgetCents > 0 ? spent / budgetCents : spent > 0 ? 1 : 0;
   const warn = ratio >= 0.9;
-  const fillPercent = Math.max(0, Math.min(100, ratio * 100));
+  // the bar DRAINS: full budget is a full bar, and spending empties it
+  const fillPercent = Math.max(0, Math.min(100, (1 - ratio) * 100));
 
   const { current, push, done } = useDeltaQueue();
   useLinkedPriceDeltas(items, push);
@@ -299,16 +314,20 @@ export function BudgetHud() {
                 type="button"
                 onClick={() => setCounters((open) => !open)}
                 aria-expanded={counters}
-                aria-label={`Spent ${money(spent)} of ${money(
-                  budgetCents
-                )}. Show what you're saving.`}
+                aria-label={
+                  overCents > 0
+                    ? `Over budget by ${money(overCents)}. Show what you're saving.`
+                    : `${money(leftCents)} left of ${money(
+                        budgetCents
+                      )}. Show what you're saving.`
+                }
                 className="tap -my-1 py-1 leading-none"
               >
                 <NumberPlate
-                  value={centsToUnits(spent)}
+                  value={centsToUnits(Math.abs(leftCents))}
                   size="md"
                   tone={overCents > 0 ? "warn" : "default"}
-                  format={moneyFormat(spent)}
+                  format={moneyFormat(leftCents)}
                 />
               </button>
 
@@ -329,7 +348,7 @@ export function BudgetHud() {
                     "transition-colors hover:text-foreground"
                   )}
                 >
-                  of {money(budgetCents)}
+                  {overCents > 0 ? "over" : "left"} of {money(budgetCents)}
                 </button>
               )}
             </div>
@@ -340,8 +359,8 @@ export function BudgetHud() {
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={Math.round(budgetCents / 100)}
-              aria-valuenow={Math.round(spent / 100)}
-              aria-label="Budget used"
+              aria-valuenow={Math.round(Math.max(0, leftCents) / 100)}
+              aria-label="Budget left"
             >
               <motion.div
                 className={cn(

@@ -15,7 +15,7 @@ import {
   searchGoogleShoppingWithFallbacks,
 } from "@/lib/sourcing/serpapi";
 
-const DEFAULT_LIMIT = 4;
+const DEFAULT_LIMIT = 8;
 const ELASTIC_ENOUGH = 3;
 const RESULT_CACHE_TTL_MS = 90_000;
 const SCRAPE_BUDGET_MS = 2_500;

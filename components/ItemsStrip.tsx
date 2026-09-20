@@ -17,14 +17,16 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
+import BudgetLeftSheet from "@/components/BudgetLeftSheet";
 import { RemoveButton } from "@/components/BudgetHud";
 import { openOptionsFor } from "@/components/OptionSheet";
 import { NumberPlate } from "@/components/ui/NumberPlate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { demoHref } from "@/lib/demo";
-import { linkedItems, useStore } from "@/lib/store";
+import { linkedItems, spentCents, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { PlacedItem } from "@/types";
 
@@ -80,6 +82,11 @@ export function ItemsStrip() {
   );
 
   const linkedCount = linkedItems(items).length;
+
+  /* what is still unspent, and the sheet that offers to spend it */
+  const underBy = budgetCents - spentCents(items);
+  const router = useRouter();
+  const [asking, setAsking] = React.useState(false);
 
   if (items.length === 0) return null;
 
@@ -166,6 +173,19 @@ export function ItemsStrip() {
         <motion.div layout transition={spring} className="shrink-0">
           <Link
             href={demoHref("/checkout")}
+            onClick={(event) => {
+              /*
+               * ONE QUESTION BEFORE THE END. Money left on the table at
+               * checkout is the only moment this screen has something useful
+               * to say, so the button asks once — "you have $272 left, this
+               * room could also use a floor rug" — and then gets out of the
+               * way. Already at or over budget, it just goes.
+               */
+              if (underBy > 0) {
+                event.preventDefault();
+                setAsking(true);
+              }
+            }}
             className={cn(
               "flex min-h-11 items-center rounded-full px-4",
               "bg-accent text-[13px] font-medium text-[color:var(--on-accent)]",
@@ -176,6 +196,15 @@ export function ItemsStrip() {
           </Link>
         </motion.div>
       ) : null}
+
+      <BudgetLeftSheet
+        open={asking}
+        onOpenChange={setAsking}
+        onContinue={() => {
+          setAsking(false);
+          router.push(demoHref("/checkout"));
+        }}
+      />
     </div>
   );
 }

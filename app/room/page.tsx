@@ -29,6 +29,7 @@ import { Camera } from "lucide-react";
 import ArScene from "@/components/ArScene";
 import AskInput, { useAsking } from "@/components/AskInput";
 import BudgetHud, { useRemoveItem } from "@/components/BudgetHud";
+import BudgetPrompt from "@/components/BudgetPrompt";
 import ItemsStrip from "@/components/ItemsStrip";
 import OptionSheet, { openOptionsFor, useOptionsOpen } from "@/components/OptionSheet";
 import {
@@ -263,6 +264,9 @@ export default function RoomPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+        {/* asked once, right after the photo: what are you spending? */}
+        <BudgetPrompt />
 
         {/* the options for the active item, resting at 40% so the sprite shows */}
         <OptionSheet />

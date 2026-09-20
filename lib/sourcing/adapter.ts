@@ -19,8 +19,12 @@ import type { Carton, DimsSource, Product } from "@/types";
 
 const MM_PER_INCH = 25.4;
 
-/** Their pipeline returns at most five; the sheet shows about that many. */
-const LIMIT = 5;
+/**
+ * Eight. The sheet is a swipeable row, so more listings cost a scroll rather
+ * than a screen, and with most listings carrying no dimensions a wider set is
+ * what gives the fit check something to judge.
+ */
+const LIMIT = 8;
 
 function toMm(inches: number | null | undefined): number | null {
   if (inches == null || !Number.isFinite(inches) || inches <= 0) return null;
@@ -94,6 +98,13 @@ export async function sourceOptions({
 }: SourceOptionsInput): Promise<Product[] | null> {
   const apiKey = process.env.SERPAPI_KEY;
   if (!apiKey) return null;
+
+  /*
+   * The query on screen IS the query that runs. Logged because the strip is
+   * the one part of this product a judge will poke at: "it says it is
+   * searching for pink — is it?" is answerable from the server log.
+   */
+  console.info(`[search] "${query}" (relevance: "${request || query}")`);
 
   const sourced = await sourceProductsForQuery({
     shoppingQuery: query,
