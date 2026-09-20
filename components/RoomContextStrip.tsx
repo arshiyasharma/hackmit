@@ -141,6 +141,9 @@ function AddPaletteColor() {
   const [open, setOpen] = React.useState(false);
   const [hex, setHex] = React.useState("#c97b5f");
 
+  /** a half-typed "#c9" is not a colour yet, so the preview stays empty */
+  const valid = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex.trim());
+
   const commit = (value: string) => {
     addPaletteColor(value);
     if (
@@ -175,21 +178,35 @@ function AddPaletteColor() {
         e.preventDefault();
         commit(hex);
       }}
+      /*
+       * A POPOVER, not another swatch in the row. Inline, the picker and the
+       * hex field pushed the tick out past the strip's 58% and under the budget
+       * readout in the corner, where it could not be clicked at all.
+       */
       className={cn(
-        "pointer-events-auto flex shrink-0 items-center gap-1 rounded-full",
-        "border border-accent bg-surface px-1.5 py-0.5 backdrop-blur-sm"
+        "pointer-events-auto absolute left-0 top-full z-50 mt-1 flex items-center gap-1.5",
+        "rounded-full border border-accent bg-surface px-2 py-1 shadow-lg backdrop-blur-sm"
       )}
     >
-      {/* the OS picker: tapping the swatch opens it, and a pick lands at once */}
+      {/*
+       * The picker PREVIEWS. Dragging around the colour wheel used to add a
+       * colour on every value the pointer passed over, so browsing for the
+       * right one left a trail of near-misses in the palette. Nothing is added
+       * until the tick.
+       */}
       <input
         type="color"
         value={hex}
-        onChange={(e) => {
-          setHex(e.target.value);
-          commit(e.target.value);
-        }}
+        onChange={(e) => setHex(e.target.value)}
         aria-label="Pick a colour"
-        className="size-5 cursor-pointer rounded-full border-0 bg-transparent p-0"
+        className="size-6 shrink-0 cursor-pointer rounded-full border-0 bg-transparent p-0"
+      />
+
+      {/* what you are about to add, at swatch size, before you add it */}
+      <span
+        aria-hidden
+        className="size-5 shrink-0 rounded-full ring-1 ring-foreground/20"
+        style={{ backgroundColor: valid ? hex : "transparent" }}
       />
       <input
         value={hex}
@@ -200,10 +217,23 @@ function AddPaletteColor() {
         aria-label="Colour hex code"
         placeholder="#c97b5f"
         maxLength={7}
-        className="w-16 bg-transparent font-mono text-[10px] text-foreground outline-none placeholder:text-muted-foreground"
+        className="w-[4.5rem] shrink-0 bg-transparent font-mono text-[11px] text-foreground outline-none placeholder:text-muted-foreground"
       />
-      <button type="submit" aria-label="Add this colour" className="tap text-accent">
-        <Check className="size-3.5" aria-hidden />
+      <button
+        type="submit"
+        disabled={!valid}
+        aria-label="Add this colour to the palette"
+        className="tap grid size-7 shrink-0 place-items-center text-accent disabled:opacity-40"
+      >
+        <Check className="size-4" aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        aria-label="Cancel"
+        className="tap grid size-7 shrink-0 place-items-center text-muted-foreground"
+      >
+        <X className="size-3.5" aria-hidden />
       </button>
     </form>
   );
@@ -213,6 +243,7 @@ export function RoomContextStrip() {
   const roomContext = useStore((s) => s.roomContext);
   const roomImage = useStore((s) => s.roomImage);
   const removeStyleTag = useStore((s) => s.removeStyleTag);
+  const removePaletteColor = useStore((s) => s.removePaletteColor);
   const reduced = useReducedMotion();
 
   const spring = reduced
@@ -223,7 +254,10 @@ export function RoomContextStrip() {
   if (!roomContext) {
     return (
       <div className="pointer-events-none w-full max-w-[58%] select-none">
-        <div className="flex items-center gap-1.5">
+        {/* scrolls sideways like the chip row: eight swatches plus the open
+          colour form are wider than the 58% the strip is allowed, and the
+          overflow used to slide under the budget readout in the corner */}
+      <div className="no-scrollbar -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5">
           {SLOTS.map((i) => (
             <Skeleton key={i} className="size-5 rounded-full" />
           ))}
@@ -246,22 +280,56 @@ export function RoomContextStrip() {
   const generic = roomContext.source === "fallback";
 
   return (
-    <div className="w-full max-w-[58%]">
-      <div className="pointer-events-none flex items-center gap-1.5">
-        {palette.map((hex, i) => (
-          <motion.span
-            key={`${hex}-${i}`}
-            title={hex}
-            aria-hidden
-            initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.4 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={
-              reduced ? { duration: 0.15 } : { ...spring, delay: i * 0.04 }
-            }
-            className="size-5 rounded-full ring-1 ring-foreground/20 shadow-sm"
-            style={{ backgroundColor: hex }}
-          />
-        ))}
+    <div className="relative w-full max-w-[58%]">
+      <div className="flex items-center gap-1.5">
+        {/*
+         * A swatch is a control, like a style chip: the palette steers what the
+         * stand-in is drawn in, so a colour the photo got wrong has to be
+         * removable. The cross shows on hover and on focus; on a touch screen
+         * there is no hover, so the whole swatch is the target and the label
+         * says what tapping it does.
+         */}
+        <AnimatePresence initial={false}>
+          {palette.map((hex, i) => (
+            <motion.button
+              key={hex}
+              type="button"
+              title={hex}
+              layout={!reduced}
+              onClick={() => {
+                removePaletteColor(hex);
+                if (
+                  typeof navigator !== "undefined" &&
+                  typeof navigator.vibrate === "function"
+                ) {
+                  navigator.vibrate(8);
+                }
+              }}
+              aria-label={`Remove the colour ${hex} from the palette`}
+              initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.4 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.4 }}
+              transition={
+                reduced ? { duration: 0.15 } : { ...spring, delay: i * 0.04 }
+              }
+              className={cn(
+                "group pointer-events-auto relative grid size-5 shrink-0 place-items-center",
+                "rounded-full ring-1 ring-foreground/20 shadow-sm transition-transform",
+                "hover:scale-110 focus-visible:scale-110 focus-visible:outline-none"
+              )}
+              style={{ backgroundColor: hex }}
+            >
+              <X
+                aria-hidden
+                className={cn(
+                  "size-3 opacity-0 transition-opacity",
+                  "mix-blend-difference text-white",
+                  "group-hover:opacity-100 group-focus-visible:opacity-100"
+                )}
+              />
+            </motion.button>
+          ))}
+        </AnimatePresence>
         <span className="sr-only">
           The colours read from your photo: {palette.join(", ")}
         </span>
