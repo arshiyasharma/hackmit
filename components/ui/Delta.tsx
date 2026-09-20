@@ -10,10 +10,11 @@ import { cn } from "@/lib/utils";
 /**
  * EVERY FLOATING +/− AMOUNT IN THE APP.
  *
- * A "+$49" springs up beside the budget, holds, and fades. A refund is "−$49"
- * in muted, and it FALLS instead of rising — the direction of travel carries
- * the meaning even for someone who never reads the sign. Games do this because
- * it works.
+ * It reads like the points a game throws up when you make progress, because
+ * that is what it is: the budget is a mark to reach, so linking a $49 lamp
+ * floats "+$49" up the bar in the accent colour and taking it off floats
+ * "−$49" down in muted. The direction carries the meaning even for someone
+ * who never reads the sign.
  *
  * On a relink, pass the DIFFERENCE, not the new price. `deltaCents(prev, next)`
  * in lib/store.ts does that arithmetic. A delta that shows the full price makes
@@ -24,7 +25,7 @@ import { cn } from "@/lib/utils";
  */
 
 export type DeltaProps = {
-  /** signed cents. Positive rises in accent, negative falls in muted. */
+  /** signed as progress: positive moves towards the mark, negative back. */
   cents: number;
   /** ISO 4217, for the symbol */
   currency?: string;

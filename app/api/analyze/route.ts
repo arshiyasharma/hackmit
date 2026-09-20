@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { GoogleGenAI } from "@google/genai";
 
 import type { NextRequest } from "next/server";
@@ -33,12 +35,38 @@ import type { RoomContext } from "@/types";
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 45;
 
 const OPENAI_MODEL = "gpt-4o-mini";
-const GEMINI_MODEL = "gemini-3.6-flash";
+/*
+ * THE LITE MODEL LEADS, because the big one is the one that is busy.
+ * gemini-3.6-flash answered 503 "high demand" on roughly every other call,
+ * while gemini-3.1-flash-lite answered straight away — and this prompt asks
+ * for five colours and four shopping words, which is not work that needs the
+ * larger model. The heavier ones stay in the chain behind it.
+ */
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
+/**
+ * When the first model is busy, ask a different one rather than giving up.
+ * These three were checked against this project's key with the SDK: they
+ * answer, and they answer this prompt equally well. gemini-2.5-flash and
+ * gemini-flash-latest are NOT here on purpose — the first 404s ("no longer
+ * available to new users") and the second was itself 503 when tried.
+ */
+const GEMINI_FALLBACK_MODELS = (
+  process.env.GEMINI_FALLBACK_MODELS ??
+  "gemini-3-flash-preview,gemini-3.6-flash"
+)
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+
+/** 503 "high demand" and 429 clear in a second; everything else will not. */
+const RETRY_PATTERN = /\b(429|500|502|503|504|high demand|overloaded|unavailable)\b/i;
+const RETRY_DELAYS_MS = [300, 600];
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const TIMEOUT_MS = 15_000;
+/* the chain is three fast models now, so it has no business taking longer */
+const TIMEOUT_MS = 14_000;
 
 /** A 1600px JPEG data URL is ~1 MB. Anything far past that is not our photo. */
 const MAX_DATA_URL_CHARS = 12_000_000;
@@ -114,11 +142,58 @@ const INSTRUCTION = [
   'e.g. "a tall lamp", "a floor rug".',
 ].join(" ");
 
+/** The exact answer this route can use. Enforced on the model, not on hope. */
+const ROOM_SCHEMA = {
+  type: "object",
+  properties: {
+    styleTags: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 3,
+      maxItems: 5,
+    },
+    palette: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 5,
+      maxItems: 5,
+    },
+    lighting: { type: "string", enum: ["warm", "cool", "neutral"] },
+    roomType: { type: "string" },
+    suggestions: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 4,
+      maxItems: 4,
+    },
+  },
+  required: ["styleTags", "palette", "lighting", "roomType", "suggestions"],
+  propertyOrdering: [
+    "styleTags",
+    "palette",
+    "lighting",
+    "roomType",
+    "suggestions",
+  ],
+} as const;
+
 /* ------------------------------------------------------------------ parsing */
 
+/**
+ * THE KEY THE MODEL ANSWERS WITH IS NOT ALWAYS THE KEY WE ASKED FOR.
+ *
+ * The prompt asks for "styleTags" and a flash model will happily answer
+ * "style_tags". `palette` is one word so it always matched, which is why the
+ * room came back with five colours and no keywords at all — a half-read photo
+ * that looked, from the strip, like the words had simply stopped working.
+ * Every list is read through its plausible spellings now.
+ */
 function strings(source: unknown, key: string, limit: number): string[] {
   if (!source || typeof source !== "object") return [];
-  const value = (source as Record<string, unknown>)[key];
+  const record = source as Record<string, unknown>;
+  const snake = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+  const value =
+    record[key] ?? record[snake] ?? record[key.toLowerCase()] ?? undefined;
   if (!Array.isArray(value)) return [];
   return value
     .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
@@ -128,7 +203,10 @@ function strings(source: unknown, key: string, limit: number): string[] {
 
 function text(source: unknown, key: string): string | undefined {
   if (!source || typeof source !== "object") return undefined;
-  const value = (source as Record<string, unknown>)[key];
+  const record = source as Record<string, unknown>;
+  const snake = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+  const value =
+    record[key] ?? record[snake] ?? record[key.toLowerCase()] ?? undefined;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
@@ -140,7 +218,10 @@ function toRoomContext(raw: unknown): RoomContext | null {
   if (palette.length < 3) return null;
   while (palette.length < 5) palette.push(NEUTRAL_PALETTE[palette.length]);
 
-  const styleTags = strings(raw, "styleTags", 6)
+  const styleTags = [
+    ...strings(raw, "styleTags", 6),
+    ...strings(raw, "keywords", 6),
+  ]
     .map((tag) => tag.toLowerCase().replace(/[^a-z0-9 -]/g, "").trim())
     .filter((tag) => tag.length > 2 && tag.length < 24)
     .filter((tag) => !BANNED_TAGS.has(tag))
@@ -153,6 +234,7 @@ function toRoomContext(raw: unknown): RoomContext | null {
   const suggestions = [
     ...strings(raw, "suggestions", 4),
     ...strings(raw, "searchTerms", 5),
+    ...strings(raw, "needs", 4),
   ]
     .map((s) => s.toLowerCase())
     .filter((s, i, all) => all.indexOf(s) === i)
@@ -171,6 +253,19 @@ function toRoomContext(raw: unknown): RoomContext | null {
 
 /* ------------------------------------------------------------------- calls */
 
+/**
+ * Nothing on this route may outlast the user's patience. Gemini answered in
+ * 6 s one run and 31 s the next, and for those 31 s the strip on /room sat
+ * empty — so the call is raced against a clock and a slow answer is simply not
+ * an answer. The route still returns 200 with the neutral palette.
+ */
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    work,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
 /** Arshiya's call from 52037d4, mapped onto the RoomContext contract. */
 async function readRoomGemini(
   dataUrl: string,
@@ -181,25 +276,65 @@ async function readRoomGemini(
   if (!mimeType || !data) return null;
 
   const ai = new GoogleGenAI({ apiKey: key });
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: `${SYSTEM} ${INSTRUCTION}` },
-          { inlineData: { mimeType, data } },
-        ],
-      },
-    ],
-    config: { responseMimeType: "application/json" },
-  });
 
-  try {
-    return toRoomContext(JSON.parse(response.text ?? ""));
-  } catch {
-    return null;
+  const ask = async (model: string): Promise<RoomContext | null> => {
+    const response = await ai.models.generateContent({
+      model,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: `${SYSTEM} ${INSTRUCTION}` },
+            { inlineData: { mimeType, data } },
+          ],
+        },
+      ],
+      config: {
+        responseMimeType: "application/json",
+        /*
+         * ASK FOR THE SHAPE, DON'T HOPE FOR IT. Without a schema the model
+         * picks its own key names, and one that answers "style_tags" instead
+         * of "styleTags" reads as a room with no style at all.
+         */
+        responseSchema: ROOM_SCHEMA,
+      },
+    });
+    try {
+      return toRoomContext(JSON.parse(response.text ?? ""));
+    } catch (error) {
+      console.warn("[analyze] gemini returned unparseable JSON:", error);
+      return null;
+    }
+  };
+
+  /*
+   * THE MODEL IS BUSY MORE OFTEN THAN IT IS BROKEN. gemini-3.6-flash answers
+   * 503 "This model is currently experiencing high demand" on roughly every
+   * other call, and each one of those used to land on screen as the neutral
+   * palette with no style words — the photo looked unread. Two quick retries,
+   * then a different flash model, all inside the same budget.
+   */
+  const models = [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS];
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < models.length; attempt += 1) {
+    try {
+      const context = await ask(models[attempt]);
+      if (context) return context;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!RETRY_PATTERN.test(message)) throw error;
+      console.warn(
+        `[analyze] ${models[attempt]} busy (attempt ${attempt + 1}); retrying`
+      );
+    }
+    const delay = RETRY_DELAYS_MS[attempt];
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
   }
+
+  if (lastError) throw lastError;
+  return null;
 }
 
 async function readRoomOpenAI(
@@ -255,6 +390,33 @@ function answer(context: RoomContext) {
   return Response.json({ ...context, searchTerms: context.suggestions ?? [] });
 }
 
+/* ------------------------------------------------------------------- cache */
+
+/**
+ * The same photo must not be read twice.
+ *
+ * You will capture the same room a dozen times while rehearsing, and each read
+ * costs a call to a model that is busy half the time. Keyed on the bytes, so a
+ * re-upload of the same picture is instant and cannot come back neutral after
+ * coming back rich the first time — which is exactly how "the analysis is
+ * gone" looks from the outside.
+ */
+const reads = new Map<string, RoomContext>();
+const MAX_CACHED_READS = 24;
+
+function cacheKey(dataUrl: string): string {
+  return createHash("sha256").update(dataUrl).digest("hex");
+}
+
+function remember(key: string, context: RoomContext): RoomContext {
+  if (reads.size >= MAX_CACHED_READS) {
+    const oldest = reads.keys().next().value;
+    if (oldest) reads.delete(oldest);
+  }
+  reads.set(key, context);
+  return context;
+}
+
 /* ------------------------------------------------------------------- route */
 
 export async function POST(request: NextRequest) {
@@ -279,16 +441,57 @@ export async function POST(request: NextRequest) {
 
   const gemini = process.env.GEMINI_API_KEY;
   const openai = process.env.OPENAI_API_KEY;
-  if (!dataUrl || (!gemini && !openai)) return answer(NEUTRAL);
+  if (!dataUrl) {
+    console.warn("[analyze] no usable image in the request; neutral palette");
+    return answer(NEUTRAL);
+  }
+  if (!gemini && !openai) {
+    console.warn("[analyze] no GEMINI_API_KEY or OPENAI_API_KEY; neutral palette");
+    return answer(NEUTRAL);
+  }
 
+  const key = cacheKey(dataUrl);
+  const seen = reads.get(key);
+  if (seen) {
+    console.info(
+      `[analyze] same photo as before: ${seen.styleTags.length} style words, ${seen.palette.length} colours`
+    );
+    return answer(seen);
+  }
+
+  const startedAt = Date.now();
   try {
     const context = gemini
-      ? ((await readRoomGemini(dataUrl, gemini)) ??
-        (openai ? await readRoomOpenAI(dataUrl, openai) : null))
-      : await readRoomOpenAI(dataUrl, openai as string);
-    return answer(context ?? NEUTRAL);
-  } catch {
-    // timeout, network, refusal — the capture screen is already on /room
+      ? ((await withTimeout(readRoomGemini(dataUrl, gemini), TIMEOUT_MS)) ??
+        (openai
+          ? await withTimeout(readRoomOpenAI(dataUrl, openai), TIMEOUT_MS)
+          : null))
+      : await withTimeout(readRoomOpenAI(dataUrl, openai as string), TIMEOUT_MS);
+    if (!context) {
+      // a 200 that carries nothing is the one failure that used to be silent
+      console.warn(
+        `[analyze] the model answered nothing usable after ${Date.now() - startedAt}ms; neutral palette`
+      );
+      return answer(NEUTRAL);
+    }
+    console.info(
+      `[analyze] read the room in ${Date.now() - startedAt}ms: ` +
+        `${context.styleTags.length} style words (${context.styleTags.join(", ") || "none"}), ` +
+        `${context.palette.length} colours`
+    );
+    /*
+     * A read with no style words is half a read, and remembering it means the
+     * same photo can never come back better. Answer with it, keep nothing.
+     */
+    return answer(context.styleTags.length > 0 ? remember(key, context) : context);
+  } catch (error) {
+    // timeout, network, refusal — the capture screen is already on /room.
+    // It still answers 200, but it says WHY in the server log: a silent
+    // neutral palette that turned out to be a quota error cost an hour.
+    console.warn(
+      "[analyze] falling back to the neutral palette:",
+      error instanceof Error ? error.message : error
+    );
     return answer(NEUTRAL);
   }
 }

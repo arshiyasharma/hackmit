@@ -228,7 +228,9 @@ export function FitSheet({ open, onOpenChange, product, result }: FitSheetProps)
             {product.dimsMm
               ? product.dimsSource === "quoted"
                 ? ` — from the ${product.retailer} listing`
-                : " — estimated"
+                : product.dimsSource === "approx"
+                  ? " — approx, a typical size for this kind of thing"
+                  : " — estimated"
               : ""}
           </p>
         </div>

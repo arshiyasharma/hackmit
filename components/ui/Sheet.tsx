@@ -73,8 +73,30 @@ export function Sheet({
     return { points: ascending, snap: ascending.indexOf(chosen) };
   }, [snapPoints, initialSnap]);
 
+  /*
+   * A sheet you cannot dismiss is a sheet that owns the screen. Dragging it
+   * down has always worked; tapping the dimmed room and pressing Escape did
+   * not, which on a laptop left the options covering the room with no way out.
+   */
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onOpenChange(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onOpenChange]);
+
   return (
     <ModalSheet
+      /*
+       * The library defaults its root to z-index 9999, which put the backdrop
+       * over the room-context strip: tapping a style chip while the options
+       * were open hit the backdrop instead and just closed the sheet, so the
+       * one edit the sheet exists to react to could not be made. The sheet
+       * sits above the room and below the top chrome now.
+       */
+      style={{ zIndex: 30 }}
       isOpen={open}
       onClose={() => onOpenChange(false)}
       snapPoints={points}

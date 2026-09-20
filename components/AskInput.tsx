@@ -27,7 +27,7 @@ import { ArrowUp, Plus } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { withDemo } from "@/lib/demo";
-import { useStore } from "@/lib/store";
+import { roomContextFor, useRoomContext, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { RoomContext } from "@/types";
 
@@ -54,6 +54,19 @@ function subscribeAsking(listener: () => void): () => void {
   return () => {
     askingListeners.delete(listener);
   };
+}
+
+/**
+ * Ask for something from anywhere on the screen.
+ *
+ * The budget sheet suggests "a floor rug" and a tap has to start the same loop
+ * a typed ask starts — so it goes through the same module-level channel the
+ * field itself listens on, rather than a second copy of the submit logic.
+ */
+const pendingAsks = new Set<(request: string) => void>();
+
+export function askFor(request: string): void {
+  for (const listener of pendingAsks) listener(request);
 }
 
 /** True while the ask field is open. The room screen's "asking" phase. */
@@ -158,7 +171,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T | null> {
 
 export function AskInput() {
   const items = useStore((s) => s.items);
-  const roomContext = useStore((s) => s.roomContext);
+  const roomContext = useRoomContext();
   const roomImage = useStore((s) => s.roomImage);
   const reduced = useReducedMotion();
 
@@ -190,7 +203,9 @@ export function AskInput() {
   const submit = React.useCallback(
     (raw: string) => {
       const store = useStore.getState();
-      const context = store.roomContext;
+      // the edited context: the placeholder prompt and the search both key
+      // off this, so a word or colour changed above is in from the first call
+      const context = roomContextFor(store);
 
       // an empty ask is valid: the room chooses. Never dead-end.
       const request =
@@ -235,6 +250,14 @@ export function AskInput() {
     },
     []
   );
+
+  /* a suggestion tapped elsewhere on the screen submits exactly like a type */
+  React.useEffect(() => {
+    pendingAsks.add(submit);
+    return () => {
+      pendingAsks.delete(submit);
+    };
+  }, [submit]);
 
   const spring = reduced
     ? ({ duration: 0.15 } as const)

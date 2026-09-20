@@ -28,10 +28,16 @@ import type { Carton, DimsSource, Product, RoomContext } from "@/types";
  * number would destroy the one rigorous thing in the product.
  */
 
-export const maxDuration = 30;
+/*
+ * Long enough for the pipeline underneath: two SerpAPI attempts at up to 20s
+ * each, plus the dimension scrapes. A search that is cut off halfway reads on
+ * screen as "nothing came back", which is the one answer that must never be a
+ * lie about the shops.
+ */
+export const maxDuration = 60;
 
 /** About five, never more than eight. */
-const TARGET_OPTIONS = 5;
+const TARGET_OPTIONS = 8;
 const MAX_OPTIONS = 8;
 
 /** A shop search that hangs is a sheet full of skeletons. Cut it off. */
@@ -109,7 +115,9 @@ function dimsSourceOf(
 ): DimsSource {
   if (!dims) return "missing";
   const declared = str(raw.dimsSource)?.toLowerCase();
-  return declared === "quoted" ? "quoted" : "estimated";
+  if (declared === "quoted") return "quoted";
+  if (declared === "approx") return "approx";
+  return "estimated";
 }
 
 function domainOf(url: string): string | undefined {

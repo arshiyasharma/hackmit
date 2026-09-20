@@ -176,21 +176,53 @@ export function buildSimpleShoppingQuery(
   return `${scene} ${hint}`;
 }
 
-/** Keep products whose titles match the design query (e.g. pink + lamp). */
+/**
+ * Reduce a word to something a retailer title will actually contain.
+ * plushie -> plush, vases -> vas(e), bunnies -> bunn(y), lamps -> lamp.
+ */
+function stem(word: string): string {
+  if (word.length > 5 && word.endsWith("ies")) return word.slice(0, -3);
+  if (word.length > 4 && (word.endsWith("es") || word.endsWith("ie"))) {
+    return word.slice(0, -2);
+  }
+  if (word.length > 3 && word.endsWith("s")) return word.slice(0, -1);
+  return word;
+}
+
+function titleHas(title: string, word: string): boolean {
+  return title.includes(word) || title.includes(stem(word));
+}
+
+/**
+ * Keep products whose titles match the design query (e.g. pink + lamp).
+ *
+ * WHAT YOU ASKED FOR IS NOT ALWAYS IN THE FURNITURE LIST. "plushie" is not in
+ * PRODUCT_NOUNS, so it was treated as a modifier, and a modifier had to appear
+ * in the title verbatim. Google answers a plushie search with "Squishmallows
+ * 16in Plush" and "Jellycat Bashful Bunny" — not one of them says plushie — so
+ * every listing was dropped and the room reported an empty shop about a page
+ * full of plushies.
+ *
+ * So when the list recognises nothing, the LAST content word is taken as the
+ * thing being asked for, because an English noun phrase puts its head at the
+ * end: "a tall plushie" is a plushie. And matching runs on a stem, so plushie
+ * finds plush and vases finds vase.
+ */
 export function filterProductsByDesignQuery<
   T extends { title: string },
 >(products: T[], designQuery: string): T[] {
   const words = contentWords(designQuery);
   if (words.length === 0) return products;
 
-  const nouns = words.filter((w) => PRODUCT_NOUNS.has(w));
-  const modifiers = words.filter((w) => !PRODUCT_NOUNS.has(w));
+  const known = words.filter((w) => PRODUCT_NOUNS.has(w));
+  const nouns = known.length > 0 ? known : [words[words.length - 1]!];
+  const modifiers = words.filter((w) => !nouns.includes(w));
 
   return products.filter((p) => {
     const title = (p.title || "").toLowerCase();
 
     // Every product noun in the query must appear ("table" query ≠ only "lamp").
-    if (nouns.length > 0 && !nouns.every((w) => title.includes(w))) {
+    if (!nouns.every((w) => titleHas(title, w))) {
       return false;
     }
 
@@ -214,15 +246,11 @@ export function filterProductsByDesignQuery<
       if (!/\blamps?\b/.test(title)) return false;
     }
 
-    if (modifiers.length === 0) {
-      // Noun-only query (e.g. "sofa") — noun check above is enough.
-      return nouns.length > 0
-        ? true
-        : words.some((w) => title.includes(w));
-    }
+    // Noun-only query (e.g. "sofa") — the noun check above is enough.
+    if (modifiers.length === 0) return true;
 
     // Require a fair share of color/material modifiers ("pink", "oak", …).
-    const modHits = modifiers.filter((w) => title.includes(w)).length;
+    const modHits = modifiers.filter((w) => titleHas(title, w)).length;
     const needMods = Math.max(1, Math.ceil(modifiers.length * 0.5));
     return modHits >= needMods;
   });

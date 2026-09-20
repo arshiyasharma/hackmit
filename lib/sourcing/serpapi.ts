@@ -29,13 +29,51 @@ export type SerpShoppingFailure = {
 
 export type SerpShoppingSearchResult = SerpShoppingSuccess | SerpShoppingFailure;
 
+/** Per request. The ladder stops as soon as one rung answers. */
+const SERP_TIMEOUT_MS = Number(process.env.SERPAPI_TIMEOUT_MS ?? 20_000);
+
+/*
+ * Immersive is a DETAIL fetch, not the answer. It resolves one listing's Buy
+ * link, and the log has it taking 9.5s while five of them ran — so a slow one
+ * is worth abandoning rather than waiting out. The listing it would have
+ * resolved drops; the other listings still arrive.
+ */
+const IMMERSIVE_TIMEOUT_MS = Number(process.env.SERPAPI_IMMERSIVE_TIMEOUT_MS ?? 7_000);
+
+/** Shortest request worth starting. Below this the caller is out of time. */
+const MIN_TIMEOUT_MS = 1_500;
+
+function clampTimeout(requested: number | undefined, fallback: number): number {
+  if (requested == null || !Number.isFinite(requested)) return fallback;
+  return Math.max(MIN_TIMEOUT_MS, Math.min(fallback, Math.round(requested)));
+}
+
 async function fetchSerpJson(
-  requestUrl: string
+  requestUrl: string,
+  timeoutMs: number = SERP_TIMEOUT_MS
 ): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
+  /*
+   * 10s was not enough. Google Shopping through SerpAPI regularly takes twelve
+   * to eighteen seconds, and every one of those came back to the room screen
+   * as "nothing came back from that" — a timeout wearing an empty result's
+   * clothes. The ladder tries at most three queries, so this is bounded by the
+   * deadline the caller passes rather than by this number alone.
+   */
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+  /** the query without the key, so a log line is safe to paste anywhere */
+  const label = (() => {
+    try {
+      const u = new URL(requestUrl);
+      return `${u.searchParams.get("engine")} "${u.searchParams.get("q") ?? u.searchParams.get("url") ?? ""}"`;
+    } catch {
+      return "serpapi";
+    }
+  })();
   try {
     const response = await fetch(requestUrl, { signal: controller.signal });
+    console.info(`[serpapi] ${label} -> ${response.status} in ${Date.now() - startedAt}ms`);
     if (!response.ok) {
       return {
         ok: false,
@@ -48,6 +86,11 @@ async function fetchSerpJson(
     }
     return { ok: true, data };
   } catch (err) {
+    console.warn(
+      `[serpapi] ${label} -> ${err instanceof Error ? err.message : "error"} after ${
+        Date.now() - startedAt
+      }ms`
+    );
     return {
       ok: false,
       error: err instanceof Error ? err.message : "SerpAPI network error",
@@ -114,6 +157,7 @@ export async function searchGoogleLens(
  * Short in-memory cache avoids repeat Serp round-trips within a demo session.
  */
 const SHOPPING_CACHE_TTL_MS = 5 * 60_000;
+const EMPTY_CACHE_TTL_MS = 20_000;
 const shoppingCache = new Map<
   string,
   { expires: number; shopping_results: SerpShoppingResult[] }
@@ -121,7 +165,8 @@ const shoppingCache = new Map<
 
 export async function searchGoogleShopping(
   q: string,
-  apiKey: string
+  apiKey: string,
+  timeoutMs?: number
 ): Promise<SerpShoppingSearchResult> {
   const cacheKey = q.trim().toLowerCase();
   const cached = shoppingCache.get(cacheKey);
@@ -129,7 +174,10 @@ export async function searchGoogleShopping(
     return { ok: true, shopping_results: cached.shopping_results };
   }
 
-  const result = await fetchSerpJson(buildGoogleShoppingUrl(q, apiKey));
+  const result = await fetchSerpJson(
+    buildGoogleShoppingUrl(q, apiKey),
+    clampTimeout(timeoutMs, SERP_TIMEOUT_MS)
+  );
   if (!result.ok) {
     // Empty Google pages are not hard failures — treat as zero hits.
     if (isGoogleNoResultsError(result.error)) {
@@ -139,8 +187,15 @@ export async function searchGoogleShopping(
   }
 
   const shopping_results = parseShoppingResults(result.data.shopping_results);
+  /*
+   * An empty page is remembered only long enough to stop the ladder and the
+   * retry button asking Google the same dead question twice in a row. Five
+   * minutes of "nothing" is how one bad search became a broken-looking room.
+   */
   shoppingCache.set(cacheKey, {
-    expires: Date.now() + SHOPPING_CACHE_TTL_MS,
+    expires:
+      Date.now() +
+      (shopping_results.length > 0 ? SHOPPING_CACHE_TTL_MS : EMPTY_CACHE_TTL_MS),
     shopping_results,
   });
 
@@ -159,7 +214,8 @@ export async function searchGoogleShopping(
  */
 export async function searchGoogleShoppingWithFallbacks(
   queries: string[],
-  apiKey: string
+  apiKey: string,
+  timeoutMs?: number
 ): Promise<SerpShoppingSearchResult> {
   const unique: string[] = [];
   const seen = new Set<string>();
@@ -170,7 +226,7 @@ export async function searchGoogleShoppingWithFallbacks(
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(q);
-    if (unique.length >= 3) break;
+    if (unique.length >= 2) break;
   }
 
   if (unique.length === 0) {
@@ -178,7 +234,7 @@ export async function searchGoogleShoppingWithFallbacks(
   }
 
   // Primary first — usually hits and avoids burning extra Serp calls.
-  const primary = await searchGoogleShopping(unique[0]!, apiKey);
+  const primary = await searchGoogleShopping(unique[0]!, apiKey, timeoutMs);
   if (primary.ok && primary.shopping_results.length > 0) {
     return primary;
   }
@@ -194,7 +250,7 @@ export async function searchGoogleShoppingWithFallbacks(
 
   // Remaining fallbacks in parallel (max 2).
   const results = await Promise.all(
-    rest.map((q) => searchGoogleShopping(q, apiKey))
+    rest.map((q) => searchGoogleShopping(q, apiKey, timeoutMs))
   );
   for (const result of results) {
     if (result.ok && result.shopping_results.length > 0) return result;
@@ -251,11 +307,13 @@ function buildImmersiveProductUrl(pageToken: string, apiKey: string): string {
  */
 export async function fetchImmersiveProduct(
   pageToken: string,
-  apiKey: string
+  apiKey: string,
+  timeoutMs?: number
 ): Promise<SerpImmersiveProduct> {
   const empty: SerpImmersiveProduct = { stores: [], features: [] };
   const result = await fetchSerpJson(
-    buildImmersiveProductUrl(pageToken, apiKey)
+    buildImmersiveProductUrl(pageToken, apiKey),
+    clampTimeout(timeoutMs, IMMERSIVE_TIMEOUT_MS)
   );
   if (!result.ok) {
     console.warn("[serpapi] Immersive product fetch failed:", result.error);

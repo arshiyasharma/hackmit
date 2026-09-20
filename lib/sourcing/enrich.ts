@@ -19,11 +19,13 @@ import {
   filterProductsByDesignQuery,
 } from "@/lib/sourcing/roomContext";
 import {
-  getWhitelistedDomain,
   isDirectRetailerUrl,
   isGoogleHostedUrl,
+  isWhitelistedHostname,
   resolveRetailer,
+  retailerDomainFor,
   retailerFromSourceLabel,
+  sameRetailer,
   unwrapProductUrl,
 } from "@/lib/sourcing/whitelist";
 
@@ -41,7 +43,7 @@ export type Product = {
 };
 
 const MIN_PRODUCTS = 3;
-const MAX_PRODUCTS = 5;
+const MAX_PRODUCTS = 10;
 
 type ShoppingCandidate = {
   title: string;
@@ -139,6 +141,8 @@ function scoreProduct(product: Product, rawTitle: string): number {
     score += 3;
   }
   if (rawTitle.length > 20) score += 1;
+  // the five known-good shops still lead; the rest are eligible, not equal
+  if (isWhitelistedHostname(product.retailer)) score += 2;
   return score;
 }
 
@@ -150,6 +154,7 @@ function scoreCandidate(candidate: ShoppingCandidate): number {
   if (candidate.title.trim()) score += 2;
   if (candidate.image_url) score += 1;
   if (candidate.title.length > 20) score += 1;
+  if (isWhitelistedHostname(candidate.retailer)) score += 2;
   return score;
 }
 
@@ -245,9 +250,10 @@ function pickDirectStore(
       const url = storePurchaseUrl(store);
       if (!url) return s;
       try {
-        const domain = getWhitelistedDomain(new URL(url).hostname);
-        if (domain === retailer) s += 6;
-        else if (domain) s += 2;
+        const domain = retailerDomainFor(new URL(url).hostname);
+        if (sameRetailer(domain, retailer)) s += 6;
+        else if (domain && isWhitelistedHostname(domain)) s += 2;
+        else if (domain) s += 1;
       } catch {
         // ignore
       }
@@ -260,8 +266,8 @@ function pickDirectStore(
     const url = storePurchaseUrl(store);
     if (!url || !isDirectRetailerUrl(url)) continue;
     try {
-      const domain = getWhitelistedDomain(new URL(url).hostname);
-      if (domain === retailer) return { url, store };
+      const domain = retailerDomainFor(new URL(url).hostname);
+      if (sameRetailer(domain, retailer)) return { url, store };
     } catch {
       // continue
     }
@@ -374,6 +380,34 @@ function buildProductFromCandidate(
   });
 }
 
+/**
+ * The listing as Google has it: its own product page, which lists the sellers.
+ * Used only to fill a shelf that would otherwise be nearly empty.
+ */
+function buildProductFromGoogleLink(candidate: ShoppingCandidate): Product | null {
+  const url = candidate.google_product_url;
+  if (!url || !candidate.title) return null;
+
+  const dimensions = parseDimensionsFromText(candidate.title);
+  return {
+    id: productIdFromUrl(url),
+    title: candidate.title,
+    price_cents: candidate.price_cents ?? null,
+    currency: "USD",
+    image_url: candidate.image_url,
+    product_url: url,
+    retailer: candidate.retailer,
+    dimensions:
+      dimensions.h_in == null &&
+      dimensions.w_in == null &&
+      dimensions.d_in == null
+        ? unknownDimensions()
+        : { ...dimensions, estimated: false },
+    in_stock: null,
+    google_product_url: url,
+  };
+}
+
 function rankAndCap(products: Product[], maxProducts = MAX_PRODUCTS): Product[] {
   const scored = products.map((product) => ({
     product,
@@ -390,7 +424,20 @@ function rankAndCap(products: Product[], maxProducts = MAX_PRODUCTS): Product[] 
   return scored.slice(0, limit).map((s) => s.product);
 }
 
-function applyMaxPrice(
+/**
+ * THE BUDGET RANKS THE SHELF. IT DOES NOT EMPTY IT.
+ *
+ * What is left of the budget was a hard filter, at both the candidate stage
+ * and the end — so once a couple of things were placed, every search answered
+ * "40 from Google, 0 with a Buy link" and the room said nothing came back. A
+ * coffee table costs more than $60 whatever the budget says; hiding all of
+ * them does not make one affordable, it just breaks the search.
+ *
+ * So affordable listings come first and the rest follow. The HUD already says
+ * what is left, each card shows its price, and the fit check still speaks for
+ * itself.
+ */
+export function applyMaxPrice(
   products: Product[],
   maxPriceDollars: number | null | undefined
 ): Product[] {
@@ -398,11 +445,21 @@ function applyMaxPrice(
     return products;
   }
   const maxCents = Math.round(maxPriceDollars * 100);
-  return products.filter(
+  const affordable = products.filter(
     (p) => p.price_cents == null || p.price_cents <= maxCents
   );
+  if (affordable.length === products.length) return products;
+
+  const rest = products.filter(
+    (p) => p.price_cents != null && p.price_cents > maxCents
+  );
+  console.info(
+    `[source] ${affordable.length} of ${products.length} listings fit what is left of the budget; showing the rest behind them`
+  );
+  return [...affordable, ...rest];
 }
 
+/** Affordable candidates are looked up first; none are thrown away. */
 function applyMaxPriceToCandidates(
   candidates: ShoppingCandidate[],
   maxPriceDollars: number | null | undefined
@@ -411,9 +468,9 @@ function applyMaxPriceToCandidates(
     return candidates;
   }
   const maxCents = Math.round(maxPriceDollars * 100);
-  return candidates.filter(
-    (c) => c.price_cents == null || c.price_cents <= maxCents
-  );
+  const within = (c: ShoppingCandidate) =>
+    c.price_cents == null || c.price_cents <= maxCents;
+  return [...candidates.filter(within), ...candidates.filter((c) => !within(c))];
 }
 
 /**
@@ -446,6 +503,11 @@ export function enrichVisualMatches(
  * Dimension scraping is deferred to the caller (`fillMissingDimensions`) so we
  * only hit retailer PDPs for products we actually return.
  */
+/**
+ * How many Buy-link lookups one search may spend. Each is a SerpAPI credit.
+ */
+const MAX_IMMERSIVE_LOOKUPS = Number(process.env.SERPAPI_MAX_IMMERSIVE ?? 4);
+
 export async function enrichShoppingResults(
   results: SerpShoppingResult[] | null | undefined,
   options?: {
@@ -454,6 +516,8 @@ export async function enrichShoppingResults(
     maxProducts?: number;
     /** Filter candidates by title before expensive immersive fetches. */
     designQuery?: string | null;
+    /** What is left of the caller's deadline, for the Buy-link fetches. */
+    timeoutMs?: number;
   }
 ): Promise<Product[]> {
   if (!Array.isArray(results)) return [];
@@ -481,17 +545,41 @@ export async function enrichShoppingResults(
     if (filtered.length > 0) candidates = filtered;
   }
 
+  // stable sort: candidates arrive affordable-first, and equal scores keep it
   candidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
 
-  // Prefer direct PDP links — they skip immersive entirely.
+  /*
+   * NINE IMMERSIVE LOOKUPS IS NINE SERPAPI CREDITS FOR ONE QUESTION.
+   *
+   * Every candidate without a direct Buy link used to get its own immersive
+   * fetch, so a single search cost 2 Shopping calls and 9 immersive ones —
+   * eleven credits, on a key a whole team shares for a weekend. The immersive
+   * call buys one listing's Buy link and its dimension features: worth having,
+   * not worth eleven of.
+   *
+   * So direct PDP links are taken first — they cost nothing extra — and only
+   * a few of the rest are looked up. A search is a handful of credits now,
+   * and a listing that would have needed the tenth lookup simply doesn't
+   * appear.
+   */
   const withDirect = candidates.filter((c) => c.existing_direct_url);
   const needImmersive = candidates.filter((c) => !c.existing_direct_url);
+  const shortfall = Math.max(
+    0,
+    maxProducts - Math.min(withDirect.length, maxProducts)
+  );
+  const lookups = Math.min(shortfall, MAX_IMMERSIVE_LOOKUPS);
+  if (needImmersive.length > lookups) {
+    console.info(
+      `[serpapi] ${lookups} immersive lookup${lookups === 1 ? "" : "s"}, ` +
+        `${needImmersive.length - lookups} listing${
+          needImmersive.length - lookups === 1 ? "" : "s"
+        } left unresolved to save credits`
+    );
+  }
   const top = [
     ...withDirect.slice(0, maxProducts),
-    ...needImmersive.slice(
-      0,
-      Math.max(0, maxProducts - Math.min(withDirect.length, maxProducts))
-    ),
+    ...needImmersive.slice(0, lookups),
   ].slice(0, maxProducts);
 
   const apiKey = options?.apiKey;
@@ -505,7 +593,8 @@ export async function enrichShoppingResults(
       if (!directUrl && candidate.immersive_token && apiKey) {
         const immersive = await fetchImmersiveProduct(
           candidate.immersive_token,
-          apiKey
+          apiKey,
+          options?.timeoutMs
         );
         features = immersive.features;
         immersiveTitle = immersive.title ?? null;
@@ -533,11 +622,52 @@ export async function enrichShoppingResults(
 
   const products: Product[] = [];
   const seenIds = new Set<string>();
+  /*
+   * The same listing reaches us twice — once resolved to its retailer page and
+   * once as the Google wrapper it arrived on — and those are different URLs,
+   * so an id is not enough to tell them apart. The title is.
+   */
+  const seenTitles = new Set<string>();
+  const seenGoogleUrls = new Set<string>();
+  const titleKey = (title: string) =>
+    title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
   for (const product of resolved) {
     if (!product) continue;
     if (seenIds.has(product.id)) continue;
+    if (seenTitles.has(titleKey(product.title))) continue;
     seenIds.add(product.id);
+    seenTitles.add(titleKey(product.title));
+    if (product.google_product_url) seenGoogleUrls.add(product.google_product_url);
     products.push(product);
+  }
+
+  /*
+   * A SHOPPING PAGE BEATS AN EMPTY SHELF.
+   *
+   * Google answered with forty listings and three of them survived, because
+   * the other thirty-seven arrived as Google wrapper links and resolving each
+   * one into a retailer Buy link costs a SerpAPI credit we are no longer
+   * spending forty of. Those listings are real: title, price, image, seller,
+   * and a link that opens the product with its sellers on it.
+   *
+   * So they top up the shelf, after every properly resolved listing, and only
+   * when there would otherwise be too few to choose between. The card still
+   * shows the seller's name; what it cannot promise is a one-click PDP.
+   */
+  if (products.length < maxProducts) {
+    for (const candidate of candidates) {
+      if (products.length >= maxProducts) break;
+      if (!candidate.google_product_url || candidate.existing_direct_url) continue;
+      if (seenGoogleUrls.has(candidate.google_product_url)) continue;
+      if (seenTitles.has(titleKey(candidate.title))) continue;
+      const product = buildProductFromGoogleLink(candidate);
+      if (!product || seenIds.has(product.id)) continue;
+      seenIds.add(product.id);
+      seenTitles.add(titleKey(product.title));
+      seenGoogleUrls.add(candidate.google_product_url);
+      products.push(product);
+    }
   }
 
   return rankAndCap(
