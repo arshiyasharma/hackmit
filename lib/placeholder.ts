@@ -304,14 +304,24 @@ export function buildPrompt(category: string, ctx: RoomContext): string {
    * they always were: the room around it, mentioned once, so the object sits
    * in the room without being painted in all five of them.
    */
+  /*
+   * WITH NOTHING PICKED, THE ROOM STILL CHOOSES.
+   *
+   * Only hand-picked colours reached this prompt, and most people never open
+   * the picker — so the drawing came back in whatever colours the model felt
+   * like, in a room whose own palette we had just read off the photo. The
+   * dominant colour now stands in for a pick, so the object always belongs to
+   * the room it is standing in. A real pick still overrides it.
+   */
   const picked = (ctx.picked ?? []).filter(Boolean);
-  const names = colourNames(picked);
+  const chosen = picked.length > 0 ? picked : ctx.palette.slice(0, 1);
+  const names = colourNames(chosen);
   const object = names.length
-    ? `${names.join(" and ")} (${picked.join(", ")}) ${cat}`
+    ? `${names.join(" and ")} (${chosen.join(", ")}) ${cat}`
     : cat;
 
   const room = ctx.palette.length
-    ? ctx.palette.filter((hex) => !picked.includes(hex)).join(", ")
+    ? ctx.palette.filter((hex) => !chosen.includes(hex)).join(", ")
     : "";
 
   return [

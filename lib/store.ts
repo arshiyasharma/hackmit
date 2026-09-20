@@ -66,8 +66,21 @@ const MAX_STYLE_TAGS = 6;
 const MAX_PALETTE = 8;
 
 /** How much of the strip actually reaches a shop's search box. */
-const MAX_QUERY_TAGS = 3;
-const MAX_QUERY_COLOURS = 2;
+/*
+ * ONE STYLE WORD AND ONE COLOUR. NOT THREE AND TWO.
+ *
+ * Measured against the live API, from the dev log:
+ *   "warm wood modern minimalist decorative floor pillows"  -> 0 results
+ *   "warm decorative floor pillows"                         -> 0 results
+ *   "minimalist luxury glass coffee table"                  -> 0 results
+ *   "minimalist glass coffee table"                         -> 40 results
+ * Google Shopping falls off a cliff at two adjectives in front of a
+ * multi-word object, and every word past that buys nothing. The strip still
+ * shows every word and every colour — they are what the user can edit, and
+ * the newest of each is what goes to the shops.
+ */
+const MAX_QUERY_TAGS = 1;
+const MAX_QUERY_COLOURS = 1;
 
 /** "#ABC", "abc123", "#AABBCC" all become "#aabbcc"; anything else is null. */
 function normalizeHex(input: string): string | null {
@@ -730,6 +743,23 @@ export function searchQuery(
    * five read off the photo describe the room, and pushing all of them in
    * ("brown gold rust cream black tall lamp") buries the object itself.
    */
-  const colours = colourNames(context?.picked ?? []).slice(-MAX_QUERY_COLOURS);
-  return [...tags, ...colours, shoppable(request)].filter(Boolean).join(" ");
+  /*
+   * A COLOUR ALWAYS GOES TO THE SHOPS.
+   *
+   * Only hand-picked colours used to, and most people never open the picker —
+   * so "the colours are not being sent" was exactly right: a room read as
+   * five browns searched as if it had no colour at all. A picked colour is an
+   * instruction and still wins; with none, the room's dominant colour goes
+   * instead, by name, because "#8c5a3b" is not something a shop can search
+   * for and "brown" is.
+   */
+  const pickedNames = colourNames(context?.picked ?? []);
+  const colours = (
+    pickedNames.length > 0
+      ? pickedNames
+      : colourNames((context?.palette ?? []).slice(0, 1))
+  ).slice(-MAX_QUERY_COLOURS);
+
+  // colour, then style, then the thing — the order a listing title uses
+  return [...colours, ...tags, shoppable(request)].filter(Boolean).join(" ");
 }

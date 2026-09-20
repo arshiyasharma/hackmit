@@ -380,6 +380,34 @@ function buildProductFromCandidate(
   });
 }
 
+/**
+ * The listing as Google has it: its own product page, which lists the sellers.
+ * Used only to fill a shelf that would otherwise be nearly empty.
+ */
+function buildProductFromGoogleLink(candidate: ShoppingCandidate): Product | null {
+  const url = candidate.google_product_url;
+  if (!url || !candidate.title) return null;
+
+  const dimensions = parseDimensionsFromText(candidate.title);
+  return {
+    id: productIdFromUrl(url),
+    title: candidate.title,
+    price_cents: candidate.price_cents ?? null,
+    currency: "USD",
+    image_url: candidate.image_url,
+    product_url: url,
+    retailer: candidate.retailer,
+    dimensions:
+      dimensions.h_in == null &&
+      dimensions.w_in == null &&
+      dimensions.d_in == null
+        ? unknownDimensions()
+        : { ...dimensions, estimated: false },
+    in_stock: null,
+    google_product_url: url,
+  };
+}
+
 function rankAndCap(products: Product[], maxProducts = MAX_PRODUCTS): Product[] {
   const scored = products.map((product) => ({
     product,
@@ -570,11 +598,52 @@ export async function enrichShoppingResults(
 
   const products: Product[] = [];
   const seenIds = new Set<string>();
+  /*
+   * The same listing reaches us twice — once resolved to its retailer page and
+   * once as the Google wrapper it arrived on — and those are different URLs,
+   * so an id is not enough to tell them apart. The title is.
+   */
+  const seenTitles = new Set<string>();
+  const seenGoogleUrls = new Set<string>();
+  const titleKey = (title: string) =>
+    title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
   for (const product of resolved) {
     if (!product) continue;
     if (seenIds.has(product.id)) continue;
+    if (seenTitles.has(titleKey(product.title))) continue;
     seenIds.add(product.id);
+    seenTitles.add(titleKey(product.title));
+    if (product.google_product_url) seenGoogleUrls.add(product.google_product_url);
     products.push(product);
+  }
+
+  /*
+   * A SHOPPING PAGE BEATS AN EMPTY SHELF.
+   *
+   * Google answered with forty listings and three of them survived, because
+   * the other thirty-seven arrived as Google wrapper links and resolving each
+   * one into a retailer Buy link costs a SerpAPI credit we are no longer
+   * spending forty of. Those listings are real: title, price, image, seller,
+   * and a link that opens the product with its sellers on it.
+   *
+   * So they top up the shelf, after every properly resolved listing, and only
+   * when there would otherwise be too few to choose between. The card still
+   * shows the seller's name; what it cannot promise is a one-click PDP.
+   */
+  if (products.length < maxProducts) {
+    for (const candidate of candidates) {
+      if (products.length >= maxProducts) break;
+      if (!candidate.google_product_url || candidate.existing_direct_url) continue;
+      if (seenGoogleUrls.has(candidate.google_product_url)) continue;
+      if (seenTitles.has(titleKey(candidate.title))) continue;
+      const product = buildProductFromGoogleLink(candidate);
+      if (!product || seenIds.has(product.id)) continue;
+      seenIds.add(product.id);
+      seenTitles.add(titleKey(product.title));
+      seenGoogleUrls.add(candidate.google_product_url);
+      products.push(product);
+    }
   }
 
   return rankAndCap(

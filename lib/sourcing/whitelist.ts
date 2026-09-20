@@ -177,7 +177,11 @@ export function retailerFromSourceLabel(
   source: string | null | undefined
 ): string | null {
   if (!source || typeof source !== "string") return null;
-  const label = source.trim().toLowerCase();
+  /*
+   * Google labels a marketplace listing "eBay - wealthvis_0". The shop is
+   * eBay; the rest is a seller handle nobody recognises on a product card.
+   */
+  const label = source.trim().toLowerCase().split(/\s+[-—|]\s+/)[0]!.trim();
   if (!label) return null;
 
   for (const domain of RETAILER_WHITELIST) {

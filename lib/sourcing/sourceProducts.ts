@@ -128,12 +128,49 @@ function upsertInBackground(products: Product[]): void {
   });
 }
 
+/**
+ * The same listing reaches the shelf from more than one place — Google's
+ * answer, the Elastic catalogue, and the wrapper link behind both — and each
+ * carries its own id. Two identical pillows side by side reads as a bug, so
+ * the last word on duplicates is the title.
+ */
+export function titleFamily(title: string): string {
+  /*
+   * The first few words, not the whole title. One Etsy listing arrives four
+   * times as four sizes — "Hemp Custom made Window Mudroom Floor bench cushion
+   * 16x16 / 18x18 / 20x20" — and four slots out of eight spent on one cushion
+   * is a shelf with nothing to choose from.
+   */
+  return (title || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .slice(0, 6)
+    .join(" ");
+}
+
+function dedupeByTitle(products: Product[]): Product[] {
+  const seen = new Set<string>();
+  const out: Product[] = [];
+  for (const product of products) {
+    const key = titleFamily(product.title);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(product);
+  }
+  return out;
+}
+
 function finalizeProducts(
   products: Product[],
   designQuery: string,
   limit: number
 ): Product[] {
-  return diversifyProductsByQuery(products, designQuery).slice(0, limit);
+  return dedupeByTitle(diversifyProductsByQuery(products, designQuery)).slice(
+    0,
+    limit
+  );
 }
 
 function isColorDominated(products: Product[]): boolean {
@@ -205,10 +242,20 @@ export async function sourceProductsForQuery(
         maxPriceCents,
       })
     );
-    // Broad queries skip Elastic-only unless the catalog isn't color-dominated.
+    /*
+     * THE CATALOGUE HAS TO FILL THE SHELF, NOT JUST REACH THREE.
+     *
+     * Elasticsearch holds what earlier searches upserted, duplicates and all,
+     * so "three hits" could mean two distinct pillows — and because three was
+     * enough to skip SerpAPI, a question that Google would have answered with
+     * forty listings came back with two. The bar is now most of the shelf,
+     * counted after duplicate titles are collapsed; below it the shops get
+     * asked and the catalogue's hits are merged in behind the answer.
+     */
+    const elasticUnique = dedupeByTitle(elasticProducts);
     const trustElastic =
-      elasticProducts.length >= elasticMin &&
-      (!broad || !isColorDominated(elasticProducts));
+      elasticUnique.length >= Math.max(elasticMin, Math.ceil(limit * 0.75)) &&
+      (!broad || !isColorDominated(elasticUnique));
 
     if (trustElastic) {
       const filled = await fillMissingDimensions(

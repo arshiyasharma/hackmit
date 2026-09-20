@@ -75,9 +75,12 @@ const LIMIT = 8;
  * question that was likelier to answer anyway, and when the budget is gone
  * the ladder stops climbing and reports what it has.
  */
-const SEARCH_BUDGET_MS = Number(process.env.SEARCH_BUDGET_MS ?? 20_000);
-const RUNG_CAP_MS = 12_000;
-const MIN_RUNG_MS = 2_500;
+const SEARCH_BUDGET_MS = Number(process.env.SEARCH_BUDGET_MS ?? 22_000);
+/** How long the styled query may take before the plain answer wins. */
+const STYLED_WAIT_MS = Number(process.env.SEARCH_STYLED_WAIT_MS ?? 9_000);
+/** Each of the two opening queries. The rest of the budget is the bare one's. */
+const PARALLEL_CAP_MS = 8_000;
+const MIN_RUNG_MS = 4_000;
 
 function toMm(inches: number | null | undefined): number | null {
   if (inches == null || !Number.isFinite(inches) || inches <= 0) return null;
@@ -235,18 +238,9 @@ async function fetchOptions(
   const rungs = ladder(query, request);
   const startedAt = now();
   const deadline = startedAt + SEARCH_BUDGET_MS;
-  let sourced: SourcedProduct[] = [];
 
-  for (const [index, rung] of rungs.entries()) {
-    const left = deadline - now();
-    if (left < MIN_RUNG_MS) {
-      console.info(
-        `[search] "${query}" ran out of time with "${rung}" untried`
-      );
-      break;
-    }
-
-    sourced = await sourceProductsForQuery({
+  const ask = (rung: string, budgetMs?: number) =>
+    sourceProductsForQuery({
       shoppingQuery: rung,
       designQuery: request || rung,
       apiKey,
@@ -255,15 +249,94 @@ async function fetchOptions(
       // the rungs ARE the fallbacks; a second ladder underneath this one is
       // how a single question turned into six SerpAPI calls
       fallbacks: false,
-      deadline:
-        now() +
-        (index === rungs.length - 1 ? left : Math.min(left, RUNG_CAP_MS)),
+      deadline: budgetMs != null ? Math.min(deadline, now() + budgetMs) : deadline,
+    }).catch((error) => {
+      console.warn(`[search] "${rung}" failed:`, error);
+      return [] as SourcedProduct[];
     });
+
+  /*
+   * THE PLAIN QUESTION IS ASKED AT THE SAME TIME AS THE STYLED ONE.
+   *
+   * Sequentially, a styled query that Google answers with an empty page cost
+   * its own wait before the simpler one even started — and with SerpAPI
+   * taking ten to twenty seconds a call, three rungs in a row ran past the
+   * budget and the room reported nothing for a question the shops could
+   * answer. The log has exactly that: "warm wood modern minimalist decorative
+   * floor pillows" came back empty in 9.7s and "decorative floor pillows" was
+   * never reached.
+   *
+   * So the styled query and the bare object go out together. The styled one
+   * still wins when it answers — it is the personalised result and the one on
+   * screen — and when it doesn't, the answer is already here rather than
+   * twenty seconds away. Two calls, one wait.
+   */
+  /*
+   * THE PARTNER QUERY KEEPS THE COLOUR.
+   *
+   * Colours lead the query now, so the middle rung is "sage floor pillows" —
+   * the colour and the object, without the style word that makes Google give
+   * up. That is the one asked alongside the full query, because falling
+   * straight to the bare object would mean the colour never reached a shop
+   * that answered. The bare object is still there, last, if both come back
+   * empty.
+   */
+  const bare = rungs.length > 1 ? rungs[rungs.length - 1]! : null;
+  const partner = rungs.length > 2 ? rungs[1]! : bare;
+  /*
+   * NEITHER OF THE FIRST TWO MAY SPEND THE WHOLE BUDGET.
+   *
+   * SerpAPI does not always answer a hopeless query with an empty page; it
+   * hangs. "sage decorative floor pillows" was aborted at 20.0s having
+   * consumed every second the search had, so "decorative floor pillows" —
+   * which answers in under a second — was never asked, and the room showed
+   * nothing. Eight seconds each, and what is left belongs to the question
+   * that always works.
+   */
+  const styledJob = ask(rungs[0]!, PARALLEL_CAP_MS);
+  const plainJob = partner
+    ? ask(partner, PARALLEL_CAP_MS)
+    : Promise.resolve([] as SourcedProduct[]);
+
+  /*
+   * A HANGING QUERY IS NOT WORTH WAITING OUT.
+   *
+   * SerpAPI does not answer a long query with an empty page — it stops
+   * answering. From the log, "decorative floor pillows" came back in 90ms
+   * while "brown minimalist decorative floor pillows" was aborted at 20.0s,
+   * and because both were awaited together the room still waited the full
+   * twenty seconds for listings it already had.
+   *
+   * So the styled query gets a window to be better, not a blank cheque. Past
+   * it, whatever the plain question found is the answer.
+   */
+  const styled = await Promise.race([
+    styledJob,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), STYLED_WAIT_MS)),
+  ]);
+
+  let sourced: SourcedProduct[] = styled ?? [];
+  if (sourced.length === 0) {
+    if (styled === null) {
+      console.info(
+        `[search] "${query}" was still thinking after ${STYLED_WAIT_MS}ms; taking "${partner}"`
+      );
+    } else if (partner) {
+      console.info(`[search] "${query}" found nothing; trying "${partner}"`);
+    }
+    sourced = await plainJob;
+  }
+
+  // the bare object, last, only if colour and style both came back empty
+  if (
+    sourced.length === 0 &&
+    bare &&
+    bare !== partner &&
+    deadline - now() > MIN_RUNG_MS
+  ) {
+    sourced = await ask(bare);
     if (sourced.length > 0) {
-      if (rung !== query) {
-        console.info(`[search] "${query}" found nothing; "${rung}" answered`);
-      }
-      break;
+      console.info(`[search] "${query}" found nothing; "${bare}" answered`);
     }
   }
 

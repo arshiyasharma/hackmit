@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { filterProductsByDesignQuery } from "@/lib/sourcing/roomContext";
+import { titleFamily } from "@/lib/sourcing/sourceProducts";
 import {
   isDirectRetailerUrl,
   resolveRetailer,
   retailerDomainFor,
+  retailerFromSourceLabel,
   sameRetailer,
 } from "@/lib/sourcing/whitelist";
 
@@ -85,5 +87,27 @@ describe("retailer eligibility", () => {
   it("reads a label and a domain as the same shop", () => {
     expect(sameRetailer("target.com", "target")).toBe(true);
     expect(sameRetailer("target.com", "walmart.com")).toBe(false);
+  });
+});
+
+describe("shelf hygiene", () => {
+  it("reads four sizes of one cushion as one product", () => {
+    const sizes = [
+      "Hemp Custom made Window Mudroom Floor bench cushion 16x16",
+      "Hemp Custom made Window Mudroom Floor bench cushion 20x20",
+    ].map(titleFamily);
+
+    expect(sizes[0]).toBe(sizes[1]);
+  });
+
+  it("keeps two different pillows apart", () => {
+    expect(titleFamily("Safavieh Payton Floor Pillow")).not.toBe(
+      titleFamily("Greendale Home Fashions Square Floor Pillow")
+    );
+  });
+
+  it("calls the shop eBay, not the seller's handle", () => {
+    expect(retailerFromSourceLabel("eBay - wealthvis_0")).toBe("ebay");
+    expect(retailerFromSourceLabel("Target")).toBe("target");
   });
 });
