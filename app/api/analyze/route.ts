@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { GoogleGenAI } from "@google/genai";
 
 import type { NextRequest } from "next/server";
@@ -33,12 +35,30 @@ import type { RoomContext } from "@/types";
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 45;
 
 const OPENAI_MODEL = "gpt-4o-mini";
-const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
+/**
+ * When the first model is busy, ask a different one rather than giving up.
+ * These three were checked against this project's key with the SDK: they
+ * answer, and they answer this prompt equally well. gemini-2.5-flash and
+ * gemini-flash-latest are NOT here on purpose — the first 404s ("no longer
+ * available to new users") and the second was itself 503 when tried.
+ */
+const GEMINI_FALLBACK_MODELS = (
+  process.env.GEMINI_FALLBACK_MODELS ??
+  "gemini-3-flash-preview,gemini-3.1-flash-lite"
+)
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+
+/** 503 "high demand" and 429 clear in a second; everything else will not. */
+const RETRY_PATTERN = /\b(429|500|502|503|504|high demand|overloaded|unavailable)\b/i;
+const RETRY_DELAYS_MS = [300, 600];
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 22_000;
 
 /** A 1600px JPEG data URL is ~1 MB. Anything far past that is not our photo. */
 const MAX_DATA_URL_CHARS = 12_000_000;
@@ -194,25 +214,57 @@ async function readRoomGemini(
   if (!mimeType || !data) return null;
 
   const ai = new GoogleGenAI({ apiKey: key });
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: `${SYSTEM} ${INSTRUCTION}` },
-          { inlineData: { mimeType, data } },
-        ],
-      },
-    ],
-    config: { responseMimeType: "application/json" },
-  });
 
-  try {
-    return toRoomContext(JSON.parse(response.text ?? ""));
-  } catch {
-    return null;
+  const ask = async (model: string): Promise<RoomContext | null> => {
+    const response = await ai.models.generateContent({
+      model,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: `${SYSTEM} ${INSTRUCTION}` },
+            { inlineData: { mimeType, data } },
+          ],
+        },
+      ],
+      config: { responseMimeType: "application/json" },
+    });
+    try {
+      return toRoomContext(JSON.parse(response.text ?? ""));
+    } catch (error) {
+      console.warn("[analyze] gemini returned unparseable JSON:", error);
+      return null;
+    }
+  };
+
+  /*
+   * THE MODEL IS BUSY MORE OFTEN THAN IT IS BROKEN. gemini-3.6-flash answers
+   * 503 "This model is currently experiencing high demand" on roughly every
+   * other call, and each one of those used to land on screen as the neutral
+   * palette with no style words — the photo looked unread. Two quick retries,
+   * then a different flash model, all inside the same budget.
+   */
+  const models = [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS];
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < models.length; attempt += 1) {
+    try {
+      const context = await ask(models[attempt]);
+      if (context) return context;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!RETRY_PATTERN.test(message)) throw error;
+      console.warn(
+        `[analyze] ${models[attempt]} busy (attempt ${attempt + 1}); retrying`
+      );
+    }
+    const delay = RETRY_DELAYS_MS[attempt];
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
   }
+
+  if (lastError) throw lastError;
+  return null;
 }
 
 async function readRoomOpenAI(
@@ -268,6 +320,33 @@ function answer(context: RoomContext) {
   return Response.json({ ...context, searchTerms: context.suggestions ?? [] });
 }
 
+/* ------------------------------------------------------------------- cache */
+
+/**
+ * The same photo must not be read twice.
+ *
+ * You will capture the same room a dozen times while rehearsing, and each read
+ * costs a call to a model that is busy half the time. Keyed on the bytes, so a
+ * re-upload of the same picture is instant and cannot come back neutral after
+ * coming back rich the first time — which is exactly how "the analysis is
+ * gone" looks from the outside.
+ */
+const reads = new Map<string, RoomContext>();
+const MAX_CACHED_READS = 24;
+
+function cacheKey(dataUrl: string): string {
+  return createHash("sha256").update(dataUrl).digest("hex");
+}
+
+function remember(key: string, context: RoomContext): RoomContext {
+  if (reads.size >= MAX_CACHED_READS) {
+    const oldest = reads.keys().next().value;
+    if (oldest) reads.delete(oldest);
+  }
+  reads.set(key, context);
+  return context;
+}
+
 /* ------------------------------------------------------------------- route */
 
 export async function POST(request: NextRequest) {
@@ -294,6 +373,10 @@ export async function POST(request: NextRequest) {
   const openai = process.env.OPENAI_API_KEY;
   if (!dataUrl || (!gemini && !openai)) return answer(NEUTRAL);
 
+  const key = cacheKey(dataUrl);
+  const seen = reads.get(key);
+  if (seen) return answer(seen);
+
   try {
     const context = gemini
       ? ((await withTimeout(readRoomGemini(dataUrl, gemini), TIMEOUT_MS)) ??
@@ -301,9 +384,15 @@ export async function POST(request: NextRequest) {
           ? await withTimeout(readRoomOpenAI(dataUrl, openai), TIMEOUT_MS)
           : null))
       : await withTimeout(readRoomOpenAI(dataUrl, openai as string), TIMEOUT_MS);
-    return answer(context ?? NEUTRAL);
-  } catch {
-    // timeout, network, refusal — the capture screen is already on /room
+    return answer(context ? remember(key, context) : NEUTRAL);
+  } catch (error) {
+    // timeout, network, refusal — the capture screen is already on /room.
+    // It still answers 200, but it says WHY in the server log: a silent
+    // neutral palette that turned out to be a quota error cost an hour.
+    console.warn(
+      "[analyze] falling back to the neutral palette:",
+      error instanceof Error ? error.message : error
+    );
     return answer(NEUTRAL);
   }
 }
