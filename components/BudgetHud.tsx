@@ -106,6 +106,12 @@ function useLinkedPriceDeltas(
       const now = next.get(id)?.cents ?? 0;
       if (now === was) continue;
       changes.push({
+        /*
+         * SIGNED AS PROGRESS. Linking a $49 lamp moves the bar $49 closer to
+         * the mark, so it reads "+$49"; removing it gives that progress back
+         * and reads "−$49". The floating number and the bar beneath it move
+         * the same way, which is the whole point of putting them together.
+         */
         cents: now - was,
         label: next.get(id)?.label ?? before.get(id)?.label ?? "",
       });
@@ -261,9 +267,45 @@ export function BudgetHud() {
   /* derived every render — the only way this number is ever produced */
   const spent = spentCents(items);
   const overCents = Math.max(0, spent - budgetCents);
+  /*
+   * A TARGET TO REACH, not a tank to drain.
+   *
+   * "$251 left" made every pick feel like losing something. The same two
+   * numbers read the other way round — "$49 of $300", a bar filling towards
+   * the mark — make furnishing the room the thing you are progressing at, and
+   * the budget the finish line rather than the fuel. Going past it is still
+   * said plainly, because that part is not a game.
+   */
+
   const ratio = budgetCents > 0 ? spent / budgetCents : spent > 0 ? 1 : 0;
-  const warn = ratio >= 0.9;
+  // the bar FILLS towards the mark
   const fillPercent = Math.max(0, Math.min(100, ratio * 100));
+  /** within a tenth of the target, or past it: the room is furnished */
+  const met = ratio >= 0.9;
+
+  /*
+   * THE MARK IS A MOMENT, and it happens once. Crossing 90% of the budget is
+   * the closest this screen gets to finishing something, so it says so — once,
+   * in a toast that goes away — rather than adding a third permanent readout
+   * to a screen that is allowed two. Dropping back under arms it again.
+   */
+  const announced = React.useRef(false);
+  React.useEffect(() => {
+    if (met && !announced.current) {
+      announced.current = true;
+      toast(overCents > 0 ? "Budget met — and then some" : "Budget met", {
+        id: "visa-budget-met",
+        description:
+          overCents > 0
+            ? `${money(spent)} against ${money(budgetCents)}`
+            : `${money(spent)} of ${money(budgetCents)} — the room is furnished`,
+      });
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate([8, 40, 12]);
+      }
+    }
+    if (!met) announced.current = false;
+  }, [met, overCents, spent, budgetCents]);
 
   const { current, push, done } = useDeltaQueue();
   useLinkedPriceDeltas(items, push);
@@ -275,20 +317,19 @@ export function BudgetHud() {
     ? ({ duration: 0.15 } as const)
     : ({ type: "spring", stiffness: 420, damping: 34 } as const);
 
+  /*
+   * NO LONGER POSITIONED HERE. The budget used to float absolutely in the
+   * top-right while the room-context strip was capped at 58% beside it, which
+   * left a 2% gutter between them — so a wide total ("$1,240 of $1,500") sat on
+   * top of the strip's pinned "+". Both now live in one flex row owned by
+   * app/room/page.tsx, where they cannot overlap by construction: the strip
+   * takes the space that is left and scrolls its own contents.
+   */
   return (
-    <div
-      className={cn(
-        // absolute, not fixed: it anchors to the room stage, so it lands on the
-        // same edge as the photo instead of the window's on a wide screen
-        "pointer-events-none absolute inset-x-0 top-0 z-40",
-        // the same top inset as the room-context strip, so the two readouts
-        // sit on one line rather than 4px apart
-        "gutter pt-[max(12px,env(safe-area-inset-top))]"
-      )}
-    >
-      <div className="mx-auto flex w-full max-w-md justify-end">
+    <div className="pointer-events-none flex shrink-0 justify-end">
+      <div className="contents">
         {/* the deltas and the counters panel hang off this box */}
-        <div className="pointer-events-auto relative flex max-w-[40%] flex-col items-end">
+        <div className="pointer-events-auto relative flex max-w-[60vw] flex-col items-end">
           <div
             className={cn(
               "w-full min-w-[8rem] rounded-2xl border border-line",
@@ -300,15 +341,21 @@ export function BudgetHud() {
                 type="button"
                 onClick={() => setCounters((open) => !open)}
                 aria-expanded={counters}
-                aria-label={`Spent ${money(spent)} of ${money(
-                  budgetCents
-                )}. Show what you're saving.`}
+                aria-label={
+                  overCents > 0
+                    ? `${money(spent)} of ${money(budgetCents)}, over by ${money(
+                        overCents
+                      )}. Show what you're saving.`
+                    : `${money(spent)} of ${money(
+                        budgetCents
+                      )}. Show what you're saving.`
+                }
                 className="tap -my-1 py-1 leading-none"
               >
                 <NumberPlate
                   value={centsToUnits(spent)}
                   size="md"
-                  tone={overCents > 0 ? "warn" : "default"}
+                  tone={overCents > 0 ? "warn" : met ? "ok" : "default"}
                   format={moneyFormat(spent)}
                 />
               </button>
@@ -347,7 +394,8 @@ export function BudgetHud() {
               <motion.div
                 className={cn(
                   "h-full rounded-full",
-                  warn ? "bg-warn" : "bg-accent"
+                  // accent on the way there, ok at the mark, warn past it
+                  overCents > 0 ? "bg-warn" : met ? "bg-ok" : "bg-accent"
                 )}
                 initial={false}
                 animate={{ width: `${fillPercent}%` }}

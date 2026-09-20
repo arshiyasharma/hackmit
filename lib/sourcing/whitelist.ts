@@ -1,9 +1,54 @@
+/**
+ * A FIVE-SHOP ALLOWLIST IS A FIVE-SHOP CATALOGUE.
+ *
+ * Every Google Shopping hit whose seller was not one of these five used to be
+ * dropped on the floor, in `toShoppingCandidate`, before any relevance, price
+ * or dimension work ran. That is survivable for a sofa — IKEA and Wayfair sell
+ * sofas — and it is fatal for anything else. Ask for a plushie and the shops
+ * that answer are Target, Build-A-Bear, Hot Topic and Barnes & Noble, none of
+ * which were allowed to exist, so the room said "nothing came back from that"
+ * about a Google page that was full of plushies.
+ *
+ * So these five stay as a PREFERENCE — they rank first and they win ties —
+ * and any other real shop is now allowed through. What is still refused is
+ * what is not a shop: the Google wrapper itself, and the social, video and
+ * reference hosts that turn up in Shopping results with nothing to buy on them.
+ */
 export const RETAILER_WHITELIST = [
   "etsy.com",
   "ikea.com",
   "wayfair.com",
   "walmart.com",
   "amazon.com",
+] as const;
+
+/**
+ * Not shops. A link here is a dead end for someone trying to buy the thing,
+ * so it is refused however the result was labelled.
+ */
+const BLOCKED_HOSTS = [
+  "google.com",
+  "googleadservices.com",
+  "googleusercontent.com",
+  "youtube.com",
+  "youtu.be",
+  "pinterest.com",
+  "reddit.com",
+  "facebook.com",
+  "instagram.com",
+  "tiktok.com",
+  "twitter.com",
+  "x.com",
+  "wikipedia.org",
+  "quora.com",
+  "medium.com",
+  "blogspot.com",
+  "wordpress.com",
+  "tumblr.com",
+  "linkedin.com",
+  "yelp.com",
+  "tripadvisor.com",
+  "archive.org",
 ] as const;
 
 /** Common query params that carry the real destination on Google redirect URLs. */
@@ -73,20 +118,47 @@ export function getHostname(link: string): string | null {
   }
 }
 
-/** True if hostname is exactly a whitelist domain or a subdomain of one. */
+function matchesHost(hostname: string, domain: string): boolean {
+  const host = hostname.toLowerCase();
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
+/** True if hostname is exactly a preferred domain or a subdomain of one. */
 export function isWhitelistedHostname(hostname: string): boolean {
   return getWhitelistedDomain(hostname) !== null;
 }
 
-/** Map hostname to the canonical whitelist domain (e.g. www.ikea.com → ikea.com). */
+/** Map hostname to the canonical preferred domain (e.g. www.ikea.com → ikea.com). */
 export function getWhitelistedDomain(hostname: string): string | null {
-  const host = hostname.toLowerCase();
   for (const domain of RETAILER_WHITELIST) {
-    if (host === domain || host.endsWith(`.${domain}`)) {
-      return domain;
-    }
+    if (matchesHost(hostname, domain)) return domain;
   }
   return null;
+}
+
+/** True for hosts that sell nothing — social, video, reference, the wrapper. */
+export function isBlockedHostname(hostname: string): boolean {
+  return BLOCKED_HOSTS.some((domain) => matchesHost(hostname, domain));
+}
+
+/**
+ * The name this shop goes by: the preferred domain when it is one of the five,
+ * otherwise its own hostname with the `www.` dropped — "target.com",
+ * "buildabear.com". Null only when the host sells nothing.
+ */
+export function retailerDomainFor(hostname: string): string | null {
+  const host = hostname.toLowerCase().replace(/^www\./, "");
+  if (!host || !host.includes(".")) return null;
+  if (isBlockedHostname(host)) return null;
+  return getWhitelistedDomain(host) ?? host;
+}
+
+/** Two retailer names for the same shop, whether or not one carries the TLD. */
+export function sameRetailer(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  const bare = (value: string) =>
+    value.toLowerCase().replace(/^www\./, "").replace(/\.[a-z.]{2,}$/, "");
+  return bare(a) === bare(b);
 }
 
 export function isWhitelistedProductUrl(link: string | undefined | null): boolean {
@@ -97,14 +169,16 @@ export function isWhitelistedProductUrl(link: string | undefined | null): boolea
 }
 
 /**
- * Map Google Shopping `source` labels (e.g. "Amazon", "Walmart") to a
- * whitelist domain when the product link is a Google wrapper URL.
+ * Map Google Shopping `source` labels ("Amazon", "Target") to a retailer name.
+ * The five preferred shops answer with their domain; anything else answers
+ * with its own label, which is what the card ends up showing.
  */
 export function retailerFromSourceLabel(
   source: string | null | undefined
 ): string | null {
   if (!source || typeof source !== "string") return null;
-  const label = source.toLowerCase();
+  const label = source.trim().toLowerCase();
+  if (!label) return null;
 
   for (const domain of RETAILER_WHITELIST) {
     const name = domain.replace(/\.com$/, "");
@@ -113,17 +187,17 @@ export function retailerFromSourceLabel(
     }
   }
 
-  return null;
+  return label;
 }
 
-/** Prefer hostname whitelist; fall back to Shopping source label. */
+/** Prefer the hostname; fall back to the Shopping source label. */
 export function resolveRetailer(
   link: string,
   sourceLabel?: string | null
 ): string | null {
   const hostname = getHostname(link);
-  if (hostname) {
-    const domain = getWhitelistedDomain(hostname);
+  if (hostname && !isGoogleHostedUrl(link)) {
+    const domain = retailerDomainFor(hostname);
     if (domain) return domain;
   }
   return retailerFromSourceLabel(sourceLabel);
@@ -141,10 +215,24 @@ export function isGoogleHostedUrl(link: string | null | undefined): boolean {
   );
 }
 
-/** True when the URL is a direct whitelist retailer page (not Google Shopping). */
+/**
+ * True when the URL is a page someone could actually buy from: a real host,
+ * over http(s), that is neither the Google wrapper nor one of the blocked
+ * non-shops. Being one of the five preferred shops is a bonus, not a gate.
+ */
 export function isDirectRetailerUrl(link: string | null | undefined): boolean {
   if (!link || isGoogleHostedUrl(link)) return false;
-  const hostname = getHostname(link);
-  if (!hostname) return false;
-  return getWhitelistedDomain(hostname) !== null;
+
+  const unwrapped = unwrapProductUrl(link);
+  if (!unwrapped) return false;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(unwrapped);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+
+  return retailerDomainFor(parsed.hostname) !== null;
 }

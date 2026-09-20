@@ -36,6 +36,12 @@ export type Carton = [number, number, number];
 
 /** The captured photo. `dataUrl` is already EXIF-rotated and downscaled. */
 export type Room = {
+  /**
+   * A 512px copy sent to /api/analyze and nowhere else. The style read wants
+   * five colours and four words, not detail, and a tenth of the bytes is a
+   * tenth of the upload and the tokens.
+   */
+  analysisDataUrl?: string;
   dataUrl: string;
   /** natural pixels of dataUrl, after downscale */
   width: number;
@@ -57,6 +63,13 @@ export type RoomContextSource = "model" | "fallback";
  * nobody would type into a shop's search box is a useless tag.
  */
 export type RoomContext = {
+  /**
+   * The colours the USER added by hand, a subset of `palette`. Kept apart
+   * because these are intent — someone who picks sage means "find me a sage
+   * one" — while the five read off the photo are just what the room looks
+   * like. Only these go into the search query.
+   */
+  picked?: string[];
   /** words a shopper would type, lowercase, at most five */
   styleTags: string[];
   /** five hex strings, ordered by dominance */
@@ -72,7 +85,7 @@ export type RoomContext = {
 
 /** What the user tapped to give the photo a real-world scale (photo mode). */
 export type ScaleReference = {
-  kind: "door" | "outlet" | "brick" | "custom";
+  kind: "wall" | "door" | "outlet" | "brick" | "custom";
   /** what we show the user, e.g. "a standard interior door" */
   label: string;
   /** the assumed real size of that object */
@@ -182,6 +195,13 @@ export type PlacedItem = {
   category: string;
   /** the generated cutout PNG; "" until /api/placeholder answers */
   placeholderUrl: string;
+  /**
+   * The LINKED listing's own photo, keyed and trimmed. Once a product is
+   * chosen the room shows the real thing; unlink and the stand-in returns,
+   * which is why this is a second field rather than an overwrite.
+   */
+  listingCutoutUrl: string | null;
+  listingWidthRatio: number | null;
   /** the cutout's natural width / height, so the plane never distorts */
   placeholderWidthRatio: number;
   placeholderStatus: AssetStatus;
@@ -190,7 +210,14 @@ export type PlacedItem = {
   optionsStatus: AssetStatus;
   /** metres, AR world space */
   position: [number, number, number];
+  /** degrees in photo mode, where the sprite lies in the picture plane */
   rotationY: number;
+  /**
+   * The user's own size, as a multiple of the listing's real size. 1 is true
+   * scale and is what the fit check always judges — a sprite resized by hand
+   * says so on its label rather than quietly claiming to be to scale.
+   */
+  scale: number;
   /** false until the user taps the floor (or drops it in photo mode) */
   placed: boolean;
   /** null until they pick one */

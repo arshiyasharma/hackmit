@@ -12,10 +12,11 @@ import {
 import { scrapeRetailerDimensions } from "@/lib/sourcing/scrapeDimensions";
 import {
   buildShoppingQueryFallbacks,
+  searchGoogleShopping,
   searchGoogleShoppingWithFallbacks,
 } from "@/lib/sourcing/serpapi";
 
-const DEFAULT_LIMIT = 4;
+const DEFAULT_LIMIT = 8;
 const ELASTIC_ENOUGH = 3;
 const RESULT_CACHE_TTL_MS = 90_000;
 const SCRAPE_BUDGET_MS = 2_500;
@@ -39,6 +40,19 @@ export type SourceProductsOptions = {
    * (e.g. sofas when the user asked for "pink lamp").
    */
   designQuery?: string | null;
+  /**
+   * Epoch ms after which this search should stop asking and answer with what
+   * it has. Without one, a slow SerpAPI can run past any client that is
+   * waiting, which reads as "nothing came back" for a minute.
+   */
+  deadline?: number;
+  /**
+   * Whether to try simpler versions of the query when this one comes back
+   * empty. The room screen ladders its own queries in lib/sourcing/adapter.ts,
+   * so it turns this off — two ladders stacked meant one question could cost
+   * six SerpAPI calls and a minute of waiting.
+   */
+  fallbacks?: boolean;
 };
 
 function cacheKey(options: SourceProductsOptions): string {
@@ -151,6 +165,20 @@ export async function sourceProductsForQuery(
       : undefined;
   const broad = isBroadProductQuery(designQuery);
 
+  /*
+   * RELEVANCE IS A GATE HERE, AND IT HAS TO BE.
+   *
+   * It was briefly a preference — keep everything when the filter keeps
+   * nothing — on the theory that showing something beats saying "nothing came
+   * back". Asking for a plushie then returned a table lamp and two coffee
+   * tables in half a second, because Elasticsearch is a fuzzy search over a
+   * catalogue of furniture: it always answers, and for a word it has never
+   * indexed it answers with whatever it does have. Three wrong answers cleared
+   * the "enough hits to skip SerpAPI" bar, so the shops were never asked.
+   *
+   * An empty shelf sends the question on to Google. A shelf of the wrong thing
+   * ends the search with the wrong thing on it.
+   */
   const applyRelevance = (products: Product[]) =>
     diversifyProductsByQuery(
       filterProductsByDesignQuery(products, designQuery),
@@ -161,7 +189,19 @@ export async function sourceProductsForQuery(
   try {
     elasticProducts = applyRelevance(
       await searchProducts({
-        q: designQuery,
+        /*
+         * THE STYLED QUERY, not the bare request.
+         *
+         * `designQuery` is "a tall lamp" — what the user asked for, used below
+         * to drop irrelevant hits. `shoppingQuery` is what the room screen is
+         * actually showing above the results: the style words and the picked
+         * colours joined to that request. Searching the bare request here made
+         * the whole strip decorative — add "brass", remove "ornate", pick sage,
+         * and Elastic returned the same lamps either way, because none of those
+         * words ever reached it. Retrieval uses the full query; relevance
+         * filtering still uses the request.
+         */
+        q: options.shoppingQuery || designQuery,
         maxPriceCents,
       })
     );
@@ -206,10 +246,16 @@ export async function sourceProductsForQuery(
     throw new Error("SERPAPI_KEY is not configured");
   }
 
-  const result = await searchGoogleShoppingWithFallbacks(
-    buildShoppingQueryFallbacks(options.shoppingQuery, designQuery),
-    options.apiKey
-  );
+  const budgetMs =
+    options.deadline != null ? options.deadline - Date.now() : undefined;
+  const result =
+    options.fallbacks === false
+      ? await searchGoogleShopping(options.shoppingQuery, options.apiKey, budgetMs)
+      : await searchGoogleShoppingWithFallbacks(
+          buildShoppingQueryFallbacks(options.shoppingQuery, designQuery),
+          options.apiKey,
+          budgetMs
+        );
   if (!result.ok) {
     if (elasticProducts.length > 0) {
       const filled = await fillMissingDimensions(
@@ -227,8 +273,14 @@ export async function sourceProductsForQuery(
     apiKey: options.apiKey,
     maxProducts: limit + 1,
     designQuery,
+    timeoutMs:
+      options.deadline != null ? options.deadline - Date.now() : undefined,
   });
   const resolved = applyRelevance(enriched);
+  console.info(
+    `[source] "${options.shoppingQuery}" — ${result.shopping_results.length} from Google, ` +
+      `${enriched.length} with a Buy link, ${resolved.length} relevant`
+  );
 
   const seen = new Set(resolved.map((p) => p.id));
   const merged = [

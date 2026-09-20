@@ -19,11 +19,13 @@ import {
   filterProductsByDesignQuery,
 } from "@/lib/sourcing/roomContext";
 import {
-  getWhitelistedDomain,
   isDirectRetailerUrl,
   isGoogleHostedUrl,
+  isWhitelistedHostname,
   resolveRetailer,
+  retailerDomainFor,
   retailerFromSourceLabel,
+  sameRetailer,
   unwrapProductUrl,
 } from "@/lib/sourcing/whitelist";
 
@@ -41,7 +43,7 @@ export type Product = {
 };
 
 const MIN_PRODUCTS = 3;
-const MAX_PRODUCTS = 5;
+const MAX_PRODUCTS = 10;
 
 type ShoppingCandidate = {
   title: string;
@@ -139,6 +141,8 @@ function scoreProduct(product: Product, rawTitle: string): number {
     score += 3;
   }
   if (rawTitle.length > 20) score += 1;
+  // the five known-good shops still lead; the rest are eligible, not equal
+  if (isWhitelistedHostname(product.retailer)) score += 2;
   return score;
 }
 
@@ -150,6 +154,7 @@ function scoreCandidate(candidate: ShoppingCandidate): number {
   if (candidate.title.trim()) score += 2;
   if (candidate.image_url) score += 1;
   if (candidate.title.length > 20) score += 1;
+  if (isWhitelistedHostname(candidate.retailer)) score += 2;
   return score;
 }
 
@@ -245,9 +250,10 @@ function pickDirectStore(
       const url = storePurchaseUrl(store);
       if (!url) return s;
       try {
-        const domain = getWhitelistedDomain(new URL(url).hostname);
-        if (domain === retailer) s += 6;
-        else if (domain) s += 2;
+        const domain = retailerDomainFor(new URL(url).hostname);
+        if (sameRetailer(domain, retailer)) s += 6;
+        else if (domain && isWhitelistedHostname(domain)) s += 2;
+        else if (domain) s += 1;
       } catch {
         // ignore
       }
@@ -260,8 +266,8 @@ function pickDirectStore(
     const url = storePurchaseUrl(store);
     if (!url || !isDirectRetailerUrl(url)) continue;
     try {
-      const domain = getWhitelistedDomain(new URL(url).hostname);
-      if (domain === retailer) return { url, store };
+      const domain = retailerDomainFor(new URL(url).hostname);
+      if (sameRetailer(domain, retailer)) return { url, store };
     } catch {
       // continue
     }
@@ -454,6 +460,8 @@ export async function enrichShoppingResults(
     maxProducts?: number;
     /** Filter candidates by title before expensive immersive fetches. */
     designQuery?: string | null;
+    /** What is left of the caller's deadline, for the Buy-link fetches. */
+    timeoutMs?: number;
   }
 ): Promise<Product[]> {
   if (!Array.isArray(results)) return [];
@@ -505,7 +513,8 @@ export async function enrichShoppingResults(
       if (!directUrl && candidate.immersive_token && apiKey) {
         const immersive = await fetchImmersiveProduct(
           candidate.immersive_token,
-          apiKey
+          apiKey,
+          options?.timeoutMs
         );
         features = immersive.features;
         immersiveTitle = immersive.title ?? null;

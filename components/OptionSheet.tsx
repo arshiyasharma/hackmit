@@ -6,7 +6,14 @@ import { create } from "zustand";
 import SourcingResults from "@/components/SourcingResults";
 import { Sheet } from "@/components/ui/Sheet";
 import { withDemo } from "@/lib/demo";
-import { searchQuery, spentCents, useActiveItem, useStore } from "@/lib/store";
+import {
+  roomContextFor,
+  searchQuery,
+  spentCents,
+  useActiveItem,
+  useRoomContext,
+  useStore,
+} from "@/lib/store";
 import type { PlacedItem, Product } from "@/types";
 
 /**
@@ -62,6 +69,8 @@ export function useOptionsOpen(): boolean {
 
 /** One search per item, even across a remount of the sheet. */
 const started = new Set<string>();
+/** itemId -> the exact query already sent for it, so a repeat is a no-op */
+const asked = new Map<string, string>();
 const inFlight = new Map<string, AbortController>();
 
 type SearchAnswer = {
@@ -80,7 +89,7 @@ function optionsOf(answer: SearchAnswer): Product[] {
 export function OptionSheet() {
   const open = useSheetState((s) => s.open);
   const item = useActiveItem();
-  const roomContext = useStore((s) => s.roomContext);
+  const roomContext = useRoomContext();
 
   const [snap, setSnap] = React.useState(1);
   const [pendingId, setPendingId] = React.useState<string | null>(null);
@@ -92,7 +101,21 @@ export function OptionSheet() {
 
   const runSearch = React.useCallback(async (target: PlacedItem) => {
     const state = useStore.getState();
-    const sent = searchQuery(state.roomContext, target.request);
+    const context = roomContextFor(state);
+    const sent = searchQuery(context, target.request);
+
+    /*
+     * THE SAME QUESTION IS NOT ASKED TWICE.
+     *
+     * Every call here spends a SerpAPI request, and the server log caught this
+     * firing eleven times for one query inside forty seconds — a re-render
+     * upstream re-entering the effect that starts a search. The guard is the
+     * pair (item, query): if that exact question is already asked, this call
+     * is a duplicate and it stops here. `started` alone could not see it,
+     * because it only knows the item.
+     */
+    if (asked.get(target.id) === sent) return;
+    asked.set(target.id, sent);
 
     inFlight.get(target.id)?.abort();
     const controller = new AbortController();
@@ -109,7 +132,7 @@ export function OptionSheet() {
           request: target.request,
           category: target.category,
           query: sent,
-          roomContext: state.roomContext,
+          roomContext: context,
           budgetRemainingCents: state.budgetCents - spentCents(state.items),
         }),
         signal: controller.signal,
@@ -129,6 +152,8 @@ export function OptionSheet() {
       }));
     } catch (err) {
       if (controller.signal.aborted) return;
+      // a failure is not an answer: let the same query be asked again
+      asked.delete(target.id);
       console.warn("[options] /api/search failed", err);
       useStore.getState().setOptions(target.id, null);
       setQueriesUsed((q) => ({ ...q, [target.id]: sent }));
@@ -146,6 +171,32 @@ export function OptionSheet() {
     // the fetch is an external system; start it off the render pass
     queueMicrotask(() => void runSearch(target));
   }, [item, runSearch]);
+
+  /*
+   * EDITING THE STRIP RE-RUNS THE SEARCH. Removing "ornate", adding "brass",
+   * picking sage — each changes the query string this sheet is showing, and a
+   * query on screen that does not match the results under it is the thing a
+   * judge notices. So when the query moves and the sheet is open, the search
+   * runs again on its own; a short delay keeps three quick edits to one fetch.
+   */
+  const queryRef = React.useRef(query);
+  React.useEffect(() => {
+    const previous = queryRef.current;
+    queryRef.current = query;
+    if (!item || !open) return;
+    if (previous === query) return;
+    if (queriesUsed[item.id] === undefined) return; // nothing searched yet
+    if (queriesUsed[item.id] === query) return;
+
+    const target = item;
+    const timer = window.setTimeout(() => {
+      started.delete(target.id);
+      // the query itself changed, so this is a new question, not a repeat
+      asked.delete(target.id);
+      void runSearch(target);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [query, item, open, queriesUsed, runSearch]);
 
   /* a new active item brings its options up with it */
   const lastOpened = React.useRef<string | null>(null);
@@ -168,6 +219,7 @@ export function OptionSheet() {
 
   const retry = () => {
     started.delete(item.id);
+    asked.delete(item.id); // a deliberate re-ask, so the guard steps aside
     void runSearch(item);
   };
 

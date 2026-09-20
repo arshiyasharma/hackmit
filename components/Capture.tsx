@@ -37,6 +37,8 @@ import type { Room, RoomContext } from "@/types";
 
 /** The long edge we keep. Photo mode's scale reference agrees with it. */
 const MAX_EDGE = 1600;
+/** What the style read gets. Palette and style words need no more than this. */
+const ANALYSIS_EDGE = 512;
 
 /** Anything longer than 2:1 is a panorama, not a corner of a room. */
 const MAX_ASPECT = 2;
@@ -44,6 +46,13 @@ const MAX_ASPECT = 2;
 /** Mean luminance, 0..1. Under this we offer a retake — we never block one. */
 const DARK_LUMINANCE = 0.22;
 
+/*
+ * LONGER THAN THE SERVER'S OWN BUDGET, on purpose. /api/analyze races its
+ * providers for 14s and then answers, with a real read or with the neutral
+ * palette. This side used to give up first, so a read that was about to
+ * succeed showed as "couldn't read the style in that photo" while the server
+ * log stayed clean. Whoever waits second waits longer.
+ */
 const ANALYZE_TIMEOUT_MS = 20000;
 
 const HEADLINE = "Photograph the room you want to change.";
@@ -215,8 +224,24 @@ function buildRoom(
   ctx.drawImage(source, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   ctx.restore();
 
+  /*
+   * A SECOND, SMALLER COPY, FOR THE MODEL ONLY.
+   *
+   * The 1600px still is what stands in the room and what the sprites are
+   * measured against. The style read needs none of that: it is looking for
+   * five colours and four words, and a 512px copy carries those perfectly
+   * while being roughly a tenth of the bytes to upload and to tokenise. The
+   * room never sees this one.
+   */
+  const thumb = document.createElement("canvas");
+  const thumbFit = Math.min(1, ANALYSIS_EDGE / Math.max(width, height));
+  thumb.width = Math.max(1, Math.round(width * thumbFit));
+  thumb.height = Math.max(1, Math.round(height * thumbFit));
+  thumb.getContext("2d")?.drawImage(canvas, 0, 0, thumb.width, thumb.height);
+
   return {
     dataUrl: canvas.toDataURL("image/jpeg", 0.92),
+    analysisDataUrl: thumb.toDataURL("image/jpeg", 0.75),
     width,
     height,
     luminance: Math.round(meanLuminance(ctx, width, height) * 1000) / 1000,
@@ -310,7 +335,7 @@ async function runAnalysis(room: Room): Promise<void> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        dataUrl: room.dataUrl,
+        dataUrl: room.analysisDataUrl ?? room.dataUrl,
         width: room.width,
         height: room.height,
         luminance: room.luminance,
