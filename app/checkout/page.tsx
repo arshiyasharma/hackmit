@@ -5,6 +5,7 @@ import { useUser, SignInButton } from "@clerk/nextjs";
 import { useCartStore, type CartItem } from "@/lib/cart-store";
 import { checkFit } from "@/lib/fit-check";
 import BudgetSidebar from "@/components/BudgetSidebar";
+import OrderOrchestration from "@/components/OrderOrchestration";
 
 // Demo items for rehearsal until Jose/Yutian wire their modules into the store.
 const DEMO_ITEMS: CartItem[] = [
@@ -17,7 +18,7 @@ type Confirmed = { visaToken: string; retailers: string[]; amount: number };
 
 export default function CheckoutPage() {
   const { user, isSignedIn } = useUser();
-  const { items, total, doorway, overBudget, addItem, removeItem, setDoorway } = useCartStore();
+  const { items, total, doorway, overBudget, addItem, removeItem, setDoorway, retailers } = useCartStore();
 
   const [confirmed, setConfirmed] = useState<Confirmed | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,22 +68,16 @@ export default function CheckoutPage() {
     }
   };
 
-  // ---- Confirmation screen ----
+  // ---- Confirmation screen (staggered multi-retailer orchestration) ----
   if (confirmed) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
-        <div className="text-5xl text-[#C97B5F]">✓</div>
-        <h1 className="text-2xl">order confirmed</h1>
-        <p className="text-black/60">
-          {items.length} items from {confirmed.retailers.join(", ")} — one transaction.
-        </p>
-        <div className="mt-4 px-4 py-2 rounded-full bg-black/5 text-sm font-mono">
-          •••• 4242 · visa token: {confirmed.visaToken}
-        </div>
-        <p className="text-xs text-black/40 mt-2">
-          ${confirmed.amount.toFixed(2)} · secured with passkey · tokenized by visa
-        </p>
-      </div>
+      <OrderOrchestration
+        retailers={confirmed.retailers}
+        visaToken={confirmed.visaToken}
+        amount={confirmed.amount}
+        itemCount={items.length}
+        firstName={user?.firstName}
+      />
     );
   }
 
@@ -117,9 +112,12 @@ export default function CheckoutPage() {
               </div>
             ))}
 
-            <div className="flex justify-between mt-4 mb-6">
+            <div className="flex justify-between items-baseline mt-4 mb-1">
               <span>total</span><span>${total().toFixed(2)}</span>
             </div>
+            <p className="text-xs text-black/40 mb-6">
+              {items.length} items across {retailers().length} {retailers().length === 1 ? "retailer" : "retailers"} · one checkout
+            </p>
 
             {error && (
               <div className="mb-3 text-red-500 text-sm">
@@ -140,10 +138,10 @@ export default function CheckoutPage() {
                 className="w-full py-3 bg-black text-white rounded-full disabled:opacity-40"
               >
                 {loading
-                  ? "processing…"
+                  ? "placing your orders…"
                   : overBudget()
                   ? "over budget — remove an item"
-                  : `pay with visa · ${user?.firstName ? `verified as ${user.firstName}` : "verified"}`}
+                  : `buy all ${items.length} items · one tap`}
               </button>
             )}
           </>
