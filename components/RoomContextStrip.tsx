@@ -358,7 +358,10 @@ export function RoomContextStrip() {
           the top chrome 180px down the screen */}
       {tags.length > 0 ? (
         <div className="relative mt-1.5">
-          <ul className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 pl-16">
+          {/* pl-24 clears the pinned control: at pl-16 the first chip began at x=80
+              while the control ended at x=82, so two pixels of it were
+              unclickable and the wrong element took the tap */}
+          <ul className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 pl-24">
           <AnimatePresence initial={false}>
             {tags.map((tag) => (
               <motion.li

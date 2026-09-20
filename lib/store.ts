@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { create } from "zustand";
 
 import { colourNames } from "@/lib/colour";
@@ -563,9 +564,25 @@ export function roomContextFor(state: {
   return { ...base, styleTags: tags, palette, picked };
 }
 
-/** The same thing as a hook, for a component that just wants to render it. */
+/**
+ * The same thing as a hook, for a component that just wants to render it.
+ *
+ * It selects the two STABLE references and merges them in a memo, rather than
+ * merging inside the selector. zustand reads a selector through
+ * useSyncExternalStore, which compares the result by identity — and
+ * roomContextFor builds a fresh object every call, so selecting it directly
+ * meant every render produced a new snapshot and React refused to settle:
+ * "The result of getSnapshot should be cached to avoid an infinite loop."
+ * `roomContext` and `edits` only change when they actually change, so the memo
+ * recomputes exactly when it should.
+ */
 export function useRoomContext(): RoomContext | null {
-  return useStore((s) => roomContextFor(s));
+  const roomContext = useStore((s) => s.roomContext);
+  const edits = useStore((s) => s.edits);
+  return useMemo(
+    () => roomContextFor({ roomContext, edits }),
+    [roomContext, edits]
+  );
 }
 
 /** Older files imported the store under this name. Same store. */
