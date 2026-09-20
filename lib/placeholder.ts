@@ -25,6 +25,8 @@
  */
 
 import { createHash } from "node:crypto";
+
+import { colourNames } from "@/lib/colour";
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -46,6 +48,8 @@ export type RoomContext = {
   /** up to five hex strings, ordered by dominance */
   palette: string[];
   lighting: "warm" | "cool" | "neutral";
+  /** the colours the USER chose: an instruction about the object itself */
+  picked?: string[];
 };
 
 /** Where the returned image came from. Drives nothing but honesty copy. */
@@ -288,14 +292,42 @@ function cleanCategoryForPrompt(category: string): string {
  */
 export function buildPrompt(category: string, ctx: RoomContext): string {
   const cat = cleanCategoryForPrompt(category) || DEFAULT_CATEGORY;
-  const palette = ctx.palette.length ? ctx.palette.join(", ") : "warm neutral";
   const style = ctx.styleTags.length ? ctx.styleTags.join(", ") : "plain modern";
-  return (
-    `A single ${cat}, centred, full object in frame, front three-quarter view, ` +
-    `simple illustrative style with soft flat shading, colour palette ${palette}, ` +
-    `${style} character, on a plain white background, no room, no floor, ` +
-    `no shadow, no text, no people.`
-  );
+
+  /*
+   * A PICKED COLOUR IS AN INSTRUCTION, NOT CONTEXT.
+   *
+   * Someone who opens the picker and chooses sage is saying "make it sage" —
+   * so those colours describe THE OBJECT, first, by name and by hex, and they
+   * are repeated at the end because an image model weights the start and the
+   * end of a prompt hardest. The colours merely read off the photo stay what
+   * they always were: the room around it, mentioned once, so the object sits
+   * in the room without being painted in all five of them.
+   */
+  const picked = (ctx.picked ?? []).filter(Boolean);
+  const names = colourNames(picked);
+  const object = names.length
+    ? `${names.join(" and ")} (${picked.join(", ")}) ${cat}`
+    : cat;
+
+  const room = ctx.palette.length
+    ? ctx.palette.filter((hex) => !picked.includes(hex)).join(", ")
+    : "";
+
+  return [
+    `A single ${object}, centred, full object in frame, front three-quarter view,`,
+    `simple illustrative style with soft flat shading,`,
+    names.length
+      ? `the ${cat} itself is ${names.join(" and ")};`
+      : "",
+    room ? `it sits in a room whose colours are ${room};` : "",
+    `${style} character, on a plain white background, no room, no floor,`,
+    `no shadow, no text, no people.`,
+    names.length ? `The ${cat} must be ${names.join(" and ")}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ");
 }
 
 /**
@@ -797,10 +829,12 @@ export async function resolvePlaceholder(
   const { category, silhouette } = normalizeCategory(input.category, input.request);
   const palette = cleanPalette(input.roomContext?.palette);
   const styleTags = cleanStyleTags(input.roomContext?.styleTags);
+  const picked = cleanPalette(input.roomContext?.picked);
   const lighting = input.roomContext?.lighting ?? "neutral";
-  const ctx: RoomContext = { palette, styleTags, lighting };
+  const ctx: RoomContext = { palette, styleTags, lighting, picked };
 
-  const key = cacheKeyFor(category, palette, styleTags);
+  // picked colours change the object itself, so they change the image
+  const key = cacheKeyFor(category, [...palette, ...picked], styleTags);
 
   const hit = await readCacheEntry(key);
   if (hit) {
