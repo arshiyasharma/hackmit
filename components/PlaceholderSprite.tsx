@@ -151,8 +151,10 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
   );
 
   const size = spriteSizeMm(item);
-  const targetHeight = size.heightMm / 1000;
-  const targetWidth = size.widthMm / 1000;
+  // the user's own size carries into the live room too, so a sprite they
+  // resized in the photo is the same sprite when they enter AR
+  const targetHeight = (size.heightMm / 1000) * item.scale;
+  const targetWidth = (size.widthMm / 1000) * item.scale;
 
   /* the springs start ON target, so an item appears at its size and only a
      LINK CHANGE animates */

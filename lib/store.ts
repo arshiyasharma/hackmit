@@ -143,6 +143,8 @@ export type VisaActions = {
     position: [number, number, number],
     rotationY?: number
   ) => void;
+  /** the user's own size for one sprite; 1 puts it back to the listing's */
+  resizeItem: (id: string, scale: number) => void;
   removeItem: (id: string) => void;
   /** put a removed item back exactly where it was — the undo toast's action */
   restoreItem: (item: PlacedItem, index?: number) => void;
@@ -267,6 +269,7 @@ export const useStore = create<VisaStore>()(
               optionsStatus: "pending",
               position: position ?? [0, 0, 0],
               rotationY: 0,
+              scale: 1,
               placed: position !== undefined,
               linkedProduct: null,
               fit: null,
@@ -332,6 +335,15 @@ export const useStore = create<VisaStore>()(
             position,
             rotationY: rotationY ?? item.rotationY,
             placed: true,
+          })),
+        })),
+
+      resizeItem: (id, scale) =>
+        set((s) => ({
+          items: patchItem(s.items, id, (item) => ({
+            // a quarter to four times: past that it is not the object any more
+            ...item,
+            scale: Math.min(Math.max(scale, 0.25), 4),
           })),
         })),
 

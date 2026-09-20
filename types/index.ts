@@ -190,7 +190,14 @@ export type PlacedItem = {
   optionsStatus: AssetStatus;
   /** metres, AR world space */
   position: [number, number, number];
+  /** degrees in photo mode, where the sprite lies in the picture plane */
   rotationY: number;
+  /**
+   * The user's own size, as a multiple of the listing's real size. 1 is true
+   * scale and is what the fit check always judges — a sprite resized by hand
+   * says so on its label rather than quietly claiming to be to scale.
+   */
+  scale: number;
   /** false until the user taps the floor (or drops it in photo mode) */
   placed: boolean;
   /** null until they pick one */

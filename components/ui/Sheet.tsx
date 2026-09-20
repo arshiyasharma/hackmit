@@ -73,6 +73,20 @@ export function Sheet({
     return { points: ascending, snap: ascending.indexOf(chosen) };
   }, [snapPoints, initialSnap]);
 
+  /*
+   * A sheet you cannot dismiss is a sheet that owns the screen. Dragging it
+   * down has always worked; tapping the dimmed room and pressing Escape did
+   * not, which on a laptop left the options covering the room with no way out.
+   */
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onOpenChange(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onOpenChange]);
+
   return (
     <ModalSheet
       isOpen={open}

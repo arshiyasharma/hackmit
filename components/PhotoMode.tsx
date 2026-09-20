@@ -24,6 +24,7 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { Maximize2, RotateCw } from "lucide-react";
 import { useDrag, usePinch } from "@use-gesture/react";
 import { toast } from "sonner";
 
@@ -257,6 +258,7 @@ export function PhotoMode() {
   const activeItemId = useStore((s) => s.activeItemId);
   const setActiveItem = useStore((s) => s.setActiveItem);
   const moveItem = useStore((s) => s.moveItem);
+  const resizeItem = useStore((s) => s.resizeItem);
   const ceilingHeightMm = useStore((s) => s.profile.ceilingHeightMm);
 
   const stageRef = React.useRef<HTMLDivElement | null>(null);
@@ -433,6 +435,8 @@ export function PhotoMode() {
               }}
               onRemove={() => emitItemEvent(REMOVE_ITEM_EVENT, item.id)}
               onPlaced={() => moveItem(item.id, item.position, item.rotationY)}
+              onResize={(scale) => resizeItem(item.id, scale)}
+              onRotate={(degrees) => moveItem(item.id, item.position, degrees)}
             />
           ))
         : null}
@@ -445,9 +449,9 @@ export function PhotoMode() {
        */}
 
       {/* the scale control sits directly above the ask stack, never over it */}
-      <div className="absolute inset-x-3 bottom-[var(--room-bottom-chrome)] flex flex-col gap-1">
+      <div className="pointer-events-none absolute inset-x-3 bottom-[var(--room-bottom-chrome)] flex flex-col gap-1">
         {measuring ? (
-          <div className="rounded-xl border border-line bg-background/90 px-3 py-2 backdrop-blur-md">
+          <div className="pointer-events-auto rounded-xl border border-line bg-background/90 px-3 py-2 backdrop-blur-md">
             <StatusLine
               paused
               messages={[SCALE_CHOICES[measuring.index].hint]}
@@ -470,7 +474,7 @@ export function PhotoMode() {
             </button>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="pointer-events-auto flex w-fit flex-wrap items-center gap-2">
             <span className="rounded-full bg-background/70 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-md">
               {scaleCaption}
             </span>
@@ -521,6 +525,8 @@ type PhotoSpriteProps = {
   onActivate: () => void;
   onRemove: () => void;
   onPlaced: () => void;
+  onResize: (scale: number) => void;
+  onRotate: (degrees: number) => void;
 };
 
 function PhotoSprite({
@@ -535,6 +541,8 @@ function PhotoSprite({
   onActivate,
   onRemove,
   onPlaced,
+  onResize,
+  onRotate,
 }: PhotoSpriteProps) {
   const reduced = useReducedMotion();
   const ref = React.useRef<HTMLDivElement | null>(null);
@@ -542,8 +550,9 @@ function PhotoSprite({
   const longPressed = React.useRef(false);
 
   const size = spriteSizeMm(item);
-  const width = size.widthMm * pxPerMm;
-  const height = size.heightMm * pxPerMm;
+  const width = size.widthMm * pxPerMm * item.scale;
+  const height = size.heightMm * pxPerMm * item.scale;
+  const resized = Math.abs(item.scale - 1) > 0.01;
 
   /* evenly along the floor line until the user drags it somewhere */
   const home = React.useMemo(
@@ -609,7 +618,9 @@ function PhotoSprite({
       }`}
       className="absolute cursor-grab touch-none active:cursor-grabbing"
       style={{ left, top }}
-      animate={{ width, height }}
+      // rotation rides with motion's own transform; a `rotate` in style is
+      // discarded by it, which is why the handle turned nothing
+      animate={{ width, height, rotate: item.rotationY }}
       initial={false}
       transition={reduced ? { duration: 0.15 } : RESIZE_SPRING}
       onPointerDown={startPress}
@@ -630,7 +641,11 @@ function PhotoSprite({
     >
       {/* the active item carries the ONE dimension label; nothing else does */}
       {active ? (
-        <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col items-center gap-0.5 whitespace-nowrap rounded-full border border-line/60 bg-background/75 px-3 py-1 backdrop-blur-md">
+        <div
+          /* the sprite may be turned; the ONE readout on screen stays level */
+          style={{ rotate: `${-item.rotationY}deg` }}
+          className="pointer-events-none absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col items-center gap-0.5 whitespace-nowrap rounded-full border border-line/60 bg-background/75 px-3 py-1 backdrop-blur-md"
+        >
           <span className="flex items-baseline gap-1">
             <NumberPlate value={label?.widthMm ?? null} size="sm" label="width" />
             <span className="text-xs text-muted-foreground">×</span>
@@ -644,11 +659,30 @@ function PhotoSprite({
           <span
             className={cn(
               "text-[10px]",
-              dimsTone(item) === "warn" ? "text-warn" : "text-muted-foreground"
+              resized || dimsTone(item) === "warn"
+                ? "text-warn"
+                : "text-muted-foreground"
             )}
           >
-            {caption}
+            {resized
+              ? `resized by you — ${Math.round(item.scale * 100)}% of real size`
+              : caption}
           </span>
+
+          {/* one tap back to the truth, right where the lie is shown */}
+          {resized ? (
+            <button
+              type="button"
+              className="pointer-events-auto text-[10px] text-accent underline underline-offset-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                onResize(1);
+                vibrate(8);
+              }}
+            >
+              Back to real size
+            </button>
+          ) : null}
 
           {/* the kernel's verdict, printed exactly as lib/fit.ts returned it */}
           {item.fit && item.fit.verdict !== "pass" ? (
@@ -691,6 +725,127 @@ function PhotoSprite({
           Stand-in image — the product you pick is linked.
         </p>
       ) : null}
+
+      {/*
+       * HANDLES, on the active sprite only. Explicit rather than pinch: a pinch
+       * is still refused out loud, because "locked to real size" is the point of
+       * the screen. Dragging a handle is a deliberate "I know" — so it is
+       * allowed, and the label says the sprite is no longer to scale.
+       */}
+      {active ? (
+        <>
+          <SpriteHandle
+            kind="resize"
+            baseHeight={size.heightMm * pxPerMm}
+            scale={item.scale}
+            rotation={item.rotationY}
+            onScale={onResize}
+            onAngle={onRotate}
+            onDone={onPlaced}
+          />
+          <SpriteHandle
+            kind="rotate"
+            baseHeight={size.heightMm * pxPerMm}
+            scale={item.scale}
+            rotation={item.rotationY}
+            onScale={onResize}
+            onAngle={onRotate}
+            onDone={onPlaced}
+          />
+        </>
+      ) : null}
     </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ handles */
+
+type SpriteHandleProps = {
+  kind: "resize" | "rotate";
+  /** the sprite's height at true scale, in px — the yardstick for a drag */
+  baseHeight: number;
+  scale: number;
+  rotation: number;
+  onScale: (scale: number) => void;
+  onAngle: (degrees: number) => void;
+  onDone: () => void;
+};
+
+/**
+ * A 44px grab target on the corner of the active sprite. Resize on the bottom
+ * right, rotate on the top right — the two places a person already expects
+ * them, and both far enough from the body that a drag of the sprite itself is
+ * never ambiguous.
+ *
+ * `movement` rather than `offset`: each drag starts from wherever the sprite
+ * is now, so repeated adjustments compose instead of snapping back.
+ */
+function SpriteHandle({
+  kind,
+  baseHeight,
+  scale,
+  rotation,
+  onScale,
+  onAngle,
+  onDone,
+}: SpriteHandleProps) {
+  const ref = React.useRef<HTMLButtonElement | null>(null);
+  const start = React.useRef({ scale, rotation });
+
+  useDrag(
+    ({ first, last, movement: [mx, my], event }) => {
+      event.stopPropagation();
+      event.preventDefault?.();
+      if (first) start.current = { scale, rotation };
+
+      if (kind === "resize") {
+        // drag down and right to grow; a full sprite-height of travel doubles it
+        const travel = (mx + my) / 2;
+        onScale(start.current.scale * (1 + travel / Math.max(baseHeight, 40)));
+      } else {
+        // a quarter of the sprite's height of sideways travel is 45 degrees
+        const degrees = (mx / Math.max(baseHeight, 40)) * 180;
+        onAngle(
+          Math.round(
+            Math.min(Math.max(start.current.rotation + degrees, -75), 75)
+          )
+        );
+      }
+
+      if (last) {
+        vibrate(8);
+        onDone();
+      }
+    },
+    { target: ref, eventOptions: { passive: false }, filterTaps: true }
+  );
+
+  const resize = kind === "resize";
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-label={resize ? "Resize this stand-in" : "Rotate this stand-in"}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      className={cn(
+        "absolute grid size-11 touch-none place-items-center rounded-full",
+        "border border-accent/70 bg-background/85 text-accent backdrop-blur-md",
+        "cursor-grab active:cursor-grabbing",
+        /*
+         * Both handles ride the TOP corners. A sprite stands on the floor line,
+         * so a bottom handle lands exactly where the scale controls sit and the
+         * two fight for the same 44px.
+         */
+        resize ? "-right-5 -top-5" : "-left-5 -top-5"
+      )}
+    >
+      {resize ? (
+        <Maximize2 className="size-4" aria-hidden />
+      ) : (
+        <RotateCw className="size-4" aria-hidden />
+      )}
+    </button>
   );
 }
