@@ -107,13 +107,12 @@ function useLinkedPriceDeltas(
       if (now === was) continue;
       changes.push({
         /*
-         * SIGNED AGAINST THE BUDGET, not against the spend. Linking a $49 lamp
-         * takes $49 out of what is left, so it reads "−$49"; removing it gives
-         * the $49 back and reads "+$49". The number on screen and the bar
-         * beside it move the same way, which is the whole point of showing it
-         * where the money lives.
+         * SIGNED AS PROGRESS. Linking a $49 lamp moves the bar $49 closer to
+         * the mark, so it reads "+$49"; removing it gives that progress back
+         * and reads "−$49". The floating number and the bar beneath it move
+         * the same way, which is the whole point of putting them together.
          */
-        cents: was - now,
+        cents: now - was,
         label: next.get(id)?.label ?? before.get(id)?.label ?? "",
       });
     }
@@ -269,16 +268,45 @@ export function BudgetHud() {
   const spent = spentCents(items);
   const overCents = Math.max(0, spent - budgetCents);
   /*
-   * WHAT IS LEFT, not what is gone. The budget reads like a health bar: it
-   * starts full, every link takes a bite out of it, and removing something
-   * gives it back. "$272 left" is the number a person acts on; "$328 spent"
-   * is the number an accountant does.
+   * A TARGET TO REACH, not a tank to drain.
+   *
+   * "$251 left" made every pick feel like losing something. The same two
+   * numbers read the other way round — "$49 of $300", a bar filling towards
+   * the mark — make furnishing the room the thing you are progressing at, and
+   * the budget the finish line rather than the fuel. Going past it is still
+   * said plainly, because that part is not a game.
    */
   const leftCents = budgetCents - spent;
   const ratio = budgetCents > 0 ? spent / budgetCents : spent > 0 ? 1 : 0;
-  const warn = ratio >= 0.9;
-  // the bar DRAINS: full budget is a full bar, and spending empties it
-  const fillPercent = Math.max(0, Math.min(100, (1 - ratio) * 100));
+  const warn = overCents > 0;
+  // the bar FILLS towards the mark
+  const fillPercent = Math.max(0, Math.min(100, ratio * 100));
+  /** within a tenth of the target, or past it: the room is furnished */
+  const met = ratio >= 0.9;
+
+  /*
+   * THE MARK IS A MOMENT, and it happens once. Crossing 90% of the budget is
+   * the closest this screen gets to finishing something, so it says so — once,
+   * in a toast that goes away — rather than adding a third permanent readout
+   * to a screen that is allowed two. Dropping back under arms it again.
+   */
+  const announced = React.useRef(false);
+  React.useEffect(() => {
+    if (met && !announced.current) {
+      announced.current = true;
+      toast(overCents > 0 ? "Budget met — and then some" : "Budget met", {
+        id: "visa-budget-met",
+        description:
+          overCents > 0
+            ? `${money(spent)} against ${money(budgetCents)}`
+            : `${money(spent)} of ${money(budgetCents)} — the room is furnished`,
+      });
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate([8, 40, 12]);
+      }
+    }
+    if (!met) announced.current = false;
+  }, [met, overCents, spent, budgetCents]);
 
   const { current, push, done } = useDeltaQueue();
   useLinkedPriceDeltas(items, push);
@@ -316,18 +344,20 @@ export function BudgetHud() {
                 aria-expanded={counters}
                 aria-label={
                   overCents > 0
-                    ? `Over budget by ${money(overCents)}. Show what you're saving.`
-                    : `${money(leftCents)} left of ${money(
+                    ? `${money(spent)} of ${money(budgetCents)}, over by ${money(
+                        overCents
+                      )}. Show what you're saving.`
+                    : `${money(spent)} of ${money(
                         budgetCents
                       )}. Show what you're saving.`
                 }
                 className="tap -my-1 py-1 leading-none"
               >
                 <NumberPlate
-                  value={centsToUnits(Math.abs(leftCents))}
+                  value={centsToUnits(spent)}
                   size="md"
-                  tone={overCents > 0 ? "warn" : "default"}
-                  format={moneyFormat(leftCents)}
+                  tone={overCents > 0 ? "warn" : met ? "ok" : "default"}
+                  format={moneyFormat(spent)}
                 />
               </button>
 
@@ -348,7 +378,7 @@ export function BudgetHud() {
                     "transition-colors hover:text-foreground"
                   )}
                 >
-                  {overCents > 0 ? "over" : "left"} of {money(budgetCents)}
+                  of {money(budgetCents)}
                 </button>
               )}
             </div>
@@ -359,13 +389,14 @@ export function BudgetHud() {
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={Math.round(budgetCents / 100)}
-              aria-valuenow={Math.round(Math.max(0, leftCents) / 100)}
-              aria-label="Budget left"
+              aria-valuenow={Math.round(spent / 100)}
+              aria-label="Budget used"
             >
               <motion.div
                 className={cn(
                   "h-full rounded-full",
-                  warn ? "bg-warn" : "bg-accent"
+                  // accent on the way there, ok at the mark, warn past it
+                  overCents > 0 ? "bg-warn" : met ? "bg-ok" : "bg-accent"
                 )}
                 initial={false}
                 animate={{ width: `${fillPercent}%` }}

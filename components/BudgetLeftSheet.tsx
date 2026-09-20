@@ -63,11 +63,11 @@ export default function BudgetLeftSheet({
       <div className="flex flex-col gap-3">
         <div>
           <h2 className="font-display text-xl">
-            {money(leftCents)} still to spend
+            {money(leftCents)} to go
           </h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
             {suggestions.length
-              ? "This room could also use one of these — or check out as you are."
+              ? "One of these would finish the room — or check out as you are."
               : "Add anything else you want, or check out as you are."}
           </p>
         </div>
