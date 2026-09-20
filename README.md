@@ -1,7 +1,6 @@
 # PIXX-AR — The spatial marketplace
 
 <!-- Replace this line with the demo video thumbnail/link when the film is ready. Keep it directly below the title. -->
-**Watch the demo — coming soon.**
 
 **Your room is the starting point. Everything it could become is the possibility.**
 
