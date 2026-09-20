@@ -15,6 +15,7 @@ import CheckoutRun, {
   type RunMode,
   type RunPhase,
   type RunRow,
+  type RunVerification,
 } from "@/components/CheckoutRun";
 import CheckoutSheet from "@/components/CheckoutSheet";
 import TestModeChip from "@/components/TestModeChip";
@@ -88,6 +89,7 @@ export default function CheckoutPage() {
   const [mode, setMode] = React.useState<RunMode>(DEFAULT_RUN_MODE);
   const [phase, setPhase] = React.useState<RunPhase>("idle");
   const [rows, setRows] = React.useState<RunRow[] | null>(null);
+  const [verification, setVerification] = React.useState<RunVerification | null>(null);
   const [modeOpen, setModeOpen] = React.useState(false);
 
   // the basket is frozen the moment the agent starts: a line removed mid-run
@@ -288,13 +290,17 @@ export default function CheckoutPage() {
         lines={runLines}
         mode={mode}
         onPhaseChange={handlePhase}
-        onFinished={setRows}
+        onFinished={(nextRows, nextVerification) => {
+          setRows(nextRows);
+          setVerification(nextVerification);
+        }}
       />
 
       {phase === "finished" && rows ? (
         <Confirmation
           rows={rows}
           lines={runLines}
+          verification={verification}
           onPlaceAnother={() => router.push("/room")}
         />
       ) : null}

@@ -103,6 +103,24 @@ export type RunRow = {
 
 export type RunPhase = "idle" | "running" | "finished";
 
+/**
+ * The two real, independently-earned signals from a finished run — never
+ * invented, and never conflated with each other.
+ *
+ * `instructionId` is a genuine Visa Intelligent Commerce purchase instruction
+ * (`POST /vacp/v1/instructions`) and appears only when Visa's own sandbox
+ * returned one — it needs VIC credentials this app does not have by default.
+ * `verifiedAgentId` is our own Trusted Agent Protocol, modeled on Visa's real
+ * one but not itself a Visa system; it appears the moment at least one shop's
+ * signature check passed. Confirmation screens must label these differently —
+ * calling TAP "Visa Intelligent Commerce" would be the overclaim this whole
+ * layer exists to refuse.
+ */
+export type RunVerification = {
+  instructionId: string | null;
+  verifiedAgentId: string | null;
+};
+
 /* -------------------------------------------------------- the line model */
 
 type LineView = {
@@ -128,7 +146,7 @@ export type CheckoutRunProps = {
   /** "test" unless someone deliberately changed it in the order-mode sheet */
   mode: RunMode;
   /** fires once every line has reached a terminal state */
-  onFinished?: (rows: RunRow[]) => void;
+  onFinished?: (rows: RunRow[], verification: RunVerification) => void;
   /** lets the review lock itself while the agent is working */
   onPhaseChange?: (phase: RunPhase) => void;
   className?: string;
@@ -157,6 +175,16 @@ export function CheckoutRun({
   const [skipped, setSkipped] = React.useState<string[]>([]);
   /** the Visa purchase instruction this run spends under, when one exists */
   const [instructionId, setInstructionId] = React.useState<string | null>(null);
+  /**
+   * The same value, readable synchronously.
+   *
+   * `settle` fires immediately after `readRun` calls `setInstructionId` — in
+   * the same tick, before React has flushed that update to a new render — so
+   * a `settle` that closed over the `instructionId` STATE would read whatever
+   * it was on the PREVIOUS render, which is null the very first time a real
+   * instruction comes back. Same bug `viewsRef` exists to prevent, same fix.
+   */
+  const instructionIdRef = React.useRef<string | null>(null);
   /** the mandate's decline threshold, as Visa echoed it back. Never computed here. */
   const [mandateCap, setMandateCap] = React.useState<string | null>(null);
 
@@ -247,7 +275,15 @@ export function CheckoutRun({
       // the arithmetic lives in lib/checkout/lineView.ts, where it is tested
       const rows: RunRow[] = deriveShopRows(views, currency);
 
-      finished.current?.(rows);
+      // read off THIS settlement's own views, not the render-scope state —
+      // the two should agree, but the argument in hand is the one that is
+      // certainly final
+      const verifiedAgentId = views.find((v) => v.tap?.ok)?.tap?.agentId ?? null;
+
+      finished.current?.(rows, {
+        instructionId: instructionIdRef.current,
+        verifiedAgentId,
+      });
       setPhase("finished");
     },
     [currency]
@@ -269,11 +305,12 @@ export function CheckoutRun({
         };
 
         // never invented: the line appears only when the server has a real one
-        setInstructionId(
+        const nextInstructionId =
           typeof body.instructionId === "string" && body.instructionId.trim()
             ? body.instructionId
-            : null
-        );
+            : null;
+        instructionIdRef.current = nextInstructionId;
+        setInstructionId(nextInstructionId);
 
         return writeViews((current) =>
           current.map((view) => {
@@ -311,6 +348,7 @@ export function CheckoutRun({
         mandates?: Array<{ declineThreshold?: { amount?: string } }>;
       };
       if (cancelled.current || typeof body.instructionId !== "string") return;
+      instructionIdRef.current = body.instructionId;
       setInstructionId(body.instructionId);
       const amount = body.mandates?.[0]?.declineThreshold?.amount;
       setMandateCap(typeof amount === "string" ? amount : null);

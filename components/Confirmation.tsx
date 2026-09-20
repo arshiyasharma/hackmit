@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { fitFor, fitObstacle, formatMoney } from "@/components/CartLine";
-import type { RunRow } from "@/components/CheckoutRun";
+import type { RunRow, RunVerification } from "@/components/CheckoutRun";
 import { Button } from "@/components/ui/button";
 import NumberPlate, { centsToUnits } from "@/components/ui/NumberPlate";
 import { useStore } from "@/lib/store";
@@ -25,10 +25,17 @@ export type ConfirmationProps = {
   rows: RunRow[];
   /** the basket the run came from, for the fit line */
   lines: CartItem[];
+  /** the run's two real verification signals, or null before either exists */
+  verification?: RunVerification | null;
   onPlaceAnother: () => void;
 };
 
-export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps) {
+export function Confirmation({
+  rows,
+  lines,
+  verification,
+  onPlaceAnother,
+}: ConfirmationProps) {
   const profile = useStore((s) => s.profile);
   const reduced = useReducedMotion();
 
@@ -117,6 +124,30 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
           {testRun ? " — no card was charged" : ""}
         </span>
       </div>
+
+      {/*
+        Two DIFFERENT claims, deliberately never merged into one badge.
+        `instructionId` is a real Visa Intelligent Commerce purchase
+        instruction — it only exists when Visa's own sandbox returned one,
+        which needs VIC credentials this app does not carry by default.
+        `verifiedAgentId` is our own Trusted Agent Protocol, modelled on
+        Visa's real one but not itself Visa's system — labelling it "Visa
+        Intelligent Commerce" would be the overclaim this whole layer exists
+        to refuse. Whichever is real gets said; neither is invented for the
+        other's absence.
+      */}
+      {ready.length > 0 && verification?.instructionId ? (
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          * Visa Intelligent Commerce verified — purchase instruction{" "}
+          <span className="tabular">{verification.instructionId}</span>
+        </p>
+      ) : ready.length > 0 && verification?.verifiedAgentId ? (
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          * Agent identity verified with Trusted Agent Protocol before any
+          shop was asked to pay —{" "}
+          <span className="tabular">{verification.verifiedAgentId}</span>
+        </p>
+      ) : null}
 
       {anySimulated ? (
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
