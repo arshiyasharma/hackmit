@@ -31,7 +31,7 @@ function line(patch: Partial<BasketLine> = {}): BasketLine {
 }
 
 function basket(lines: BasketLine[], budgetMinor = 125000): Basket {
-  return { basketId: "basket-1", lines, budgetMinor };
+  return { basketId: "basket-1", lines, budgetMinor, budgetSet: true, profileMm: null };
 }
 
 describe("subtotal, remaining, over budget", () => {

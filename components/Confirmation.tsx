@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { fitFor, fitObstacle, formatMoney } from "@/components/CartLine";
-import type { RunRow } from "@/components/CheckoutRun";
+import type { RunRow, RunVerification } from "@/components/CheckoutRun";
 import { Button } from "@/components/ui/button";
 import NumberPlate, { centsToUnits } from "@/components/ui/NumberPlate";
 import { useStore } from "@/lib/store";
@@ -25,10 +25,17 @@ export type ConfirmationProps = {
   rows: RunRow[];
   /** the basket the run came from, for the fit line */
   lines: CartItem[];
+  /** the run's two real verification signals, or null before either exists */
+  verification?: RunVerification | null;
   onPlaceAnother: () => void;
 };
 
-export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps) {
+export function Confirmation({
+  rows,
+  lines,
+  verification,
+  onPlaceAnother,
+}: ConfirmationProps) {
   const profile = useStore((s) => s.profile);
   const reduced = useReducedMotion();
 
@@ -36,8 +43,17 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
 
   const ready = rows.filter((r) => r.state === "ready" || r.state === "ordered");
   const failed = rows.filter((r) => r.state === "failed");
-  const orderedAnything = rows.some((r) => r.state === "ordered");
+  /** Shops where the agent chose not to buy. Not failures — decisions. */
+  const heldRows = rows.filter((r) => r.state === "held");
+  const heldCount = heldRows.reduce((n, r) => n + (r.heldCount ?? 0), 0);
   const anySimulated = rows.some((r) => r.simulated);
+  /**
+   * A run the server reported as test mode is not an order, whatever the row
+   * state says. "Ordered." over four test references is the one sentence on
+   * this screen that could be read as a lie, so it is gated on the server's
+   * own word rather than on the row reaching a terminal state.
+   */
+  const testRun = rows.length > 0 && rows.every((r) => r.mode !== "live");
 
   const readyCents = ready.reduce((sum, r) => sum + r.subtotalCents, 0);
 
@@ -45,10 +61,14 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
     rows.length === 0
       ? "Nothing ran."
       : failed.length === 0
-        ? orderedAnything
-          ? "Ordered."
-          : "At the confirm."
-        : `${ready.length} of ${rows.length} ready.`;
+        ? heldCount > 0
+          // not "complete" — the agent deliberately left something undone, and
+          // saying otherwise would bury the only decision waiting for a person
+          ? `${heldCount === 1 ? "One" : heldCount} left for you.`
+          : testRun
+            ? "Test run complete."
+            : "Ordered."
+        : `${ready.length} of ${rows.length} done.`;
 
   /* The fit line, measured from the same kernel the review used. */
   const fitLine = React.useMemo(() => {
@@ -96,19 +116,45 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
           unit="$"
           size="md"
           format={{ maximumFractionDigits: 0 }}
-          label="Waiting at the confirm"
+          label={testRun ? "Would have cost" : "Ordered"}
           tone="muted"
         />
         <span className="text-sm text-muted-foreground">
-          waiting at {ready.length} {ready.length === 1 ? "shop" : "shops"}
-          {orderedAnything ? "" : " — not yet paid"}
+          across {ready.length} {ready.length === 1 ? "shop" : "shops"}
+          {testRun ? " — no card was charged" : ""}
         </span>
       </div>
 
+      {/*
+        Two DIFFERENT claims, deliberately never merged into one badge.
+        `instructionId` is a real Visa Intelligent Commerce purchase
+        instruction — it only exists when Visa's own sandbox returned one,
+        which needs VIC credentials this app does not carry by default.
+        `verifiedAgentId` is our own Trusted Agent Protocol, modelled on
+        Visa's real one but not itself Visa's system — labelling it "Visa
+        Intelligent Commerce" would be the overclaim this whole layer exists
+        to refuse. Whichever is real gets said; neither is invented for the
+        other's absence.
+      */}
+      {ready.length > 0 && verification?.instructionId ? (
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          * Visa Intelligent Commerce verified — purchase instruction{" "}
+          <span className="tabular">{verification.instructionId}</span>
+        </p>
+      ) : ready.length > 0 && verification?.verifiedAgentId ? (
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          * Agent identity verified with Trusted Agent Protocol before any
+          shop was asked to pay —{" "}
+          <span className="tabular">{verification.verifiedAgentId}</span>
+        </p>
+      ) : null}
+
       {anySimulated ? (
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-          Rows marked simulated were walked through by this screen, not watched
-          on a real shop. No basket was touched and no money moved.
+          The retailer walk is simulated per shop — no shop exposes an API we
+          could buy through, so no basket was touched. The agent&rsquo;s
+          signature check and these order references came from the server, not
+          from this screen.
         </p>
       ) : null}
 
@@ -127,12 +173,20 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
                 {" · "}
                 {row.state === "failed"
                   ? "needs finishing by hand"
-                  : row.state === "ordered"
-                    ? (row.orderRef ?? "ordered")
-                    : "sitting on the confirm screen"}
+                  : row.state === "held"
+                    ? `${row.heldCount ?? 1} left for you`
+                    : row.state === "ordered"
+                      ? (row.orderRef ?? "ordered")
+                      : "sitting on the confirm screen"}
                 {row.simulated ? " · simulated" : ""}
               </span>
-              {row.state === "failed" && row.url ? (
+              {/* why the agent stood down, in its own words */}
+              {row.state === "held" && row.heldReason ? (
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                  {row.heldReason}
+                </span>
+              ) : null}
+              {(row.state === "failed" || row.state === "held") && row.url ? (
                 <a
                   href={row.url}
                   target="_blank"

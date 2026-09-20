@@ -18,21 +18,8 @@
 
 import catalogue from "@/data/listings.json";
 
+import { isRetailer } from "./retailers";
 import type { Listing, Retailer } from "./types";
-
-const RETAILERS: ReadonlySet<string> = new Set<Retailer>([
-  "amazon",
-  "wayfair",
-  "ikea",
-  "target",
-  "westelm",
-  "cb2",
-  "etsy",
-]);
-
-function isRetailer(value: unknown): value is Retailer {
-  return typeof value === "string" && RETAILERS.has(value);
-}
 
 /** Millimetres, all three, all positive integers — or nothing at all. */
 function toDimensions(value: unknown): Listing["dimensionsMm"] {
@@ -57,7 +44,7 @@ function toListing(raw: unknown): Listing | null {
   const priceMinor = r.priceMinor;
 
   if (!listingId || !title || !productUrl) return null;
-  if (!isRetailer(r.retailer)) return null;
+  if (typeof r.retailer !== "string" || !isRetailer(r.retailer)) return null;
   // cents, never a float, never free
   if (typeof priceMinor !== "number" || !Number.isInteger(priceMinor) || priceMinor <= 0) {
     return null;

@@ -7,6 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 
 import AppShell from "@/components/AppShell";
+import { resolveRetailer } from "@/lib/checkout/adapter";
 import CartLine, { fitFor, fitObstacle, formatMoney } from "@/components/CartLine";
 import CheckoutRun, {
   DEFAULT_RUN_MODE,
@@ -14,8 +15,10 @@ import CheckoutRun, {
   type RunMode,
   type RunPhase,
   type RunRow,
+  type RunVerification,
 } from "@/components/CheckoutRun";
 import CheckoutSheet from "@/components/CheckoutSheet";
+import TestModeChip from "@/components/TestModeChip";
 import Confirmation from "@/components/Confirmation";
 import { buttonVariants } from "@/components/ui/button";
 import NumberPlate, { centsToUnits } from "@/components/ui/NumberPlate";
@@ -53,7 +56,20 @@ export default function CheckoutPage() {
 
   /* ------------------------------------------------------------- the basket */
 
-  const lines = React.useMemo(() => cartLines(items), [items]);
+  /**
+   * A linked item whose shop we cannot check out at is dropped here, silently
+   * — not shown, not counted, not apologised for. This can only happen from
+   * stale or hand-edited data: sourcing's own whitelist (lib/sourcing/whitelist.ts)
+   * never returns a shop this layer does not know, so a real search result
+   * cannot produce one. But if one ever reaches the store anyway, the review
+   * screen is not the place to explain that — the sprite still stands in the
+   * room, unlinked in spirit, and the person can pick a different listing for
+   * it without reading a sentence about a shop they never chose.
+   */
+  const lines = React.useMemo(
+    () => cartLines(items).filter((line) => resolveRetailer(line.product) !== null),
+    [items]
+  );
   const groups = React.useMemo(() => cartByRetailer(lines), [lines]);
   const subtotalCents = React.useMemo(() => cartSubtotalCents(lines), [lines]);
   const currency = lines[0]?.product.currency ?? "USD";
@@ -73,6 +89,7 @@ export default function CheckoutPage() {
   const [mode, setMode] = React.useState<RunMode>(DEFAULT_RUN_MODE);
   const [phase, setPhase] = React.useState<RunPhase>("idle");
   const [rows, setRows] = React.useState<RunRow[] | null>(null);
+  const [verification, setVerification] = React.useState<RunVerification | null>(null);
   const [modeOpen, setModeOpen] = React.useState(false);
 
   // the basket is frozen the moment the agent starts: a line removed mid-run
@@ -148,6 +165,13 @@ export default function CheckoutPage() {
     <AppShell title="Your order">
       {/* the money, pinned under the header */}
       <div className="sticky top-[calc(56px+env(safe-area-inset-top))] z-20 -mx-4 border-b border-line bg-background/92 px-4 py-3 backdrop-blur-md">
+        {/*
+          Pinned for the whole screen, not just before the run. It reports what
+          the SERVER does — the walk is test mode unless two server-side flags
+          are both set, and the live branch throws rather than buying.
+        */}
+        <TestModeChip className="mb-3" />
+
         <div className="flex items-end justify-between gap-3">
           <NumberPlate
             value={centsToUnits(subtotalCents)}
@@ -266,13 +290,17 @@ export default function CheckoutPage() {
         lines={runLines}
         mode={mode}
         onPhaseChange={handlePhase}
-        onFinished={setRows}
+        onFinished={(nextRows, nextVerification) => {
+          setRows(nextRows);
+          setVerification(nextVerification);
+        }}
       />
 
       {phase === "finished" && rows ? (
         <Confirmation
           rows={rows}
           lines={runLines}
+          verification={verification}
           onPlaceAnother={() => router.push("/room")}
         />
       ) : null}
