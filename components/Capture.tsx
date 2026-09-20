@@ -44,7 +44,16 @@ const MAX_ASPECT = 2;
 /** Mean luminance, 0..1. Under this we offer a retake — we never block one. */
 const DARK_LUMINANCE = 0.22;
 
-const ANALYZE_TIMEOUT_MS = 20000;
+/*
+ * LONGER THAN THE SERVER'S OWN BUDGET, on purpose.
+ *
+ * /api/analyze races its providers for 22s and then answers — with a real read
+ * if it got one, with the neutral palette if it did not. At 20s this side gave
+ * up first, so a read that was about to succeed showed as "couldn't read the
+ * style in that photo" and the server logged nothing, because nothing had gone
+ * wrong. Whoever waits second must wait longer.
+ */
+const ANALYZE_TIMEOUT_MS = 35000;
 
 const HEADLINE = "Photograph the room you want to change.";
 
