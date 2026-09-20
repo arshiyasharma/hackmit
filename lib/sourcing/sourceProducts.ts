@@ -19,7 +19,16 @@ import {
 const DEFAULT_LIMIT = 8;
 const ELASTIC_ENOUGH = 3;
 const RESULT_CACHE_TTL_MS = 90_000;
-const SCRAPE_BUDGET_MS = 2_500;
+/*
+ * A retailer page does not load in two and a half seconds, and this raced
+ * every scrape against that — so the fetch inside scrapeRetailerDimensions was
+ * capped at 2.5s however long its own timeout said, and the log filled with
+ * aborts. Five seconds is long enough for most product pages and short enough
+ * that a search still answers inside its own budget; anything slower falls
+ * through to the typical size in lib/sourcing/typical.ts, which is marked
+ * "approx" rather than left blank.
+ */
+const SCRAPE_BUDGET_MS = 5_000;
 
 const resultCache = new Map<
   string,
