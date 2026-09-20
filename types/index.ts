@@ -96,6 +96,22 @@ export type ScaleReference = {
   point: { x: number; y: number };
 };
 
+/**
+ * A scale the user set, kept as a FRACTION of the photo's height so that
+ * resizing the stage cannot invalidate it.
+ *
+ * It lived inside components/PhotoMode.tsx until the 3D view needed it too: a
+ * measurement of the actual room is room data, and every view that draws the
+ * room at true size wants the same answer.
+ */
+export type PhotoScale = {
+  kind: ScaleReference["kind"];
+  label: string;
+  realMm: number;
+  /** the measured height of that object, as a fraction of the photo's height */
+  heightFraction: number;
+};
+
 /* -------------------------------------------------------------- products */
 
 /**

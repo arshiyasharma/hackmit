@@ -254,15 +254,6 @@ export const SCALE_CHOICES: Array<{
   },
 ];
 
-/** A scale the user set, kept as a FRACTION of the photo so a resize is safe. */
-type PhotoScale = {
-  kind: ScaleReference["kind"];
-  label: string;
-  realMm: number;
-  /** the measured height of that object, as a fraction of the photo's height */
-  heightFraction: number;
-};
-
 /* ==================================================================== mode */
 
 export function PhotoMode() {
@@ -312,7 +303,10 @@ export function PhotoMode() {
     null
   );
 
-  const [scale, setScale] = React.useState<PhotoScale | null>(null);
+  /* the measurement belongs to the room, not to this component: the 3D view
+     in components/LiveLook.tsx builds its wall from the same number */
+  const scale = useStore((s) => s.photoScale);
+  const setScale = useStore((s) => s.setPhotoScale);
   /** the in-progress measurement: which object, and the first tap if taken */
   const [measuring, setMeasuring] = React.useState<{
     index: number;
@@ -417,7 +411,7 @@ export function PhotoMode() {
       vibrate(12);
       toast(`Scale set from ${choice.label}.`);
     },
-    [measuring, fit]
+    [measuring, fit, setScale]
   );
 
   /* ------------------------------------------------------------- empty */

@@ -9,6 +9,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   CartItem,
   FitResult,
+  PhotoScale,
   PlacedItem,
   Product,
   Profile,
@@ -134,6 +135,13 @@ export const NEUTRAL_ROOM_CONTEXT: RoomContext = {
 export type VisaState = {
   /* capture */
   roomImage: Room | null;
+  /**
+   * What the user measured against — the wall, a door — as a fraction of the
+   * photo's height. Every view that draws the room at true size reads it:
+   * components/PhotoMode.tsx sets it, and components/LiveLook.tsx builds the
+   * 3D set's wall from it.
+   */
+  photoScale: PhotoScale | null;
   /** exactly what /api/analyze answered — never edited in place */
   roomContext: RoomContext | null;
   /**
@@ -185,6 +193,7 @@ export type NewItem = {
 export type VisaActions = {
   /* capture */
   setRoomImage: (room: Room | null) => void;
+  setPhotoScale: (scale: PhotoScale | null) => void;
   setRoomContext: (context: RoomContext | null) => void;
   /** the user disagrees with a style tag; the next search changes */
   removeStyleTag: (tag: string) => void;
@@ -248,6 +257,7 @@ const EMPTY_EDITS = {
 
 const initialState: VisaState = {
   roomImage: null,
+  photoScale: null,
   roomContext: null,
   edits: EMPTY_EDITS,
   items: [],
@@ -285,6 +295,8 @@ export const useStore = create<VisaStore>()(
       ...initialState,
 
       /* capture */
+      setPhotoScale: (photoScale) => set({ photoScale }),
+
       setRoomImage: (roomImage) =>
         // a new room invalidates everything standing in the old one, edits too
         set({

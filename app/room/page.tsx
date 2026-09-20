@@ -31,6 +31,7 @@ import AskInput, { useAsking } from "@/components/AskInput";
 import BudgetHud, { useRemoveItem } from "@/components/BudgetHud";
 import BudgetPrompt from "@/components/BudgetPrompt";
 import ItemsStrip from "@/components/ItemsStrip";
+import LiveLook, { LiveLookButton } from "@/components/LiveLook";
 import OptionSheet, { openOptionsFor, useOptionsOpen } from "@/components/OptionSheet";
 import {
   OPEN_OPTIONS_EVENT,
@@ -149,6 +150,10 @@ export default function RoomPage() {
     return out;
   }, [active, roomContext]);
 
+  /* the 3D set is a peek, not a route: it opens over the room and closes back
+     onto it with nothing lost */
+  const [lookOpen, setLookOpen] = React.useState(false);
+
   const fade = reduced ? { duration: 0.15 } : { duration: 0.3 };
 
   return (
@@ -258,6 +263,14 @@ export default function RoomPage() {
                 ) : null}
               </AnimatePresence>
 
+              {/*
+                THE 3D VIEW LIVES BESIDE THE THINGS IT SHOWS. It only appears
+                once something is linked, because a set with nothing standing
+                in it is a button that apologises.
+              */}
+              <div className="pointer-events-none flex justify-center pb-1">
+                <LiveLookButton onOpen={() => setLookOpen(true)} />
+              </div>
               <ItemsStrip />
               <AskInput />
             </div>
@@ -270,6 +283,9 @@ export default function RoomPage() {
 
         {/* the options for the active item, resting at 40% so the sprite shows */}
         <OptionSheet />
+
+        {/* the room as a shallow 3D set — the one view a laptop can show */}
+        <LiveLook open={lookOpen} onOpenChange={setLookOpen} />
       </div>
     </main>
   );
