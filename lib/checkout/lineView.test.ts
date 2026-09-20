@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { LINE_STATE_WORDS, LINE_TERMINAL, readLineStatus } from "./lineView";
+import {
+  deriveShopRows,
+  LINE_STATE_WORDS,
+  LINE_TERMINAL,
+  readLineStatus,
+  type SettleableLine,
+} from "./lineView";
 import type { LineStatus } from "./types";
 
 /**
@@ -130,5 +136,70 @@ describe("the state vocabulary matches the server's", () => {
 
   it("knows which states a line never leaves", () => {
     expect([...LINE_TERMINAL].sort()).toEqual(["failed", "placed"]);
+  });
+});
+
+describe("deriveShopRows — the bug that said 'Nothing ran.'", () => {
+  const line = (patch: Partial<SettleableLine> = {}): SettleableLine => ({
+    shopName: "IKEA",
+    url: "https://www.ikea.com/p/1",
+    quantity: 1,
+    priceCents: 12000,
+    state: "placed",
+    orderRef: "TEST-IKEA-1",
+    reason: null,
+    ...patch,
+  });
+
+  it("a completed run settles to one row per shop, never to nothing", () => {
+    const rows = deriveShopRows([
+      line(),
+      line({ shopName: "Wayfair", orderRef: "TEST-WAYFAIR-1", priceCents: 3500, quantity: 2 }),
+      line({ orderRef: "TEST-IKEA-2", priceCents: 1900 }),
+      line({ shopName: "Target", orderRef: "TEST-TARGET-1", priceCents: 8900 }),
+    ]);
+
+    // this is the assertion that would have caught it: four placed lines
+    // across three shops must never derive to zero rows
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.retailer)).toEqual(["IKEA", "Wayfair", "Target"]);
+    expect(rows.every((r) => r.state === "ordered")).toBe(true);
+  });
+
+  it("an empty run is the only thing that settles to nothing", () => {
+    expect(deriveShopRows([])).toEqual([]);
+  });
+
+  it("adds up the quantity and the money per shop", () => {
+    const [ikea] = deriveShopRows([
+      line({ priceCents: 12000, quantity: 2 }),
+      line({ priceCents: 1900, quantity: 1 }),
+    ]);
+    expect(ikea.itemCount).toBe(3);
+    expect(ikea.subtotalCents).toBe(12000 * 2 + 1900);
+  });
+
+  it("a shop that half-worked is failed, not ordered — a human has to finish it", () => {
+    const [ikea] = deriveShopRows([
+      line(),
+      line({ state: "failed", orderRef: null, reason: "the shop refused the signature" }),
+    ]);
+    expect(ikea.state).toBe("failed");
+    expect(ikea.error).toBe("the shop refused the signature");
+  });
+
+  it("carries the TEST- order reference and never claims real work", () => {
+    const [ikea] = deriveShopRows([line()]);
+    expect(ikea.orderRef).toBe("TEST-IKEA-1");
+    expect(ikea.simulated).toBe(true);
+    expect(ikea.mode).toBe("test");
+  });
+
+  it("the mode is what stops the confirmation saying 'Ordered.'", () => {
+    // Confirmation.tsx reads `mode !== "live"` to decide the headline, so a
+    // settled row must always carry "test" — the type pins it and this pins
+    // the value, because a row that ever said "live" would headline a test run
+    // as an order.
+    expect(deriveShopRows([line()]).map((r) => r.mode)).toEqual(["test"]);
   });
 });

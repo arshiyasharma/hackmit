@@ -92,3 +92,76 @@ export const LINE_STATE_WORDS: Readonly<Record<LineViewState, string>> = {
 };
 
 export const LINE_TERMINAL: ReadonlySet<LineViewState> = new Set(["placed", "failed"]);
+
+/* ------------------------------------------------- settling a finished run */
+
+/**
+ * One shop's summary, derived from its lines once they have all stopped.
+ *
+ * WHY THIS IS A PURE FUNCTION AND NOT INLINE IN THE COMPONENT. It used to be,
+ * and it was fed by reading state out of a `setState` updater — which React
+ * does not invoke synchronously. The read usually came back empty, so a run
+ * where four lines went green settled to zero rows and the confirmation screen
+ * said "Nothing ran." Pulling it out means the arithmetic is testable without
+ * mounting React, and the component's only job is to hand it the lines.
+ */
+export interface SettledShopRow {
+  retailer: string;
+  url: string;
+  itemCount: number;
+  subtotalCents: number;
+  currency: string;
+  state: "ordered" | "failed";
+  simulated: true;
+  orderRef: string | null;
+  error: string | null;
+  mode: "test";
+}
+
+export interface SettleableLine {
+  shopName: string;
+  url: string;
+  quantity: number;
+  priceCents: number;
+  state: LineViewState;
+  orderRef: string | null;
+  reason: string | null;
+}
+
+/**
+ * Group the lines by shop and say what became of each shop.
+ *
+ * A shop counts as `ordered` only when EVERY one of its lines was placed.
+ * Anything else is `failed`, because a shop that half-worked needs a human,
+ * and reporting it as done is how a partial failure gets missed.
+ */
+export function deriveShopRows(
+  lines: readonly SettleableLine[],
+  currency = "USD"
+): SettledShopRow[] {
+  const byShop = new Map<string, SettleableLine[]>();
+  for (const line of lines) {
+    const existing = byShop.get(line.shopName);
+    if (existing) existing.push(line);
+    else byShop.set(line.shopName, [line]);
+  }
+
+  return [...byShop.entries()].map(([retailer, shopLines]) => {
+    const placed = shopLines.filter((l) => l.state === "placed");
+    const failed = shopLines.filter((l) => l.state === "failed");
+
+    return {
+      retailer,
+      url: shopLines[0]?.url ?? "",
+      itemCount: shopLines.reduce((n, l) => n + l.quantity, 0),
+      subtotalCents: shopLines.reduce((n, l) => n + l.priceCents * l.quantity, 0),
+      currency,
+      state: placed.length === shopLines.length ? "ordered" : "failed",
+      // the server contacted no shop and says so. Never claim otherwise.
+      simulated: true,
+      orderRef: placed[0]?.orderRef ?? null,
+      error: failed[0]?.reason ?? null,
+      mode: "test",
+    };
+  });
+}

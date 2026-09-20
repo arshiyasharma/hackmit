@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { StatusLine } from "@/components/ui/StatusLine";
 import { toBasket } from "@/lib/checkout/adapter";
 import {
+  deriveShopRows,
   LINE_STATE_WORDS,
   LINE_TERMINAL,
   readLineStatus,
@@ -232,37 +233,8 @@ export function CheckoutRun({
       if (settled.current) return;
       settled.current = true;
 
-      const byShop = new Map<string, LineView[]>();
-      for (const view of views) {
-        const existing = byShop.get(view.shopName);
-        if (existing) existing.push(view);
-        else byShop.set(view.shopName, [view]);
-      }
-
-      const rows: RunRow[] = [...byShop.entries()].map(([shopName, shopLines]) => {
-        const failed = shopLines.filter((l) => l.state === "failed");
-        const placed = shopLines.filter((l) => l.state === "placed");
-        const state: RunState =
-          failed.length === shopLines.length
-            ? "failed"
-            : placed.length === shopLines.length
-              ? "ordered"
-              : "failed";
-
-        return {
-          retailer: shopName,
-          url: shopLines[0]?.url ?? "",
-          itemCount: shopLines.reduce((n, l) => n + l.quantity, 0),
-          subtotalCents: shopLines.reduce((n, l) => n + l.priceCents * l.quantity, 0),
-          currency,
-          state,
-          // the server never contacted a shop, and says so. Never claim otherwise.
-          simulated: true,
-          orderRef: placed[0]?.orderRef ?? null,
-          error: failed[0]?.reason ?? null,
-          mode: "test",
-        };
-      });
+      // the arithmetic lives in lib/checkout/lineView.ts, where it is tested
+      const rows: RunRow[] = deriveShopRows(views, currency);
 
       finished.current?.(rows);
       setPhase("finished");
