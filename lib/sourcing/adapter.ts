@@ -61,6 +61,24 @@ function sweep(): void {
  */
 const LIMIT = 8;
 
+/*
+ * A SEARCH IS ALLOWED TWENTY SECONDS, NOT A MINUTE.
+ *
+ * Measured on the dev log: one Shopping call took 15.1s, another three were
+ * aborted at 20s each, and because the ladder simply carried on the whole
+ * question ran for over a minute before the room said "nothing came back".
+ * Nobody is watching a lamp search for a minute — by then the answer is worth
+ * less than the admission that there isn't one.
+ *
+ * So the whole question gets one budget. Each rung is capped below it, so a
+ * single slow rung cannot eat the lot and leave nothing for the simpler
+ * question that was likelier to answer anyway, and when the budget is gone
+ * the ladder stops climbing and reports what it has.
+ */
+const SEARCH_BUDGET_MS = Number(process.env.SEARCH_BUDGET_MS ?? 20_000);
+const RUNG_CAP_MS = 12_000;
+const MIN_RUNG_MS = 2_500;
+
 function toMm(inches: number | null | undefined): number | null {
   if (inches == null || !Number.isFinite(inches) || inches <= 0) return null;
   return Math.round(inches * MM_PER_INCH);
@@ -214,15 +232,29 @@ async function fetchOptions(
    * call. Only a query the shops cannot answer costs a second.
    */
   const rungs = ladder(query, request);
+  const startedAt = now();
+  const deadline = startedAt + SEARCH_BUDGET_MS;
   let sourced: SourcedProduct[] = [];
 
   for (const rung of rungs) {
+    const left = deadline - now();
+    if (left < MIN_RUNG_MS) {
+      console.info(
+        `[search] "${query}" ran out of time with "${rung}" untried`
+      );
+      break;
+    }
+
     sourced = await sourceProductsForQuery({
       shoppingQuery: rung,
       designQuery: request || rung,
       apiKey,
       limit: LIMIT,
       maxPrice,
+      // the rungs ARE the fallbacks; a second ladder underneath this one is
+      // how a single question turned into six SerpAPI calls
+      fallbacks: false,
+      deadline: now() + Math.min(left, RUNG_CAP_MS),
     });
     if (sourced.length > 0) {
       if (rung !== query) {
@@ -235,6 +267,13 @@ async function fetchOptions(
   const options = sourced
     .map((product) => toProduct(product, itemId))
     .filter((product): product is Product => product !== null);
+
+  /* one line that answers "was it slow, or was it empty?" */
+  console.info(
+    `[search] "${query}" -> ${options.length} listing${
+      options.length === 1 ? "" : "s"
+    } in ${now() - startedAt}ms`
+  );
 
   /*
    * A listing whose dimensions the retailer published comes first.

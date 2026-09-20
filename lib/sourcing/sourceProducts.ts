@@ -12,6 +12,7 @@ import {
 import { scrapeRetailerDimensions } from "@/lib/sourcing/scrapeDimensions";
 import {
   buildShoppingQueryFallbacks,
+  searchGoogleShopping,
   searchGoogleShoppingWithFallbacks,
 } from "@/lib/sourcing/serpapi";
 
@@ -39,6 +40,19 @@ export type SourceProductsOptions = {
    * (e.g. sofas when the user asked for "pink lamp").
    */
   designQuery?: string | null;
+  /**
+   * Epoch ms after which this search should stop asking and answer with what
+   * it has. Without one, a slow SerpAPI can run past any client that is
+   * waiting, which reads as "nothing came back" for a minute.
+   */
+  deadline?: number;
+  /**
+   * Whether to try simpler versions of the query when this one comes back
+   * empty. The room screen ladders its own queries in lib/sourcing/adapter.ts,
+   * so it turns this off — two ladders stacked meant one question could cost
+   * six SerpAPI calls and a minute of waiting.
+   */
+  fallbacks?: boolean;
 };
 
 function cacheKey(options: SourceProductsOptions): string {
@@ -231,10 +245,16 @@ export async function sourceProductsForQuery(
     throw new Error("SERPAPI_KEY is not configured");
   }
 
-  const result = await searchGoogleShoppingWithFallbacks(
-    buildShoppingQueryFallbacks(options.shoppingQuery, designQuery),
-    options.apiKey
-  );
+  const budgetMs =
+    options.deadline != null ? options.deadline - Date.now() : undefined;
+  const result =
+    options.fallbacks === false
+      ? await searchGoogleShopping(options.shoppingQuery, options.apiKey, budgetMs)
+      : await searchGoogleShoppingWithFallbacks(
+          buildShoppingQueryFallbacks(options.shoppingQuery, designQuery),
+          options.apiKey,
+          budgetMs
+        );
   if (!result.ok) {
     if (elasticProducts.length > 0) {
       const filled = await fillMissingDimensions(
@@ -252,6 +272,8 @@ export async function sourceProductsForQuery(
     apiKey: options.apiKey,
     maxProducts: limit + 1,
     designQuery,
+    timeoutMs:
+      options.deadline != null ? options.deadline - Date.now() : undefined,
   });
   const resolved = applyRelevance(enriched);
 

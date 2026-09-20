@@ -460,6 +460,8 @@ export async function enrichShoppingResults(
     maxProducts?: number;
     /** Filter candidates by title before expensive immersive fetches. */
     designQuery?: string | null;
+    /** What is left of the caller's deadline, for the Buy-link fetches. */
+    timeoutMs?: number;
   }
 ): Promise<Product[]> {
   if (!Array.isArray(results)) return [];
@@ -511,7 +513,8 @@ export async function enrichShoppingResults(
       if (!directUrl && candidate.immersive_token && apiKey) {
         const immersive = await fetchImmersiveProduct(
           candidate.immersive_token,
-          apiKey
+          apiKey,
+          options?.timeoutMs
         );
         features = immersive.features;
         immersiveTitle = immersive.title ?? null;
