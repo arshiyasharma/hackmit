@@ -162,10 +162,14 @@ export async function searchGoogleShopping(
   }
 
   const shopping_results = parseShoppingResults(result.data.shopping_results);
-  shoppingCache.set(cacheKey, {
-    expires: Date.now() + SHOPPING_CACHE_TTL_MS,
-    shopping_results,
-  });
+  // an empty page is not worth remembering for five minutes — a retry should
+  // be allowed to actually retry
+  if (shopping_results.length > 0) {
+    shoppingCache.set(cacheKey, {
+      expires: Date.now() + SHOPPING_CACHE_TTL_MS,
+      shopping_results,
+    });
+  }
 
   // Bound memory in long-running dev servers.
   if (shoppingCache.size > 50) {

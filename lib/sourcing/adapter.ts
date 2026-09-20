@@ -34,8 +34,15 @@ const MM_PER_INCH = 25.4;
  * Whatever is re-rendering upstream can no longer cost credits.
  */
 const inFlight = new Map<string, Promise<Product[] | null>>();
-const recent = new Map<string, { options: Product[]; at: number }>();
+const recent = new Map<string, { options: Product[]; at: number; ttl: number }>();
 const RECENT_TTL_MS = 60_000;
+/*
+ * An empty answer is remembered for long enough to absorb a re-render storm
+ * and no longer. Holding "nothing" for a full minute turned one bad search
+ * into a minute of a broken-looking room, because the retry the user reached
+ * for was answered from memory without ever asking the shops again.
+ */
+const EMPTY_TTL_MS = 10_000;
 
 function now(): number {
   return Date.now();
@@ -43,7 +50,7 @@ function now(): number {
 
 function sweep(): void {
   for (const [key, value] of recent) {
-    if (now() - value.at > RECENT_TTL_MS) recent.delete(key);
+    if (now() - value.at > value.ttl) recent.delete(key);
   }
 }
 
@@ -164,7 +171,13 @@ export async function sourceOptions(
   inFlight.set(key, job);
 
   const options = await job;
-  if (options) recent.set(key, { options, at: now() });
+  if (options) {
+    recent.set(key, {
+      options,
+      at: now(),
+      ttl: options.length > 0 ? RECENT_TTL_MS : EMPTY_TTL_MS,
+    });
+  }
   return options;
 }
 

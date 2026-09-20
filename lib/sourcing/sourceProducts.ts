@@ -151,11 +151,24 @@ export async function sourceProductsForQuery(
       : undefined;
   const broad = isBroadProductQuery(designQuery);
 
-  const applyRelevance = (products: Product[]) =>
-    diversifyProductsByQuery(
-      filterProductsByDesignQuery(products, designQuery),
+  /*
+   * Relevance is a PREFERENCE, not a gate. A filter that empties the shelf has
+   * told the user "nothing came back" about listings that did come back, which
+   * is the worse of the two failures — so when it keeps nothing, the unfiltered
+   * set goes through instead. Same rule enrichShoppingResults already follows.
+   */
+  const applyRelevance = (products: Product[]) => {
+    const kept = filterProductsByDesignQuery(products, designQuery);
+    if (kept.length === 0 && products.length > 0) {
+      console.info(
+        `[search] "${designQuery}" matched no title exactly; showing the ${products.length} the shops returned`
+      );
+    }
+    return diversifyProductsByQuery(
+      kept.length > 0 ? kept : products,
       designQuery
     );
+  };
 
   let elasticProducts: Product[] = [];
   try {
