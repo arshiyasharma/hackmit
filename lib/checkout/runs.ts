@@ -88,10 +88,61 @@ export function updateLine(
   return run;
 }
 
+/**
+ * The run whose frozen basket carries this basketId.
+ *
+ * The mandate endpoint is handed a basketId by the screen, not a runId, and a
+ * mandate has to be built from the basket the agent ACTUALLY RAN ON rather
+ * than from whatever the room screen has drifted to since. The newest matching
+ * run wins, because pressing checkout twice should mandate the second basket.
+ */
+export function findRunByBasketId(basketId: string): CheckoutRun | undefined {
+  let newest: CheckoutRun | undefined;
+  for (const run of store().values()) {
+    if (run.basket.basketId !== basketId) continue;
+    if (!newest || run.createdAt > newest.createdAt) newest = run;
+  }
+  return newest;
+}
+
 /** Record the Visa purchase instruction this run spends under. Prompt 7 calls this. */
 export function setInstructionId(runId: string, instructionId: string): void {
   const run = store().get(runId);
   if (run) run.instructionId = instructionId;
+}
+
+/**
+ * The Visa transaction reference for one line.
+ *
+ * THE SAME ID MUST BE USED TWICE: once to pull the payment credential and
+ * again to confirm the transaction. Visa ties the two calls together by it, so
+ * generating a fresh one at confirm time reports an event against a
+ * transaction that never existed. It is minted at credential time and read
+ * back here.
+ *
+ * It is an identifier, not a credential — no card data is ever stored.
+ */
+export function setTransactionReference(
+  runId: string,
+  lineId: string,
+  transactionReferenceId: string
+): void {
+  const run = store().get(runId);
+  if (!run) return;
+  run.transactionReferences ??= {};
+  run.transactionReferences[lineId] = transactionReferenceId;
+}
+
+export function getTransactionReference(
+  runId: string,
+  lineId: string
+): string | undefined {
+  return store().get(runId)?.transactionReferences?.[lineId];
+}
+
+/** The line's status inside a run, or undefined. */
+export function getLineStatus(runId: string, lineId: string): LineStatus | undefined {
+  return store().get(runId)?.lines.find((line) => line.lineId === lineId)?.status;
 }
 
 /** Has every line stopped moving? */

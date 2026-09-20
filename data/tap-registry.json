@@ -4,15 +4,15 @@
     "real_tap": "Real TAP resolves a keyId over the network against Visa's registry, and a merchant that does not recognise an agent refuses it. We are not building that. This file is the same lookup, committed, so the merchant side of our demo can do a genuine key resolution rather than skipping the step.",
     "shape": "keys[<keyId>] = { agentId, agentName, publicKeyPem, registeredAt }. publicKeyPem is an SPKI PEM with newlines escaped as \\n, the same form the environment variables use.",
     "adding_yours": "Run `npm run keys:tap`. It prints the four .env.local lines and the JSON entry to paste in here. The keyId in this file must match TAP_KEY_ID in .env.local or every signature fails as unknown-key.",
-    "the_seed_entry": "vra-key-25ac is a PLACEHOLDER. Its private key was printed once and never saved, so nothing can sign as it — it is here to document the shape, not to be used. Replace it with your own.",
+    "the_seed_entry": "vra-key-907d is the live agent. Its private key is in .env.local only, which is gitignored. Only the public key belongs in this file.",
     "secrets": "Public keys only. A private key must never appear in this file."
   },
   "keys": {
-    "vra-key-25ac": {
+    "vra-key-907d": {
       "agentId": "visa-room-agent",
       "agentName": "VISA Room Agent",
-      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA5DN7OzBsI90parubYGt3k0XDGF2y20wHlLKivPicHmI=\n-----END PUBLIC KEY-----",
-      "registeredAt": "2026-09-20T01:34:32.790Z"
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\\nMCowBQYDK2VwAyEA2SU6F1rJpcRmiwfbkIJV0C5jHGJ4T6nvH6mu0aeZM/Y=\\n-----END PUBLIC KEY-----",
+      "registeredAt": "2026-09-20T02:20:27.512Z"
     }
   }
 }

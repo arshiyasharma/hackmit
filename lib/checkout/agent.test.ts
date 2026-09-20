@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { groupByRetailer, resolveMode, runCheckout, STEP_MS } from "./agent";
 import { createRun, getRun } from "./runs";
@@ -36,8 +36,29 @@ function fourLinesThreeRetailers(): Basket {
   ]);
 }
 
-const ENV_KEYS = ["CHECKOUT_MODE", "ENABLE_REAL_ORDERS"] as const;
+const ENV_KEYS = [
+  "CHECKOUT_MODE",
+  "ENABLE_REAL_ORDERS",
+  "TAP_AGENT_ID",
+  "TAP_KEY_ID",
+  "TAP_ED25519_PRIVATE_KEY",
+  "TAP_ED25519_PUBLIC_KEY",
+  "TAP_VERIFY_BASE_URL",
+] as const;
 const originalEnv = new Map(ENV_KEYS.map((key) => [key, process.env[key]]));
+
+/**
+ * This file runs the walk with the Trusted Agent Protocol SWITCHED OFF — no
+ * keys in the environment — because that is what an operator who has not run
+ * `npm run keys:tap` has, and the walk must still complete for them. The
+ * identity beat itself is tested in tap-walk.test.ts, which configures keys
+ * and mocks the registry.
+ */
+beforeAll(() => {
+  for (const key of ENV_KEYS) {
+    if (key.startsWith("TAP_")) delete process.env[key];
+  }
+});
 
 afterEach(() => {
   for (const key of ENV_KEYS) {
@@ -128,6 +149,18 @@ describe("runCheckout in test mode", () => {
     for (const l of getRun(run.runId)!.lines) {
       expect(l.status.state).toBe("placed");
       expect((l.status as Extract<LineStatus, { state: "placed" }>).mode).toBe("test");
+    }
+  });
+
+  it("carries no tap verdict when the agent has no keys — off, not failed", async () => {
+    delete process.env.CHECKOUT_MODE;
+    const run = createRun(fourLinesThreeRetailers());
+
+    await runCheckout(run.runId, { stepMs: 1 });
+
+    for (const l of getRun(run.runId)!.lines) {
+      expect(l.status.state).toBe("placed");
+      expect(l.status.tap).toBeUndefined();
     }
   });
 

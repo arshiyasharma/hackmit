@@ -65,12 +65,67 @@ export interface Basket {
   budgetMinor: number;       // the HUD's cap
 }
 
-export type LineStatus =
+/**
+ * What the shop said when the agent showed its Trusted Agent Protocol
+ * signature for this line.
+ *
+ * FLAT AND STRING-TYPED ON PURPOSE. This travels over SSE to a browser, so it
+ * carries the shop's answer and nothing that could let a client reconstruct a
+ * signature. `reason` is a `TapFailure` most of the time, but not always — a
+ * merchant we could not reach is a real outcome and is not in that set.
+ */
+export interface TapLineVerdict {
+  ok: boolean;
+  /** who the shop decided we are. Only present when it believed us. */
+  agentId?: string;
+  agentName?: string;
+  /** the operation the signature covered — "browsing" or "payment" */
+  tag?: string;
+  /** why it was refused, when it was */
+  reason?: string;
+  /** whether the shop was called in-process or over HTTP. See lib/tap/merchant.ts. */
+  via?: "in-process" | "http";
+}
+
+/**
+ * What happened when the line was authorized, when a real payment provider was
+ * asked rather than simulated.
+ *
+ * `captured` is always false and there is no code path in this repo that could
+ * make it true. An authorization is a hold; capture is what moves money.
+ */
+export interface PaymentLineResult {
+  /** "simulated" never appears here — the field is absent instead */
+  provider: "acceptance";
+  /** straight from Visa: AUTHORIZED, DECLINED, … */
+  status: string;
+  reconciliationId: string | null;
+  /** decimal string, e.g. "120.00" */
+  authorizedAmount: string | null;
+  approvalCode: string | null;
+  /** the id Visa support acts on */
+  correlationId: string | null;
+  /** the shared test merchant, not ours. Said in the data, not only the pitch. */
+  merchant: "shared-test";
+  captured: false;
+}
+
+/**
+ * Where a line has got to, plus the shop's verdict on our identity once we
+ * have one.
+ *
+ * `tap` and `payment` are an intersection rather than fields on each variant so
+ * that adding them changed nothing about how `state` discriminates. Each is
+ * absent until the line reaches that beat, and absent for the whole run when
+ * the feature is not configured — an unconfigured feature is off, not failed.
+ */
+export type LineStatus = (
   | { state: "pending" }
   | { state: "walking" }               // agent is on the retailer page
   | { state: "authorizing" }
   | { state: "placed"; orderRef: string; mode: "test" | "live" }
-  | { state: "failed"; reason: string };
+  | { state: "failed"; reason: string }
+) & { tap?: TapLineVerdict; payment?: PaymentLineResult };
 
 /** A line's id paired with where it has got to. What the run endpoints return. */
 export interface RunLine {
@@ -100,4 +155,11 @@ export interface CheckoutRun {
    * mistake you cannot recover from.
    */
   instructionId: string | null;
+  /**
+   * The Visa transaction reference minted for each line, by lineId.
+   *
+   * An IDENTIFIER, never a credential. A payment credential is held in request
+   * scope and allowed to go out of scope; nothing in this repo stores one.
+   */
+  transactionReferences?: Record<string, string>;
 }

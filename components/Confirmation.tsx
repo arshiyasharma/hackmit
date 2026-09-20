@@ -36,8 +36,14 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
 
   const ready = rows.filter((r) => r.state === "ready" || r.state === "ordered");
   const failed = rows.filter((r) => r.state === "failed");
-  const orderedAnything = rows.some((r) => r.state === "ordered");
   const anySimulated = rows.some((r) => r.simulated);
+  /**
+   * A run the server reported as test mode is not an order, whatever the row
+   * state says. "Ordered." over four test references is the one sentence on
+   * this screen that could be read as a lie, so it is gated on the server's
+   * own word rather than on the row reaching a terminal state.
+   */
+  const testRun = rows.length > 0 && rows.every((r) => r.mode !== "live");
 
   const readyCents = ready.reduce((sum, r) => sum + r.subtotalCents, 0);
 
@@ -45,10 +51,10 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
     rows.length === 0
       ? "Nothing ran."
       : failed.length === 0
-        ? orderedAnything
-          ? "Ordered."
-          : "At the confirm."
-        : `${ready.length} of ${rows.length} ready.`;
+        ? testRun
+          ? "Test run complete."
+          : "Ordered."
+        : `${ready.length} of ${rows.length} done.`;
 
   /* The fit line, measured from the same kernel the review used. */
   const fitLine = React.useMemo(() => {
@@ -96,19 +102,21 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
           unit="$"
           size="md"
           format={{ maximumFractionDigits: 0 }}
-          label="Waiting at the confirm"
+          label={testRun ? "Would have cost" : "Ordered"}
           tone="muted"
         />
         <span className="text-sm text-muted-foreground">
-          waiting at {ready.length} {ready.length === 1 ? "shop" : "shops"}
-          {orderedAnything ? "" : " — not yet paid"}
+          across {ready.length} {ready.length === 1 ? "shop" : "shops"}
+          {testRun ? " — no card was charged" : ""}
         </span>
       </div>
 
       {anySimulated ? (
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-          Rows marked simulated were walked through by this screen, not watched
-          on a real shop. No basket was touched and no money moved.
+          The retailer walk is simulated per shop — no shop exposes an API we
+          could buy through, so no basket was touched. The agent&rsquo;s
+          signature check and these order references came from the server, not
+          from this screen.
         </p>
       ) : null}
 

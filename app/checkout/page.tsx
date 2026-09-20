@@ -16,6 +16,7 @@ import CheckoutRun, {
   type RunRow,
 } from "@/components/CheckoutRun";
 import CheckoutSheet from "@/components/CheckoutSheet";
+import TestModeChip from "@/components/TestModeChip";
 import Confirmation from "@/components/Confirmation";
 import { buttonVariants } from "@/components/ui/button";
 import NumberPlate, { centsToUnits } from "@/components/ui/NumberPlate";
@@ -148,6 +149,13 @@ export default function CheckoutPage() {
     <AppShell title="Your order">
       {/* the money, pinned under the header */}
       <div className="sticky top-[calc(56px+env(safe-area-inset-top))] z-20 -mx-4 border-b border-line bg-background/92 px-4 py-3 backdrop-blur-md">
+        {/*
+          Pinned for the whole screen, not just before the run. It reports what
+          the SERVER does — the walk is test mode unless two server-side flags
+          are both set, and the live branch throws rather than buying.
+        */}
+        <TestModeChip className="mb-3" />
+
         <div className="flex items-end justify-between gap-3">
           <NumberPlate
             value={centsToUnits(subtotalCents)}
