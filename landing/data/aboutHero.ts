@@ -1,18 +1,19 @@
-/** Shared composition for the live HTML hero and the room's canvas preview. */
+/** Room-entry preview echoes the pitch page’s slogan, colors, and team photography. */
 export const aboutHero = {
   width: 1600,
   height: 900,
   background: "#353e89",
   ink: "#f5dfa0",
   art: [
-    { name: "ribbons", src: "about/hackmit/rabbit-ribbon.png", x: 870, y: 116, width: 710, height: 1005.7 },
-    { name: "cloud", src: "about/hackmit/about-cloud.png", x: 946, y: 12, width: 590, height: 395.2 },
+    { name: "ribbons", src: "about/hackmit/rabbit-ribbon.png", x: 1090, y: 70, width: 500, height: 710 },
+    { name: "team", src: "about/photos/opening-ceremony.webp", x: 1040, y: 120, width: 375, height: 500 },
+    { name: "build", src: "about/photos/team-build.webp", x: 940, y: 550, width: 410, height: 231 },
   ],
-  eyebrow: { x: 112, y: 76, size: 16, lineHeight: 24, lines: ["PIXX-AR AT HACKMIT / 2026"] },
-  title: { x: 104, y: 151, size: 140, lineHeight: 125, lines: ["Thank you,", "HackMIT."] },
-  lede: { x: 112, y: 454, size: 22, lineHeight: 34, lines: ["To the judges, mentors, organizers, and volunteers:", "thank you for the questions, the encouragement,", "and the space to build something new."] },
-  note: { x: 112, y: 579, size: 20, lineHeight: 30, lines: ["A room to reimagine. A weekend to build."] },
-  cta: { x: 112, y: 645, width: 264, height: 58, size: 17, label: "The story behind PIXX-AR" },
+  eyebrow: { x: 112, y: 76, size: 16, lineHeight: 24, lines: ["ROOM IV / PIXX-AR AT HACKMIT"] },
+  title: { x: 104, y: 151, size: 136, lineHeight: 125, lines: ["The spatial", "marketplace."] },
+  lede: { x: 112, y: 454, size: 22, lineHeight: 34, lines: ["Your room is the starting point.", "Everything it could become is the possibility."] },
+  note: { x: 112, y: 579, size: 20, lineHeight: 30, lines: ["A photo. A feeling. A room full of possibilities."] },
+  cta: { x: 112, y: 645, width: 264, height: 58, size: 17, label: "Step into our story" },
   event: { x: 112, y: 832, size: 14, lineHeight: 22, lines: ["SEPTEMBER 19–20, 2026  /  CAMBRIDGE, MA"] },
 } as const;
 
