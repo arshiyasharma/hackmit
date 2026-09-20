@@ -1,0 +1,246 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PIXX-AR device harness</title>
+<!--
+  Throwaway harness for checking the landing page at real iPhone viewport sizes.
+  An iframe gets its own layout viewport, so media queries, vh/dvh and safe-area
+  behave as they would on the device. The wrapper is scaled only for display, so
+  the page inside still believes it is 393x852.
+
+  /mobile-test.html?d=se|15|max|land&p=<path>   e.g. ?d=se&p=/landing?skip
+  Delete this file when the mobile pass is signed off.
+-->
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; background: #1b1b1f; color: #eee; font: 12px/1.4 ui-monospace, monospace; }
+  .rail { display: flex; gap: 22px; padding: 16px; align-items: flex-start; }
+  figure { margin: 0; display: grid; gap: 6px; justify-items: center; }
+  figcaption { opacity: 0.65; letter-spacing: 0.08em; text-transform: uppercase; }
+  .frame { position: relative; transform-origin: top center; }
+  iframe { border: 0; display: block; background: #fff; box-shadow: 0 10px 40px rgb(0 0 0 / 0.5); }
+  .safe { position: absolute; inset: 0; pointer-events: none; }
+  /* stand-ins for the notch and the home indicator, so nothing hides under them */
+  .safe::before, .safe::after { content: ""; position: absolute; left: 0; right: 0; background: rgb(255 0 120 / 0.14); }
+  .safe::before { top: 0; height: var(--top, 0px); }
+  .safe::after { bottom: 0; height: var(--bottom, 0px); }
+</style>
+<div class="rail" id="rail"></div>
+<script>
+  const DEVICES = {
+    se:   { label: "iPhone SE  375x667",      w: 375, h: 667, top: 20, bottom: 0 },
+    15:   { label: "iPhone 15  393x852",      w: 393, h: 852, top: 59, bottom: 34 },
+    max:  { label: "16 Pro Max  430x932",     w: 430, h: 932, top: 62, bottom: 34 },
+    land: { label: "landscape  852x393",      w: 852, h: 393, top: 0,  bottom: 21 },
+  };
+  const q = new URLSearchParams(location.search);
+  const path = q.get("p") || "/landing";
+  const want = (q.get("d") || "se,15,land").split(",").filter((k) => DEVICES[k]);
+  const fit = Number(q.get("fit") || 0);
+
+  const rail = document.getElementById("rail");
+  for (const key of want) {
+    const d = DEVICES[key];
+    const fig = document.createElement("figure");
+    const scale = fit ? Math.min(1, (window.innerHeight - 90) / d.h) : 1;
+    fig.innerHTML = `
+      <figcaption>${d.label}${scale < 1 ? ` @${Math.round(scale * 100)}%` : ""}</figcaption>
+      <div class="frame" style="transform:scale(${scale});width:${d.w * scale}px;height:${d.h * scale}px">
+        <iframe id="f-${key}" src="${path}" width="${d.w}" height="${d.h}" loading="eager"></iframe>
+        <div class="safe" style="--top:${d.top}px;--bottom:${d.bottom}px"></div>
+      </div>`;
+    rail.appendChild(fig);
+  }
+
+  /** Measure inside a frame: overflow, off-screen controls, tiny tap targets. */
+  window.audit = (key) => {
+    const doc = document.getElementById("f-" + key).contentDocument;
+    const W = DEVICES[key].w, H = DEVICES[key].h;
+    const out = { device: DEVICES[key].label, overflowX: 0, offscreen: [], smallTargets: [], tinyText: [] };
+    const root = doc.documentElement;
+    out.overflowX = Math.max(0, root.scrollWidth - W);
+    const seen = (el) => {
+      const cs = doc.defaultView.getComputedStyle(el);
+      return el.offsetParent !== null && cs.visibility !== "hidden" && +cs.opacity > 0.05;
+    };
+    for (const el of doc.querySelectorAll("button, .toast, .hotspot")) {
+      if (!seen(el)) continue;
+      // a hotspot for another chapter is parked off-screen on purpose
+      if (el.classList.contains("hotspot") && el.dataset.state === "hidden") continue;
+      const box = el.querySelector(".tile-body, .hotspot-in") || el;
+      const r = box.getBoundingClientRect();
+      // a control further down a scrolling page is reachable, just not yet shown
+      const scrolls = el.closest(".page-scroll");
+      const name = (el.getAttribute("aria-label") || el.textContent || el.className).trim().slice(0, 34);
+      if (!scrolls && (r.right > W + 1 || r.left < -1 || r.bottom > H + 1 || r.top < -1)) {
+        out.offscreen.push(`${name} @${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+      }
+      const hit = el.classList.contains("hotspot") ? 93 : Math.min(r.width, r.height);
+      if (hit < 44) out.smallTargets.push(`${name} ${Math.round(r.width)}x${Math.round(r.height)}`);
+    }
+    for (const el of doc.querySelectorAll("p, span, h1, li, .tile-label")) {
+      if (!seen(el) || !el.textContent.trim()) continue;
+      const size = parseFloat(doc.defaultView.getComputedStyle(el).fontSize);
+      if (size < 11) out.tinyText.push(`${el.className || el.tagName} ${size.toFixed(1)}px`);
+    }
+    out.offscreen = [...new Set(out.offscreen)];
+    out.smallTargets = [...new Set(out.smallTargets)];
+    out.tinyText = [...new Set(out.tinyText)];
+
+    // two controls that overlap means one of them cannot be tapped
+    const live = [...doc.querySelectorAll("button, .toast")].filter((el) => {
+      if (!seen(el)) return false;
+      if (el.closest(".hotspot")) return false;
+      const r = (el.querySelector(".tile-body") || el).getBoundingClientRect();
+      return r.width > 0 && r.right > 0 && r.left < W;
+    });
+    const name = (el) => (el.getAttribute("aria-label") || el.textContent || el.className).trim().slice(0, 26);
+    out.overlaps = [];
+    for (let i = 0; i < live.length; i++) {
+      for (let j = i + 1; j < live.length; j++) {
+        if (live[i].contains(live[j]) || live[j].contains(live[i])) continue;
+        const a = (live[i].querySelector(".tile-body") || live[i]).getBoundingClientRect();
+        const b = (live[j].querySelector(".tile-body") || live[j]).getBoundingClientRect();
+        const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (ox > 2 && oy > 2) out.overlaps.push(`${name(live[i])} X ${name(live[j])} by ${Math.round(ox)}x${Math.round(oy)}px`);
+      }
+    }
+    // and anything sitting under the notch or the home indicator
+    const d = DEVICES[key];
+    out.underSafeArea = live.filter((el) => {
+      const r = (el.querySelector(".tile-body") || el).getBoundingClientRect();
+      return (d.top && r.top < d.top) || (d.bottom && r.bottom > H - d.bottom);
+    }).map(name);
+    return out;
+  };
+
+  /** Drive the landing page inside a frame (the dev hook it exposes). */
+  window.sense = (key) => document.getElementById("f-" + key).contentWindow.__sense;
+
+  /**
+   * Walk the whole experience in one frame, auditing every screen it stops on.
+   * Each step is isolated: a step that throws is recorded and the walk goes on,
+   * so one broken screen never hides the state of the rest.
+   */
+  window.walk = async (key) => {
+    const win = document.getElementById("f-" + key).contentWindow;
+    const doc = win.document;
+    const s = win.__sense;
+    if (!s) throw new Error("dev hook not up in frame " + key);
+    const settle = async (t = 2.2) => {
+      await s.advance(t);
+      await new Promise((r) => setTimeout(r, 450));
+      await s.advance(0.4);
+      // let CSS entrance animations finish so nothing is measured mid-flight
+      doc.getAnimations().forEach((a) => { try { if (a.effect?.getComputedTiming().iterations !== Infinity) a.finish(); } catch {} });
+    };
+    /** Advance until the app reaches a state, instead of guessing a duration. */
+    const until = async (pred, label, tries = 24) => {
+      for (let i = 0; i < tries; i++) {
+        if (pred()) return;
+        await settle(1);
+      }
+      throw new Error("never reached " + label + " (stuck in " + s.machine.state + ")");
+    };
+    const inRoom = () => s.machine.state === "ROOM" && !s.machine.busy;
+    /** On screen AND finished sliding: a card is in the DOM long before it lands. */
+    const settled = (sel) => () => {
+      const el = doc.querySelector(sel);
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      return r.height > 0 && r.top >= 0 && r.bottom <= DEVICES[key].h;
+    };
+    const click = (sel) => { const el = doc.querySelector(sel); if (!el) throw new Error("no " + sel); el.click(); };
+    /** Click until it takes: a page mid-transition swallows the first press. */
+    const press = async (re, pred, label, tries = 14) => {
+      for (let i = 0; i < tries; i++) {
+        if (pred()) return;
+        try { btn(re); } catch { /* not there yet */ }
+        await settle(1);
+      }
+      if (!pred()) throw new Error("clicked " + re + " but never reached " + label + " (in " + s.machine.state + ")");
+    };
+    const btn = (re) => {
+      const el = [...doc.querySelectorAll("button")].find((b) => b.offsetParent && re.test((b.getAttribute("aria-label") || "") + " " + b.textContent));
+      if (!el) throw new Error("no button matching " + re);
+      el.click();
+    };
+    const spot = (label) => {
+      const el = [...doc.querySelectorAll(".hotspot")].find((e) => e.getAttribute("aria-label") === label);
+      if (!el) throw new Error("no hotspot " + label);
+      el.click();
+    };
+
+    const STEPS = [
+      ["intro hero", async () => { s.app.intro?.tl?.pause(); s.app.intro?.tl?.progress(1); await settle(0.3); }],
+      ["room I", async () => { btn(/enter the experience/i); await until(inRoom, "ROOM"); }],
+      ["found phone", async () => { spot("Pick up your phone"); await until(settled(".reward .card-button"), "the reward card to land"); }],
+      ["basket empty", async () => { await press(/open it/i, () => s.machine.state === "BASKET", "BASKET"); }],
+      ["room I again", async () => { await press(/close the basket/i, inRoom, "ROOM"); }],
+      ["ask interaction", async () => { await press(/ask for a lamp/i, () => s.machine.state === "INTERACTION", "INTERACTION"); }],
+      ["ask reward", async () => {
+        const hold = [...doc.querySelectorAll("button")].find((b) => /hold to ask/i.test((b.getAttribute("aria-label") || "") + b.textContent));
+        hold.dispatchEvent(new win.PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }));
+        await settle(2.4);
+        hold.dispatchEvent(new win.PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+        await until(settled(".reward .card-button"), "the ask reward card to land");
+      }],
+      ["facade", async () => {
+        // a card mid-slide ignores its close button, so keep asking
+        for (let i = 0; i < 12 && doc.querySelector(".reward .card-close"); i++) {
+          doc.querySelector(".reward .card-close").click();
+          await settle(1);
+        }
+        await until(inRoom, "ROOM after the reward card");
+        await press(/change room/i, () => s.machine.state === "FACADE", "FACADE");
+      }],
+      ["room II", async () => {
+        await press(/next room/i, () => s.store.state.chapter === 1, "chapter II");
+        // every window keeps its own entry tile, so pick the one for this chapter
+        const entry = () => [...doc.querySelectorAll(".chapter-entry")].find((e) => /chapter II,/.test(e.getAttribute("aria-label") || ""));
+        for (let i = 0; i < 14 && !inRoom(); i++) { entry()?.click(); await settle(1); }
+        await until(inRoom, "room II");
+      }],
+      ["fabric lens", async () => {
+        await press(/choose the sofa fabric/i, () => s.machine.state === "INTERACTION", "the lens");
+        // three wipes walk all four fabrics, which is what reveals Pick this one
+        const hitLayer = () => [...doc.querySelectorAll("button")].find((b) => /next fabric/i.test(b.getAttribute("aria-label") || ""));
+        for (let i = 0; i < 6 && !doc.querySelector(".lens-pick, [class*=lens-pick]"); i++) {
+          const el = hitLayer();
+          if (el) el.dispatchEvent(new win.PointerEvent("pointerdown", { bubbles: true, pointerId: 1, clientX: 200, clientY: 420 }));
+          await settle(1.4);
+        }
+        const pick = [...doc.querySelectorAll("button")].find((b) => /pick this one/i.test((b.getAttribute("aria-label") || "") + b.textContent));
+        if (pick) { pick.click(); await until(() => s.machine.state !== "INTERACTION", "the lens to finish"); }
+      }],
+      ["product room III", async () => { s.store.fillBasket(); doc.querySelector(".hud-skip")?.click(); await settle(7); }],
+      ["approve", async () => { spot("Approve once"); await settle(4); }],
+      ["finale", async () => {
+        btn(/approve once/i); await settle(2);
+        const ring = [...doc.querySelectorAll("button")].find((b) => /confirm|fingerprint|hold/i.test(b.getAttribute("aria-label") || ""));
+        if (ring) {
+          ring.dispatchEvent(new win.PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }));
+          await settle(2.4);
+          ring.dispatchEvent(new win.PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+        }
+        await settle(14);
+      }],
+    ];
+
+    const report = [];
+    for (const [name, run] of STEPS) {
+      let error = null;
+      try { await run(); } catch (e) { error = String(e.message || e); }
+      const a = window.audit(key);
+      const problems = [];
+      if (a.overflowX > 1) problems.push(`overflows x by ${a.overflowX}px`);
+      if (a.overlaps.length) problems.push(...a.overlaps.map((o) => `overlap: ${o}`));
+      if (a.offscreen.length) problems.push(...a.offscreen.map((o) => `offscreen: ${o}`));
+      if (a.smallTargets.length) problems.push(...a.smallTargets.map((t) => `target<44: ${t}`));
+      if (a.tinyText.length) problems.push(...a.tinyText.map((t) => `text<11px: ${t}`));
+      if (a.underSafeArea.length) problems.push(`under safe area: ${a.underSafeArea.join(", ")}`);
+      report.push({ step: name, state: s.machine.state, error, problems });
+    }
+    return report;
+  };
+</script>

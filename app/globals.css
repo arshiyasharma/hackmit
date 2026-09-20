@@ -3,40 +3,66 @@
 @import "shadcn/tailwind.css";
 
 /*
-  Dark mode is driven by prefers-color-scheme (the product rule), and a `.dark`
-  class still works for devtools toggling and for a future manual switch.
-  `.light` on <html> forces light even on a dark system.
+  THE PRODUCT IS LIGHT ONLY. Paper, ink and one blue, in the landing's own
+  language; a dark phone does not get a dark app. `dark:` utilities inside the
+  copied shadcn primitives therefore only answer to a `.dark` class, which
+  nothing sets.
 */
-@custom-variant dark {
-  @media (prefers-color-scheme: dark) {
-    &:where(:not(.light), :not(.light) *) {
-      @slot;
-    }
-  }
-  &:where(.dark, .dark *) {
-    @slot;
-  }
-}
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* ---------------------------------------------------------------------------
-   VISA palette. One accent, terracotta. Do not add a second accent.
-   All of shadcn's own tokens below are mapped onto these eight so every
-   component copied into components/ui inherits the palette automatically.
+   PIXX-AR palette — the landing page's design system, carried into the product
+   (docs/ROOM3_PRODUCT_SPEC.md). Paper, ink, and ONE accent: THE COLOUR OF THE
+   ROOM THE PRODUCT LIVES IN. Room III of the landing is the tomato room — its
+   facade, the paint on its wall, its armchair — so the product answers in that
+   red, not in the landing's blue highlight. Do not add a second accent.
+   All of shadcn's own tokens below are mapped onto these so every component
+   copied into components/ui inherits the palette automatically.
 --------------------------------------------------------------------------- */
 :root {
-  --background: #fbfaf7; /* off-white */
+  --background: #faf7f0; /* paper-white, the landing's intro sheet */
   --surface: #ffffff;
-  --foreground: #2a2724; /* warm charcoal */
-  --muted: #8a837a; /* muted TEXT, not a surface */
-  --accent: #c97b5f; /* terracotta — the only accent */
-  --line: #e6e1d9;
-  --ok: #5f7d5a;
-  --warn: #b4713c;
+  --foreground: #111111; /* ink */
+  --muted: #5f646e; /* muted TEXT, not a surface — 5.6:1 on paper */
+  /* room III's tomato is #E0462E on the facade; as TEXT on paper that is only
+     3.6:1, so the working accent is the same hue deepened to 5:1. The facade's
+     own red stays available for fills and large marks. */
+  --accent: #c2391f;
+  --accent-bright: #e0462e;
+  --line: #e4dfd2;
+  --ok: #25734a;
+  /* the alarm must never be mistaken for the accent: amber, not red */
+  --warn: #8a5a00;
+
+  /* the accent's quieter selves: fills and previews, and the drafting ground */
+  --accent-pale: #f0c6ba;
+  --accent-wash: #fbebe5;
+  --paper-card: #fbf4e4;
 
   /* Derived. Tailwind's `bg-muted` / `bg-secondary` need a SURFACE, and our
      --muted is a text colour, so shadcn's surface tokens point here instead. */
-  --surface-muted: #f1eee8;
-  --on-accent: #fffaf6;
+  --surface-muted: #f1ece0;
+  --on-accent: #ffffff;
+
+  /* ---- liquid glass ------------------------------------------------------
+     Frosted, clear, lit from above, and warmed by the room behind it. `thick`
+     is for chrome over a camera feed or a photograph, where what is behind is
+     unknown: it stays opaque enough for ink text to hold 4.5:1 over a black
+     room and over a white one. White text on the accent pane holds 4.6:1. */
+  --glass-fill: linear-gradient(140deg, rgb(255 255 255 / 0.74), rgb(253 246 242 / 0.5));
+  --glass-fill-thick: linear-gradient(140deg, rgb(255 255 255 / 0.9), rgb(253 247 244 / 0.8));
+  --glass-fill-accent: linear-gradient(140deg, rgb(208 64 41 / 0.96), rgb(194 57 31 / 0.94));
+  /* the pane was named for the blue it first had; the name is what components use */
+  --glass-fill-blue: var(--glass-fill-accent);
+  --glass-edge: rgb(255 255 255 / 0.78);
+  --glass-blur: 22px;
+  --glass-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.92), inset 0 -1px 0 rgb(194 57 31 / 0.08),
+    0 2px 6px rgb(90 38 24 / 0.07), 0 14px 38px -12px rgb(90 38 24 / 0.28);
+  --glass-shadow-accent:
+    inset 0 1px 0 rgb(255 255 255 / 0.38), inset 0 -1px 0 rgb(90 20 8 / 0.25),
+    0 2px 6px rgb(90 38 24 / 0.14), 0 14px 34px -12px rgb(194 57 31 / 0.5);
+  --glass-shadow-blue: var(--glass-shadow-accent);
 
   /* shadcn's own contract, mapped onto ours */
   --card: var(--surface);
@@ -49,7 +75,7 @@
   --secondary-foreground: var(--foreground);
   --muted-foreground: var(--muted);
   --accent-foreground: var(--on-accent);
-  --destructive: var(--accent);
+  --destructive: var(--warn);
   --border: var(--line);
   --input: var(--line);
   --ring: var(--accent);
@@ -62,48 +88,28 @@
   --sidebar-border: var(--line);
   --sidebar-ring: var(--accent);
 
-  --radius: 0.625rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --background: #191715;
-    --surface: #221f1c;
-    --foreground: #f2efe9;
-    --muted: #9a938a;
-    --accent: #d98f73;
-    --line: #2e2a26;
-    --ok: #7e9a78;
-    --warn: #d0925e;
-
-    --surface-muted: #2a2623;
-    --on-accent: #1b1613;
-  }
-}
-
-.dark {
-  --background: #191715;
-  --surface: #221f1c;
-  --foreground: #f2efe9;
-  --muted: #9a938a;
-  --accent: #d98f73;
-  --line: #2e2a26;
-  --ok: #7e9a78;
-  --warn: #d0925e;
-
-  --surface-muted: #2a2623;
-  --on-accent: #1b1613;
+  --radius: 0.875rem;
 }
 
 @theme inline {
+  /* THE LAYOUT SWITCH. The product is a laptop app first: from 900px up every
+     screen is a wide workspace (`desk:` utilities, `useDesktop()` in
+     lib/useDesktop.ts — keep the two numbers the same). Below it the older
+     single-column arrangement still works, as a fallback, not as the design. */
+  --breakpoint-desk: 56.25rem;
+
   /* ours */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
   --color-line: var(--line);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
+  --color-accent-pale: var(--accent-pale);
+  --color-accent-wash: var(--accent-wash);
+  --color-paper-card: var(--paper-card);
 
   /* shadcn's, pointed at ours */
   --color-card: var(--card);
@@ -130,10 +136,11 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* type: Fraunces for headings and numbers, Instrument Sans for everything else */
-  --font-display: var(--font-display);
-  --font-sans: var(--font-body);
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  /* type: Cormorant Garamond for headlines, Instrument Sans for everything
+     said, Sometype Mono for every number and label */
+  --font-display: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  --font-sans: var(--font-body), "Instrument Sans", system-ui, sans-serif;
+  --font-mono: var(--font-sometype), "Sometype Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* shadcn's radius scale, kept */
   --radius-sm: calc(var(--radius) * 0.6);
@@ -162,10 +169,10 @@
     overscroll-behavior-y: none;
   }
 
-  /* Numbers are display-serif and tabular everywhere in the app. */
+  /* Every number that can change is mono and tabular, so it never reflows. */
   .tabular {
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
   }
 }
 
@@ -186,6 +193,105 @@
     width: 44px;
     height: 44px;
     transform: translate(-50%, -50%);
+  }
+
+  /* mono label over a headline: who is speaking, which beat this is */
+  .eyebrow {
+    font-family: var(--font-sometype), "Sometype Mono", ui-monospace, monospace;
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  /* ---- liquid glass (docs/ROOM3_PRODUCT_SPEC.md) -------------------------
+     Never more than two deep, never for long reading. */
+  .glass,
+  .glass-thick,
+  .glass-blue,
+  .glass-accent,
+  .glass-pill {
+    position: relative;
+    isolation: isolate;
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  }
+  .glass {
+    background: var(--glass-fill);
+    border-radius: 28px;
+  }
+  .glass-thick {
+    background: var(--glass-fill-thick);
+    border-radius: 22px;
+  }
+  .glass-pill {
+    background: var(--glass-fill-thick);
+    border-radius: 999px;
+  }
+  /* `glass-blue` is the older name for the same pane: the accent as glass */
+  .glass-blue,
+  .glass-accent {
+    background: var(--glass-fill-accent);
+    border-color: rgb(255 255 255 / 0.34);
+    box-shadow: var(--glass-shadow-accent);
+    border-radius: 22px;
+    color: #fff;
+  }
+  /* the light catching the top-left of a pane: a soft arc, not a stripe */
+  .glass::before,
+  .glass-thick::before,
+  .glass-blue::before,
+  .glass-accent::before,
+  .glass-pill::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 80% at 12% -10%, rgb(255 255 255 / 0.55), transparent 58%),
+      radial-gradient(90% 70% at 100% 120%, rgb(240 198 186 / 0.3), transparent 60%);
+  }
+  .glass-blue::before,
+  .glass-accent::before {
+    background: radial-gradient(120% 80% at 12% -10%, rgb(255 255 255 / 0.3), transparent 58%);
+  }
+
+  /* one specular sweep as a pane arrives; a one-shot, not a loop */
+  .glass-sheen {
+    overflow: hidden;
+  }
+  .glass-sheen::after {
+    content: "";
+    position: absolute;
+    inset: -20% -60%;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 42%,
+      rgb(255 255 255 / 0.55) 50%,
+      transparent 58%
+    );
+    transform: translateX(-70%);
+    animation: glass-sheen 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s 1 both;
+  }
+}
+
+@keyframes glass-sheen {
+  to {
+    transform: translateX(70%);
+  }
+}
+
+/* a browser that cannot blur what is behind gets a pane that does not need to */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .glass-thick,
+  .glass-pill {
+    background: rgb(250 251 254 / 0.96);
   }
 }
 

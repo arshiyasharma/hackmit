@@ -1,34 +1,45 @@
 "use client";
 
 import * as React from "react";
-import useEmblaCarousel from "embla-carousel-react";
 import { RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 
 import { fitForProduct } from "@/components/FitBadge";
-import ProductCard, { linkProductToItem } from "@/components/ProductCard";
+import ProductCard, { formatPrice, linkProductToItem } from "@/components/ProductCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusLine } from "@/components/ui/StatusLine";
+import { ENTER, REDUCED, STAGGER } from "@/lib/motion";
+import { usePreview } from "@/lib/preview";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { PlacedItem, Product } from "@/types";
 
 /**
- * The options for ONE placed item: the query that found them, the listings, and
- * what the fit check said about the one that is linked.
+ * The body of the listing tray for ONE placed item: the listings, what the fit
+ * check said about the one that is linked, and the honest empty state.
  *
- * In v2 this was a full page with a section per element. Under the pivot there
- * is only ever one item's options open at a time and they live inside the
- * option sheet at the 0.4 snap, so the room stays visible above them. The Embla
- * row, the skeleton cards and the honest empty state are v2's and survive.
+ * BEATS 04 AND 05 OF THE MOTION SHEET LIVE IN THIS ROW. Five real things stand
+ * side by side under the room, and POINTING AT ONE TRIES IT ON: whichever card
+ * is under the pointer — or holds the keyboard focus — is handed to
+ * lib/preview.ts, and the thing standing in the room takes that listing's size
+ * before anything is committed. Leaving the row puts it back. Clicking "Link
+ * this" keeps it.
+ *
+ * The row is one structure at every width: equal cards that all fit when the
+ * window allows it, and a sideways scroll with a soft fade at the cut edge when
+ * it does not. The exact query string is printed by the tray's header
+ * (components/OptionSheet.tsx); this file still receives it, for the words of
+ * the wait and for the way out when nothing comes back.
  */
 
+/** From the bottom-sheet days, when a tall sheet swapped the rail for a list. */
 export type SourcingResultsLayout = "rail" | "list";
 
 export type SourcingResultsProps = {
   item: PlacedItem;
-  /** the EXACT string that was sent to /api/search, shown in mono up top */
+  /** the EXACT string that was sent to /api/search */
   query: string;
-  /** "rail" at the phone snap, "list" when the sheet is dragged up to 0.9 */
+  /** accepted so an older caller still compiles; there is one layout now */
   layout?: SourcingResultsLayout;
   /** a note from the search route: not connected, nothing found, frozen demo */
   note?: string;
@@ -53,7 +64,6 @@ function manualSearchUrl(query: string): string {
 export function SourcingResults({
   item,
   query,
-  layout = "rail",
   note,
   onRetry,
   className,
@@ -63,53 +73,48 @@ export function SourcingResults({
   const failed = item.optionsStatus === "failed";
 
   return (
-    <div className={cn("flex flex-col gap-3", className)}>
-      {/*
-       * THE QUERY, ON SCREEN. This is the string that was sent, character for
-       * character — it is how the room context turns into results, and it is
-       * what you point at when a judge asks how the search is personalised.
-       * Removing a style chip changes it.
-       */}
-      <p className="font-mono text-[11px] leading-snug text-muted-foreground">
-        <span className="text-foreground/70">searching</span>{" "}
-        <span className="text-foreground">{query || item.request}</span>
-      </p>
-
+    <div className={cn("flex min-h-0 flex-col gap-2.5", className)}>
       {loading ? (
-        <div className="flex flex-col gap-2">
-          <Rail>
+        <>
+          <Row label="Looking for listings">
             {[0, 1, 2, 3, 4].map((i) => (
-              <Slide key={i}>
+              <Cell key={i}>
                 <SkeletonCard />
-              </Slide>
+              </Cell>
             ))}
-          </Rail>
-          <StatusLine messages={statusMessages(query)} />
-        </div>
+          </Row>
+          <StatusLine
+            messages={statusMessages(query)}
+            className="min-h-5 shrink-0 text-[13px] leading-5"
+          />
+        </>
       ) : options.length > 0 ? (
         <>
           <FitLine item={item} />
-          {layout === "list" ? (
-            <div className="flex max-h-[62vh] flex-col gap-3 overflow-y-auto overscroll-contain pb-2">
-              {options.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          ) : (
-            <Rail>
-              {options.map((product) => (
-                <Slide key={product.id}>
-                  <ProductCard product={product} />
-                </Slide>
-              ))}
-            </Rail>
-          )}
-          <p className="text-[11px] text-muted-foreground">
-            {options.length} listing{options.length === 1 ? "" : "s"} · from{" "}
-            {new Set(options.map((p) => p.retailer)).size} shop
-            {new Set(options.map((p) => p.retailer)).size === 1 ? "" : "s"} · tap a
-            title to open it at the shop
-          </p>
+          <Row label={`Listings for ${item.category || item.request}`} item={item}>
+            {options.map((product, i) => (
+              <Cell key={product.id} order={i}>
+                <ProductCard product={product} index={i} />
+              </Cell>
+            ))}
+          </Row>
+
+          {/* only a tall window has a line to spare under the row */}
+          <div className="hidden shrink-0 items-baseline justify-between gap-6 [@media(min-height:60rem)]:flex">
+            {/* a note riding on real options means the rehearsal set: the
+                frozen listings are not for sale, so the line does not claim it */}
+            {note ? (
+              <span aria-hidden />
+            ) : (
+              <p className="font-display text-[22px] font-medium leading-none tracking-[0.01em] text-foreground">
+                Everything you see is something you can buy.
+              </p>
+            )}
+            <p className="truncate text-[12px] text-muted-foreground">
+              Point at one to try it on · click a name to open it at the shop ·
+              arrow keys move along the row
+            </p>
+          </div>
         </>
       ) : (
         <NoMatch query={query} failed={failed} note={note} onRetry={onRetry} />
@@ -123,8 +128,11 @@ export function SourcingResults({
 /**
  * What the fit kernel said about the listing that is linked, printed verbatim.
  *
- * A fail warns and never blocks — the user decides. And it never refuses
- * without offering: the passing options from this same set are one tap away.
+ * A fail warns and never blocks — the shopper decides. And it never refuses
+ * without offering: the passing options from this same set are one click away.
+ * Both verdicts speak in the warn colour (the accent is a calm blue now, and
+ * blue does not say "this will not get up your stairs"); a fail is simply the
+ * louder of the two.
  */
 function FitLine({ item }: { item: PlacedItem }) {
   const profile = useStore((s) => s.profile);
@@ -141,20 +149,17 @@ function FitLine({ item }: { item: PlacedItem }) {
 
   if (!linked || !fit || fit.verdict === "pass") return null;
 
-  const warn = fit.verdict === "fail";
+  const fail = fit.verdict === "fail";
 
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-xl border p-3",
-        warn ? "border-accent/40 bg-accent/10" : "border-warn/35 bg-warn/10"
+        "flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[14px] border px-3 py-1.5",
+        fail ? "border-warn/55 bg-warn/12" : "border-warn/30 bg-warn/6"
       )}
     >
-      <p className="flex items-start gap-2 text-sm leading-snug">
-        <TriangleAlert
-          className={cn("mt-0.5 size-4 shrink-0", warn ? "text-accent" : "text-warn")}
-          aria-hidden
-        />
+      <p className="flex min-w-0 flex-1 basis-80 items-start gap-2 text-[13px] leading-snug text-foreground">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
         {/* the kernel's own sentence, not a word of it rewritten */}
         <span>{fit.reason}</span>
       </p>
@@ -166,10 +171,20 @@ function FitLine({ item }: { item: PlacedItem }) {
             <button
               key={p.id}
               type="button"
-              onClick={() => void linkProductToItem(item.id, p)}
-              className="tap inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-background px-3 text-xs font-medium hover:bg-muted"
+              onClick={() => {
+                void linkProductToItem(item.id, p);
+                usePreview.getState().clear();
+              }}
+              className={cn(
+                "tap inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-3",
+                "text-xs font-medium transition-colors hover:border-accent-pale hover:bg-accent-wash",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              )}
             >
-              {p.retailer} · ${Math.round(p.priceCents / 100)}
+              {p.retailer} ·{" "}
+              <span className="tabular font-mono font-normal">
+                {formatPrice(p.priceCents, p.currency)}
+              </span>
             </button>
           ))}
         </div>
@@ -178,50 +193,165 @@ function FitLine({ item }: { item: PlacedItem }) {
   );
 }
 
-/* -------------------------------------------------------------- carousels */
+/* ----------------------------------------------------------------- the row */
 
 /**
- * Embla owns the horizontal gesture. A raw overflow-x container is what makes
- * a horizontal row fight the page's vertical scroll on iOS Safari; `touch-pan-y`
- * on the container hands vertical drags straight back to the page.
+ * One row, equal cards. It scrolls sideways only when the window is too narrow
+ * to hold them, and then the cut edge fades instead of ending in a hard line.
+ *
+ * It is also where "what is being tried on" is decided, in ONE place rather
+ * than in five cards: the pointer wins, then the keyboard focus, then nothing.
+ * The fit check opens as a dialog from inside a card, and a dialog's events
+ * bubble up here through React even though it lives on <body> — so everything
+ * below asks the DOM, not React, whether the event really came from the row.
  */
-function Rail({ children }: { children: React.ReactNode }) {
-  const [emblaRef, emblaApi] = useEmblaCarousel({
-    align: "start",
-    containScroll: "trimSnaps",
-    dragFree: false,
-  });
-
+function Row({
+  children,
+  label,
+  item,
+}: {
+  children: React.ReactNode;
+  label: string;
+  /** present when the cards are real listings that can be tried on */
+  item?: PlacedItem;
+}) {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  /** the listing under the pointer, by product id */
+  const pointed = React.useRef<string | null>(null);
   const count = React.Children.count(children);
 
+  /* the soft fade at whichever edge has more row beyond it */
   React.useEffect(() => {
-    if (!emblaApi) return;
-    // a rail that mounted inside a closed sheet never got a ResizeObserver
-    // callback; measure once on attach rather than trusting the first one
-    emblaApi.reInit();
-  }, [emblaApi, count]);
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const beyond = el.scrollWidth - el.clientWidth;
+      el.style.setProperty("--fade-l", el.scrollLeft > 2 ? "28px" : "0px");
+      el.style.setProperty("--fade-r", el.scrollLeft < beyond - 2 ? "28px" : "0px");
+    };
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    for (const child of Array.from(el.children)) watch.observe(child);
+    return () => {
+      el.removeEventListener("scroll", measure);
+      watch.disconnect();
+    };
+    // a different number of cards is a different row to measure
+  }, [count]);
+
+  const cardOf = (node: EventTarget | null): HTMLElement | null => {
+    const el = ref.current;
+    if (!el || !(node instanceof Element) || !el.contains(node)) return null;
+    return node.closest<HTMLElement>("[data-card]");
+  };
+
+  /** pointer first, then keyboard focus, else nothing is being tried on */
+  const settle = () => {
+    if (!item) return;
+    const focused = cardOf(document.activeElement)?.dataset.productId ?? null;
+    const id = pointed.current ?? focused;
+    const product = id ? item.options.find((p) => p.id === id) : undefined;
+    if (product) usePreview.getState().focus(item.id, product);
+    else usePreview.getState().clear();
+  };
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    if (event.altKey || event.metaKey || event.ctrlKey) return;
+    const from = cardOf(event.target);
+    const el = ref.current;
+    if (!from || !el) return;
+
+    const cards = Array.from(el.querySelectorAll<HTMLElement>("[data-card]"));
+    const next = cards[cards.indexOf(from) + (event.key === "ArrowRight" ? 1 : -1)];
+    if (!next) return;
+
+    // land on the button, so Enter links; a card with nothing to link to still
+    // has its name to stand on
+    const stop =
+      next.querySelector<HTMLElement>("[data-card-link]:not([disabled])") ??
+      next.querySelector<HTMLElement>("a[href]");
+    if (!stop) return;
+    event.preventDefault();
+    stop.focus();
+  };
 
   return (
-    <div ref={emblaRef} className="-mx-4 overflow-hidden px-4">
-      <div className="flex touch-pan-y gap-3">{children}</div>
+    <div
+      ref={ref}
+      role="group"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+      onPointerOver={(event) => {
+        pointed.current = cardOf(event.target)?.dataset.productId ?? null;
+        settle();
+      }}
+      onPointerLeave={() => {
+        pointed.current = null;
+        settle();
+      }}
+      onFocus={settle}
+      onBlur={settle}
+      onWheel={(event) => {
+        // a mouse wheel only speaks in Y; let it walk a row that has more to show
+        const el = ref.current;
+        if (!el || el.scrollWidth <= el.clientWidth) return;
+        if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) el.scrollLeft += event.deltaY;
+      }}
+      style={{
+        maskImage:
+          "linear-gradient(to right, transparent, #000 var(--fade-l, 0px), #000 calc(100% - var(--fade-r, 0px)), transparent)",
+        WebkitMaskImage:
+          "linear-gradient(to right, transparent, #000 var(--fade-l, 0px), #000 calc(100% - var(--fade-r, 0px)), transparent)",
+      }}
+      className={cn(
+        // the padding is room for a focus ring and the linked card's outline,
+        // which a scrolling box would otherwise clip; the margin takes it back
+        "no-scrollbar -m-1 flex min-h-0 flex-1 gap-3 overflow-x-auto overscroll-x-contain p-1",
+        "scroll-px-1"
+      )}
+    >
+      {children}
     </div>
   );
 }
 
-function Slide({ children }: { children: React.ReactNode }) {
-  return <div className="min-w-0 flex-[0_0_72%] sm:flex-[0_0_48%]">{children}</div>;
+/** One equal share of the row, never narrower than a card can be read at. */
+function Cell({ children, order }: { children: React.ReactNode; order?: number }) {
+  const reduced = useReducedMotion();
+
+  // the wait's blocks simply stand there; real listings arrive one after another
+  if (order === undefined) {
+    return <div className="min-w-[10.5rem] flex-1 basis-0">{children}</div>;
+  }
+
+  return (
+    <motion.div
+      className="min-w-[10.5rem] flex-1 basis-0"
+      initial={reduced ? { opacity: 0 } : { opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={
+        reduced ? REDUCED : { ...ENTER, delay: Math.min(order, 6) * STAGGER.chip }
+      }
+    >
+      {children}
+    </motion.div>
+  );
 }
 
+/** Shaped like the real card, so the row does not jump when the answer lands. */
 function SkeletonCard() {
   return (
-    <div className="flex h-full flex-col gap-2.5 rounded-2xl border border-line bg-surface p-3">
-      <Skeleton className="aspect-[4/3] w-full rounded-xl" />
-      <Skeleton className="h-3 w-20" />
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-2/3" />
-      <Skeleton className="h-6 w-24" />
-      <Skeleton className="h-3 w-3/4" />
-      <Skeleton className="h-11 w-full rounded-full" />
+    <div className="flex h-full flex-col rounded-[22px] border border-line bg-surface p-2.5">
+      <Skeleton className="min-h-0 w-full flex-1 rounded-[14px]" />
+      <Skeleton className="mt-2 h-[18px] w-4/5 shrink-0 rounded-full" />
+      <div className="mt-2 flex shrink-0 items-center justify-between gap-2">
+        <Skeleton className="h-3 w-20 rounded-full" />
+        <Skeleton className="h-4 w-12 rounded-full" />
+      </div>
+      <Skeleton className="mt-2.5 h-11 w-full shrink-0 rounded-full" />
     </div>
   );
 }
@@ -240,33 +370,44 @@ function NoMatch({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
-      <p className="font-display text-lg font-semibold">
-        {failed ? "The shops didn't answer" : "Nothing came back for that"}
-      </p>
-      <p className="text-sm text-muted-foreground">
-        {note ??
-          (failed
-            ? "Try the search again, or take the words straight to a shop."
-            : "Try it again, or drop a style word from the strip at the top to widen the search.")}
-      </p>
+    <div className="flex min-h-0 flex-1 flex-wrap items-center gap-x-10 gap-y-4 overflow-y-auto rounded-[22px] border border-line bg-surface/80 px-6 py-5">
+      <div className="min-w-0 flex-1 basis-80">
+        <p className="font-display text-[30px] font-normal leading-[1.02] tracking-[0.01em]">
+          {failed ? "The shops didn't answer" : "Nothing came back for that"}
+        </p>
+        <p className="mt-2 max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
+          {note ??
+            (failed
+              ? "Try the search again, or take the words straight to a shop."
+              : "Try it again, or drop a style word from the strip at the top to widen the search.")}
+        </p>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <a
           href={manualSearchUrl(query)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex h-11 items-center gap-2 rounded-full bg-accent px-4 text-sm font-medium text-[var(--on-accent)]"
+          className={cn(
+            "glass-blue inline-flex h-11 cursor-pointer items-center gap-2 rounded-full! px-5 text-sm font-medium",
+            "transition-[filter] duration-[240ms] hover:brightness-110",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          )}
         >
           <Search className="size-4" aria-hidden />
           Search the shops yourself
+          <span className="sr-only">(opens in a new tab)</span>
         </a>
 
         {onRetry ? (
           <button
             type="button"
             onClick={onRetry}
-            className="inline-flex h-11 items-center gap-2 rounded-full border border-line px-4 text-sm font-medium hover:bg-muted"
+            className={cn(
+              "inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-line bg-surface px-5 text-sm font-medium",
+              "transition-colors hover:border-accent-pale hover:bg-accent-wash",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            )}
           >
             <RefreshCw className="size-4" aria-hidden />
             Try again

@@ -1,13 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Instrument_Sans } from "next/font/google";
-import { Toaster } from "sonner";
+import { Cormorant_Garamond, Instrument_Sans, Sometype_Mono } from "next/font/google";
+
+import Toasts from "@/components/ui/Toasts";
 
 import "./globals.css";
 
-/** Display serif — headings and every number. Never a button label. */
-const display = Fraunces({
+/**
+ * Three families, the same three the landing page speaks in, so the product
+ * reads as the landing's third room rather than as a different site.
+ *
+ * Display: headlines and names. Never a button label, and never a number.
+ * The heavier weights exist because Cormorant is slight: small display text
+ * wants 500, and a synthesised bold of it is ugly.
+ */
+const display = Cormorant_Garamond({
   variable: "--font-display",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
   display: "swap",
 });
 
@@ -18,10 +27,18 @@ const body = Instrument_Sans({
   display: "swap",
 });
 
+/** Every number that can change, and every label. Tabular by nature. */
+const mono = Sometype_Mono({
+  variable: "--font-sometype",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "VISA — see it, fit it, buy it",
+  title: "PIXX-AR — see it, fit it, buy it",
   description:
-    "Photograph a corner of your room, describe what it should become, and get four redesigns where every object is a real listing that fits through your door.",
+    "Point your phone at your room, ask for one thing, and see real furniture standing in it at real size — then let one approval buy it at every shop.",
 };
 
 export const viewport: Viewport = {
@@ -30,38 +47,19 @@ export const viewport: Viewport = {
   // the whole app is a phone held vertically; a pinch-zoomed AR view is broken
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FBFAF7" },
-    { media: "(prefers-color-scheme: dark)", color: "#191715" },
-  ],
+  // light only: paper in both schemes
+  themeColor: "#FAF7F0",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`h-full antialiased ${display.variable} ${body.variable}`}
+      className={`h-full antialiased ${display.variable} ${body.variable} ${mono.variable}`}
     >
       <body className="min-h-full flex flex-col font-sans">
         {children}
-        <Toaster
-          position="bottom-center"
-          richColors={false}
-          closeButton={false}
-          gap={8}
-          offset={{ bottom: 24 }}
-          toastOptions={{
-            style: {
-              background: "var(--surface)",
-              color: "var(--foreground)",
-              border: "1px solid var(--line)",
-              borderRadius: "var(--radius-xl)",
-              boxShadow: "0 8px 30px rgb(0 0 0 / 0.12)",
-              fontFamily: "var(--font-body)",
-              fontSize: "14px",
-            },
-          }}
-        />
+        <Toasts />
       </body>
     </html>
   );

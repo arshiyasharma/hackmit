@@ -1,8 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 
@@ -27,6 +25,7 @@ import {
   cartSubtotalCents,
   useStore,
 } from "@/lib/store";
+import { AppLink, useAppNav } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import type { CartItem, PlacedItem } from "@/types";
 
@@ -43,7 +42,7 @@ import type { CartItem, PlacedItem } from "@/types";
  */
 
 export default function CheckoutPage() {
-  const router = useRouter();
+  const nav = useAppNav();
   const reduced = useReducedMotion();
 
   const items = useStore((s) => s.items);
@@ -131,7 +130,7 @@ export default function CheckoutPage() {
             Tap an object standing in your room and pick one of its listings.
             Everything you link lands here, grouped by the shop that sells it.
           </p>
-          <Link
+          <AppLink
             href="/room"
             className={cn(
               buttonVariants(),
@@ -139,7 +138,7 @@ export default function CheckoutPage() {
             )}
           >
             Back to the room
-          </Link>
+          </AppLink>
         </div>
       </AppShell>
     );
@@ -281,7 +280,7 @@ export default function CheckoutPage() {
         <Confirmation
           rows={rows}
           lines={runLines}
-          onPlaceAnother={() => router.push("/room")}
+          onPlaceAnother={() => nav.push("/room")}
         />
       ) : null}
 

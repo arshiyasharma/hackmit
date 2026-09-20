@@ -7,6 +7,9 @@ const devOrigin = process.env.DEV_ORIGIN;
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: devOrigin ? [devOrigin] : [],
+  // the dev badge sits bottom-left, exactly on the landing page's sound tile,
+  // and swallows the tap. Compile and runtime errors still surface.
+  devIndicators: false,
 };
 
 export default nextConfig;

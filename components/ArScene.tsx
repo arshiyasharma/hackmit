@@ -31,6 +31,13 @@
  * into the overlay as a line of text, or the pinch refusal would be invisible
  * on the phone.
  *
+ * WHERE ITS OWN NOTES STAND. The room page gives this scene the whole window
+ * and floats glass over it; PhotoMode owns the free area that glass leaves. So
+ * the two things this file has to say out of session — "stand it in your room"
+ * or "this browser has no live AR" — are handed to PhotoMode as its footnote
+ * and land in the row under the photo, clear of the panel and the tray, rather
+ * than being positioned a second time against the same edge.
+ *
  * This component takes NO props. Everything it needs is in lib/store.ts.
  */
 
@@ -53,6 +60,7 @@ import {
   PhotoMode,
   refusePinch,
   spriteSizeMm,
+  tokenColor,
   vibrate,
 } from "@/components/PhotoMode";
 import { useStore } from "@/lib/store";
@@ -177,21 +185,24 @@ export function ArScene() {
     };
   }, [mounted]);
 
+  /* never a button that cannot work: the offer when AR is there, the honest
+     note when it is not, and nothing at all while we are still asking */
+  const footnote =
+    store && arSupported === true ? (
+      <EnterArButton store={store} />
+    ) : arSupported === false && roomImage ? (
+      <p className="glass-pill pointer-events-none max-w-full px-4 py-2 text-center text-[12px] text-muted-foreground">
+        This browser has no live AR — Chrome on Android does. Your photo is to
+        scale either way.
+      </p>
+    ) : null;
+
   return (
     <div className="relative h-full w-full overflow-hidden">
       {/* the photo is the scene until an AR session starts, on every device */}
-      <PhotoMode />
+      <PhotoMode footnote={footnote} />
 
-      {store ? (
-        <LiveLayer store={store} arSupported={arSupported === true} />
-      ) : null}
-
-      {arSupported === false && roomImage ? (
-        <p className="pointer-events-none absolute inset-x-0 bottom-[calc(var(--room-bottom-chrome)+7.5rem)] mx-auto w-fit max-w-[80%] rounded-full bg-background/70 px-3 py-1 text-center text-[11px] text-muted-foreground backdrop-blur-md">
-          This browser has no live AR — Chrome on Android does. Your photo is to
-          scale either way.
-        </p>
-      ) : null}
+      {store ? <LiveLayer store={store} /> : null}
     </div>
   );
 }
@@ -200,12 +211,40 @@ export default ArScene;
 
 /* =============================================================== live layer */
 
+/**
+ * Out of session: the one button that starts it. It watches the session itself
+ * so it can stand in PhotoMode's row and still step aside the moment a session
+ * is running.
+ */
+function EnterArButton({ store }: { store: XRStore }) {
+  const session = useZustand(store, (s) => s.session);
+  if (session != null) return null;
+  return (
+    <button
+      type="button"
+      className={cn(
+        "glass-accent tap pointer-events-auto inline-flex min-h-11 cursor-pointer items-center !rounded-full px-5 font-sans text-sm",
+        // 240ms is DUR.micro, the hover speed
+        "transition-transform duration-[240ms] hover:-translate-y-px active:translate-y-0",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      )}
+      onClick={(event) => {
+        // the stage under it listens for the taps that set the scale
+        event.stopPropagation();
+        void store.enterAR();
+        vibrate(8);
+      }}
+    >
+      Stand it in your room
+    </button>
+  );
+}
+
 type LiveLayerProps = {
   store: XRStore;
-  arSupported: boolean;
 };
 
-function LiveLayer({ store, arSupported }: LiveLayerProps) {
+function LiveLayer({ store }: LiveLayerProps) {
   const items = useStore((s) => s.items);
   const activeItemId = useStore((s) => s.activeItemId);
   const moveItem = useStore((s) => s.moveItem);
@@ -289,20 +328,6 @@ function LiveLayer({ store, arSupported }: LiveLayerProps) {
           ) : null}
         </XR>
       </Canvas>
-
-      {/* out of session: the one button that starts it */}
-      {!inSession && arSupported ? (
-        <button
-          type="button"
-          className="tap absolute inset-x-0 bottom-20 mx-auto flex min-h-11 w-fit items-center rounded-full bg-accent px-5 py-2 font-sans text-sm text-[var(--on-accent)] shadow-lg"
-          onClick={() => {
-            void store.enterAR();
-            vibrate(8);
-          }}
-        >
-          Stand it in your room
-        </button>
-      ) : null}
     </>
   );
 }
@@ -361,6 +386,9 @@ type ReticleProps = {
 function Reticle({ onFound, onPlace }: ReticleProps) {
   const ref = React.useRef<Mesh>(null);
   const found = React.useRef(false);
+  /* the ring is the accent, read off the token a material cannot name; with no
+     token to read it keeps the material's own white, which still shows */
+  const ring = React.useMemo(() => tokenColor("--accent"), []);
 
   useXRHitTest(
     (results, getWorldMatrix) => {
@@ -403,7 +431,7 @@ function Reticle({ onFound, onPlace }: ReticleProps) {
     >
       <ringGeometry args={[0.07, 0.1, 40]} />
       <meshBasicMaterial
-        color="#c97b5f"
+        {...(ring ? { color: ring } : {})}
         transparent
         opacity={0.9}
         toneMapped={false}
@@ -501,44 +529,56 @@ function SessionChrome({
     { target: surfaceRef, eventOptions: { passive: false } }
   );
 
+  /*
+   * GLASS OVER A CAMERA FEED. What is behind this chrome is whatever room the
+   * phone is pointed at, so every piece is `glass-thick` / `glass-pill` — opaque
+   * enough for ink on a black room or a white one. The glass classes set their
+   * own `position`, so each piece is a positioned wrapper with the glass inside.
+   */
   return (
     <div className="pointer-events-none fixed inset-0 select-none font-sans">
       {/* the drag surface sits under the buttons and over the camera feed */}
       <div ref={surfaceRef} className="pointer-events-auto absolute inset-0 touch-none" />
 
       {!floorFound ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-32 mx-auto w-fit max-w-[80%] rounded-2xl bg-background/80 px-4 py-2 text-center backdrop-blur-md">
-          <StatusLine
-            messages={[
-              "Move your phone slowly to find the floor.",
-              "Point it at the floor about a metre ahead of you.",
-            ]}
-            className="text-foreground"
-          />
+        <div className="pointer-events-none absolute inset-x-0 bottom-32 flex justify-center px-4">
+          <div className="glass-thick max-w-[80%] px-5 py-2.5 text-center">
+            <StatusLine
+              messages={[
+                "Move your phone slowly to find the floor.",
+                "Point it at the floor about a metre ahead of you.",
+              ]}
+              className="text-foreground"
+            />
+          </div>
         </div>
       ) : null}
 
       {note ? (
-        <p className="pointer-events-none absolute inset-x-0 top-4 mx-auto w-fit max-w-[80%] rounded-full bg-background/85 px-3 py-1 text-center text-xs text-foreground backdrop-blur-md">
-          {note}
-        </p>
+        <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center px-4">
+          <p className="glass-pill max-w-[80%] px-4 py-1.5 text-center text-xs text-foreground">
+            {note}
+          </p>
+        </div>
       ) : null}
 
-      <p className="pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-fit rounded-full bg-background/70 px-3 py-1 text-center text-[11px] text-muted-foreground backdrop-blur-md">
-        Stand-in image — the product you pick is linked.
-      </p>
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-4">
+        <p className="glass-pill px-3 py-1 text-center text-[11px] text-muted-foreground">
+          Stand-in image — the product you pick is linked.
+        </p>
+      </div>
 
       <div className="pointer-events-auto absolute inset-x-0 bottom-12 flex items-center justify-center gap-2 px-4">
         <button
           type="button"
-          className="tap min-h-11 rounded-full bg-accent px-5 py-2 text-sm text-[var(--on-accent)] shadow-lg"
+          className="glass-accent tap min-h-11 cursor-pointer !rounded-full px-5 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onClick={onPlace}
         >
           Place it here
         </button>
         <button
           type="button"
-          className="tap min-h-11 rounded-full border border-line bg-background/80 px-4 py-2 text-sm text-foreground backdrop-blur-md"
+          className="glass-pill tap min-h-11 cursor-pointer px-4 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onClick={onExit}
         >
           Back to the photo

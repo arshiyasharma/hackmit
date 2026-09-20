@@ -2,19 +2,33 @@
 
 import * as React from "react";
 import NumberFlow, { type Format } from "@number-flow/react";
+
+import { COUNT, cssEase } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /**
- * Every animated number in the app. The rail, the AR dimension label, the fit
+ * Every animated number in the app. The budget, the AR dimension label, the fit
  * sheet and the cart all render through this, so they animate identically.
  *
  * Numbers carry their unit and say where they came from. A null value renders
  * an em dash — an honest dash beats an invented number.
  *
+ * EVERY FIGURE IS SOMETYPE MONO, TABULAR. A number that can change must never
+ * reflow the words around it, and a serif's old-style figures do exactly that.
+ * The mono ships in 400 and 700 only, so figures are set in 400: anything in
+ * between would be a synthesised weight.
+ *
  * Built on @number-flow/react (MIT). Do not hand-roll a count-up.
  */
 
-export type NumberPlateSize = "sm" | "md" | "lg" | "xl";
+export type NumberPlateSize = "xs" | "sm" | "md" | "lg" | "xl";
+
+/** A spring from lib/motion.ts: `COUNT` for money, `SPRING` for the resize. */
+export type NumberPlateSpring = {
+  stiffness: number;
+  damping: number;
+  mass?: number;
+};
 
 export type NumberPlateProps = {
   /** null means "we do not know this yet"; renders as — */
@@ -33,9 +47,16 @@ export type NumberPlateProps = {
   tone?: "default" | "accent" | "ok" | "warn" | "muted";
   /** accessible label when the number alone does not say what it counts */
   label?: string;
+  /**
+   * Which spring the digits move on. Defaults to `COUNT`, the budget counter;
+   * the sprite's millimetre label can pass `SPRING` so it counts on the same
+   * spring the resize moves on.
+   */
+  spring?: NumberPlateSpring;
 };
 
 const sizeClass: Record<NumberPlateSize, string> = {
+  xs: "text-[13px] leading-none",
   sm: "text-base leading-none",
   md: "text-2xl leading-none",
   lg: "text-4xl leading-none",
@@ -43,6 +64,7 @@ const sizeClass: Record<NumberPlateSize, string> = {
 };
 
 const unitClass: Record<NumberPlateSize, string> = {
+  xs: "text-[0.85em]",
   sm: "text-[0.7em]",
   md: "text-[0.55em]",
   lg: "text-[0.45em]",
@@ -63,6 +85,76 @@ const LEADING_UNITS = new Set(["$", "£", "€", "¥", "₹"]);
 /** Units that sit tight against the number, with no space. */
 const TIGHT_UNITS = new Set(["%", "°", "$", "£", "€", "¥", "₹"]);
 
+/* ------------------------------------------------------------ the counting */
+
+/**
+ * NumberFlow animates with the Web Animations API, which takes a duration and
+ * an easing rather than a spring. So the spring from lib/motion.ts is solved
+ * here — a unit step, zero starting velocity — and handed over as a `linear()`
+ * curve plus the time it takes to settle. The digits then roll exactly the way
+ * the budget bar beside them moves, off the same two numbers, instead of on the
+ * library's own 900ms default.
+ */
+function springPosition(spring: NumberPlateSpring, t: number): number {
+  const mass = spring.mass ?? 1;
+  const w0 = Math.sqrt(spring.stiffness / mass);
+  const zeta = spring.damping / (2 * Math.sqrt(spring.stiffness * mass));
+
+  if (zeta < 1) {
+    const wd = w0 * Math.sqrt(1 - zeta * zeta);
+    return (
+      1 -
+      Math.exp(-zeta * w0 * t) *
+        (Math.cos(wd * t) + ((zeta * w0) / wd) * Math.sin(wd * t))
+    );
+  }
+  if (zeta === 1) return 1 - Math.exp(-w0 * t) * (1 + w0 * t);
+
+  const wd = w0 * Math.sqrt(zeta * zeta - 1);
+  return (
+    1 -
+    Math.exp(-zeta * w0 * t) *
+      (Math.cosh(wd * t) + ((zeta * w0) / wd) * Math.sinh(wd * t))
+  );
+}
+
+type FlowTiming = {
+  transform: EffectTiming;
+  opacity: EffectTiming;
+};
+
+const timingCache = new Map<string, FlowTiming>();
+
+function flowTiming(spring: NumberPlateSpring): FlowTiming {
+  const key = `${spring.stiffness}/${spring.damping}/${spring.mass ?? 1}`;
+  const cached = timingCache.get(key);
+  if (cached) return cached;
+
+  // settled = the last moment it is still more than 0.2% away from the value
+  let settle = 0.1;
+  for (let t = 0; t <= 3; t += 0.01) {
+    if (Math.abs(1 - springPosition(spring, t)) > 0.002) settle = t + 0.01;
+  }
+
+  const steps = 28;
+  const points: string[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const x = i === steps ? 1 : springPosition(spring, (settle * i) / steps);
+    points.push(String(Math.round(x * 1000) / 1000));
+  }
+
+  const duration = Math.round(settle * 1000);
+  const timing: FlowTiming = {
+    transform: { duration, easing: `linear(${points.join(", ")})` },
+    // a digit that is leaving fades over the first half of the roll
+    opacity: { duration: Math.round(duration / 2), easing: cssEase("out") },
+  };
+  timingCache.set(key, timing);
+  return timing;
+}
+
+/* ---------------------------------------------------------------- the plate */
+
 export function NumberPlate({
   value,
   unit,
@@ -73,15 +165,18 @@ export function NumberPlate({
   className,
   tone = "default",
   label,
+  spring = COUNT,
 }: NumberPlateProps) {
   const known = typeof value === "number" && Number.isFinite(value);
   const leading = unit !== undefined && LEADING_UNITS.has(unit);
   const tight = unit !== undefined && TIGHT_UNITS.has(unit);
+  const timing = flowTiming(spring);
 
   const unitNode = unit ? (
     <span
       className={cn(
-        "font-sans font-medium text-muted-foreground",
+        // a unit is a label, and labels are mono too
+        "font-mono font-normal text-muted-foreground",
         unitClass[size],
         leading ? (tight ? "mr-0" : "mr-1") : tight ? "ml-0" : "ml-1"
       )}
@@ -94,7 +189,7 @@ export function NumberPlate({
     <span className={cn("inline-flex flex-col gap-1", className)}>
       <span
         className={cn(
-          "font-display tabular inline-flex items-baseline font-semibold",
+          "font-mono tabular inline-flex items-baseline font-normal",
           sizeClass[size],
           toneClass[tone]
         )}
@@ -106,6 +201,9 @@ export function NumberPlate({
             value={value as number}
             format={format}
             locales={locales}
+            transformTiming={timing.transform}
+            spinTiming={timing.transform}
+            opacityTiming={timing.opacity}
             // the whole point of number-flow: no jitter, no layout shift
             willChange
           />

@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "motion/react";
 
 import { formatCarton } from "@/components/ui/NumberPlate";
 import { fits, type FitResult, type Profile as FitProfile } from "@/lib/fit";
+import { ENTER, EXIT, REDUCED } from "@/lib/motion";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { productImage, type CartItem, type Product, type Profile } from "@/types";
@@ -14,13 +15,27 @@ import { productImage, type CartItem, type Product, type Profile } from "@/types
  * One line on the checkout review.
  *
  * BOTH IMAGES, ALWAYS. The stand-in sprite that stood in the room, then the
- * real listing photo that is actually being bought. Side by side, small, with
- * an arrow between them. It is the honest answer to "so what was that cartoon
+ * real listing photo that is actually being bought. Side by side, with an
+ * arrow between them. It is the honest answer to "so what was that cartoon
  * lamp?" and it costs one img tag.
+ *
+ * A WIDE ROW, read left to right like a line on an invoice: the two pictures,
+ * then the words (title, what was asked for, the size and where that size came
+ * from, the fit), then the price in its own right-aligned mono column so a
+ * basket of prices lines up down the page, then the cross. Every figure is mono
+ * and tabular. When the column gets narrow the words simply wrap.
  *
  * The row holds no state. The page owns the store writes, so removing a line
  * and the budget reacting stay one action.
+ *
+ * components/CheckoutRun.tsx imports `formatMoney` from here and is rendered by
+ * a node test with no DOM and no router: nothing at this module's top level may
+ * touch `window`, `document` or next/navigation.
  */
+
+/** A keyboard has to be able to see where it is: the accent, two pixels. */
+const FOCUS_RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 /* ------------------------------------------------------------------- money */
 
@@ -87,6 +102,12 @@ const verdictClass: Record<FitResult["verdict"], string> = {
   fail: "border-warn/70 text-warn",
 };
 
+const verdictDot: Record<FitResult["verdict"], string> = {
+  pass: "bg-ok",
+  tight: "bg-warn/60",
+  fail: "bg-warn",
+};
+
 /**
  * The review's own fit chip. It reads the same store profile and calls the
  * same kernel as components/FitBadge.tsx, but it opens no sheet — a checkout
@@ -98,7 +119,7 @@ export function LineFit({ product }: { product: Product }) {
 
   if (!result) {
     return (
-      <span className="inline-flex items-center rounded-full border border-line px-2 py-0.5 text-[11px] text-muted-foreground">
+      <span className="inline-flex min-h-6 items-center rounded-full border border-line bg-surface/70 px-2.5 text-[12px] text-muted-foreground">
         No dimensions listed
       </span>
     );
@@ -115,12 +136,19 @@ export function LineFit({ product }: { product: Product }) {
     <span
       title={result.reason}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]",
+        "inline-flex min-h-6 items-center gap-1.5 rounded-full border bg-surface/70 px-2.5 text-[12px]",
         verdictClass[result.verdict]
       )}
     >
+      <span
+        aria-hidden
+        className={cn("size-1.5 rounded-full", verdictDot[result.verdict])}
+      />
       <span className="font-medium">{verdictLabel[result.verdict]}</span>
-      {margin ? <span className="opacity-80">· {margin}</span> : null}
+      {/* a measurement, so it is set like one */}
+      {margin ? (
+        <span className="tabular font-mono text-[11px]">· {margin}</span>
+      ) : null}
     </span>
   );
 }
@@ -143,10 +171,16 @@ function BothImages({
 }) {
   const shot = productImage(product);
 
+  const frame =
+    "size-14 overflow-hidden rounded-2xl border border-line desk:size-[4.5rem]";
+  const caption =
+    "mt-1.5 text-center font-mono text-[11px] leading-none tracking-[0.1em] whitespace-nowrap text-muted-foreground uppercase";
+
   return (
-    <div className="flex shrink-0 items-center gap-1">
-      <figure className="w-14">
-        <div className="flex size-14 items-center justify-center overflow-hidden rounded-xl border border-line bg-muted">
+    <div className="flex shrink-0 items-start gap-2 desk:gap-3">
+      <figure className="flex w-14 flex-col items-center desk:w-[4.5rem]">
+        {/* the blueprint wash: this one is a drawing of a thing, not the thing */}
+        <div className={cn(frame, "flex items-center justify-center bg-accent-wash")}>
           {placeholderUrl ? (
             // The sprite is written to disk by /api/placeholder and served back
             // from there; next/image would only add a second encode.
@@ -156,23 +190,24 @@ function BothImages({
               alt={`The stand-in sprite for ${request || product.title}`}
               loading="lazy"
               decoding="async"
-              className="size-full object-contain p-1"
+              className="size-full object-contain p-1.5"
             />
           ) : (
-            <span className="text-[10px] leading-tight text-muted-foreground">
+            <span className="px-1 text-center text-[11px] leading-tight text-muted-foreground">
               no sprite
             </span>
           )}
         </div>
-        <figcaption className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">
-          stood in
-        </figcaption>
+        <figcaption className={caption}>stood in</figcaption>
       </figure>
 
-      <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      <ArrowRight
+        className="mt-5 size-4 shrink-0 text-accent desk:mt-7"
+        aria-hidden
+      />
 
-      <figure className="w-14">
-        <div className="size-14 overflow-hidden rounded-xl border border-line bg-muted">
+      <figure className="flex w-14 flex-col items-center desk:w-[4.5rem]">
+        <div className={cn(frame, "bg-muted")}>
           {shot ? (
             // Listing images come from whichever retailer sourced them, and
             // next.config.ts has no remotePatterns for them.
@@ -185,14 +220,12 @@ function BothImages({
               className="size-full object-cover"
             />
           ) : (
-            <span className="flex size-full items-center justify-center font-display text-lg text-muted-foreground">
+            <span className="flex size-full items-center justify-center font-display text-[26px] font-medium text-muted-foreground">
               {product.title.slice(0, 1).toUpperCase()}
             </span>
           )}
         </div>
-        <figcaption className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">
-          buying
-        </figcaption>
+        <figcaption className={caption}>buying</figcaption>
       </figure>
     </div>
   );
@@ -231,11 +264,13 @@ export function CartLine({
       layout={!reduced}
       initial={reduced ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: dimmed ? 0.55 : 1, y: 0 }}
-      exit={reduced ? { opacity: 0 } : { opacity: 0, x: -24 }}
-      transition={
-        reduced ? { duration: 0.15 } : { type: "spring", stiffness: 420, damping: 36 }
+      exit={
+        reduced
+          ? { opacity: 0, transition: REDUCED }
+          : { opacity: 0, x: -24, transition: EXIT }
       }
-      className={cn("flex gap-3 py-3", className)}
+      transition={reduced ? REDUCED : ENTER}
+      className={cn("flex items-start gap-4 py-4 desk:gap-6 desk:py-5", className)}
     >
       <BothImages
         placeholderUrl={placeholderUrl}
@@ -244,46 +279,33 @@ export function CartLine({
       />
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-start gap-2">
-          <a
-            href={product.url}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="line-clamp-2 min-w-0 flex-1 text-sm font-medium underline-offset-2 hover:underline"
-          >
-            {product.title}
-          </a>
+        <a
+          href={product.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className={cn(
+            "line-clamp-2 max-w-[60ch] rounded-sm text-[15px] leading-snug font-medium",
+            "underline-offset-4 transition-colors hover:text-accent hover:underline",
+            FOCUS_RING
+          )}
+        >
+          {product.title}
+        </a>
 
-          <span className="tabular shrink-0 text-sm font-medium">
-            {formatMoney(lineCents, product.currency)}
-          </span>
+        {request ? (
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            you asked for {request}
+          </p>
+        ) : null}
 
-          {onRemove ? (
-            <button
-              type="button"
-              onClick={() => onRemove(item.id)}
-              aria-label={`Don't buy ${product.title}`}
-              className="tap -mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <X className="size-4" aria-hidden />
-            </button>
-          ) : null}
-        </div>
-
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-          {request ? <span>you asked for {request}</span> : null}
-          {quantity > 1 ? (
-            <span className="tabular">
-              {formatMoney(product.priceCents, product.currency)} each
-            </span>
-          ) : null}
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-muted-foreground">
           {dims ? (
-            <span className="tabular">
-              {dims}
+            <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+              <span className="tabular font-mono">{dims}</span>
               {product.dimsSource === "quoted" ? (
-                <span className="ml-1">{product.retailer} listing</span>
+                <span>{product.retailer} listing</span>
               ) : (
-                <span className="ml-1 text-warn">
+                <span className="text-warn">
                   {product.dimsSource === "approx" ? "approx" : "estimated"}
                 </span>
               )}
@@ -296,10 +318,38 @@ export function CartLine({
           ) : null}
         </div>
 
-        <div className="mt-2">
+        <div className="mt-2.5">
           <LineFit product={product} />
         </div>
       </div>
+
+      {/* the price column: right-aligned mono, so the basket adds up by eye */}
+      <div className="flex shrink-0 flex-col items-end gap-1 pt-0.5 text-right">
+        <span className="tabular min-w-[7ch] font-mono text-[15px] text-foreground desk:text-[17px]">
+          {formatMoney(lineCents, product.currency)}
+        </span>
+        {quantity > 1 ? (
+          <span className="tabular font-mono text-[12px] text-muted-foreground">
+            {formatMoney(product.priceCents, product.currency)} each
+          </span>
+        ) : null}
+      </div>
+
+      {onRemove ? (
+        <button
+          type="button"
+          onClick={() => onRemove(item.id)}
+          aria-label={`Don't buy ${product.title}`}
+          title="Don't buy this one"
+          className={cn(
+            "tap -mt-1.5 -mr-1.5 flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full",
+            "text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:bg-muted",
+            FOCUS_RING
+          )}
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+      ) : null}
     </motion.li>
   );
 }

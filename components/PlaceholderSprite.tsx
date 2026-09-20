@@ -4,9 +4,10 @@
  * THE SPRITE STANDING IN THE ROOM.
  *
  * A textured plane, cut out on transparent, standing on the floor where the
- * user put it. It is NOT a model of the product and it never pretends to be —
- * its PICTURE never changes when a different listing is linked. Its SIZE does,
- * and the size is the part that tells the truth.
+ * user put it. It is NOT a model of the product and it never pretends to be:
+ * until a listing is linked it is a drawing, and once one is it is that
+ * listing's own photo, cut out (lib/cutout.ts) — the label says which. Its
+ * SIZE is the part that tells the truth.
  *
  * Three details are what separate "that's in the room" from "that's a sticker",
  * and none of them is decoration:
@@ -23,6 +24,8 @@
  *
  * Sizing lives in components/PhotoMode.tsx — the scene path with no three.js —
  * so the live room and the photo can never disagree about how big a thing is.
+ * The label is the photo path's label too: glass, mono figures, and numbers
+ * that count on the same spring that resizes the plane.
  */
 
 import * as React from "react";
@@ -37,7 +40,8 @@ import {
   TextureLoader,
 } from "three";
 
-import { NumberPlate } from "@/components/ui/NumberPlate";
+import { SPRING } from "@/lib/motion";
+import { usePreviewFor } from "@/lib/preview";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { PlacedItem } from "@/types";
@@ -46,22 +50,24 @@ import {
   dimsTone,
   emitItemEvent,
   labelDimsMm,
+  mmFormat,
   OPEN_OPTIONS_EVENT,
   REMOVE_ITEM_EVENT,
   spriteSizeMm,
+  tokenColor,
   vibrate,
 } from "@/components/PhotoMode";
 
 /* ------------------------------------------------------------------ spring */
 
 /**
- * A critically-ish damped spring, integrated per frame. stiffness 220 /
- * damping 26 settles in about 400 ms with the small overshoot that makes the
- * resize readable rather than merely fast. The same numbers drive the photo
- * path's framer-motion transition, so both paths move alike.
+ * lib/motion's SPRING, integrated per frame: it settles in about 400 ms with
+ * the one overshoot that makes the resize readable rather than merely fast.
+ * The photo path hands the same object to `motion`, so both paths move alike.
  */
-const STIFFNESS = 220;
-const DAMPING = 26;
+const STIFFNESS = SPRING.stiffness;
+const DAMPING = SPRING.damping;
+const MASS = SPRING.mass;
 /** never integrate a whole tab-switch in one step */
 const MAX_STEP = 1 / 30;
 
@@ -75,13 +81,25 @@ function stepSpring(
   const dt = Math.min(delta, MAX_STEP);
   const force = (target - spring.value) * STIFFNESS;
   const damping = spring.velocity * DAMPING;
-  spring.velocity += (force - damping) * dt;
+  spring.velocity += ((force - damping) / MASS) * dt;
   spring.value += spring.velocity * dt;
   // park it exactly on target rather than jittering forever
   if (Math.abs(target - spring.value) < 0.0005 && Math.abs(spring.velocity) < 0.002) {
     spring.value = target;
     spring.velocity = 0;
   }
+}
+
+/** "1,520": a sprung millimetre value as the whole number the label prints. */
+function writeFigure(node: HTMLSpanElement | null, mm: number): void {
+  if (!node) return;
+  const text = mmFormat.format(Math.round(mm));
+  if (node.textContent !== text) node.textContent = text;
+}
+
+/** `color` only when the token was there to read. */
+function colorProp(color: string | null): { color?: string } {
+  return color ? { color } : {};
 }
 
 function prefersReducedMotion(): boolean {
@@ -152,11 +170,26 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
     (item.placeholderStatus === "ready" ? item.placeholderUrl : "")
   );
 
-  const size = spriteSizeMm(item);
+  /*
+   * TRYING ONE ON, exactly as the photo path does it: a listing being looked
+   * at lends the plane its size and the label says "trying on". Nothing here
+   * writes it anywhere. A listing with no size cannot be tried on, so the
+   * plane stays as it is and the caption says why.
+   */
+  const preview = usePreviewFor(item);
+  const trying = preview?.dimsMm && preview.dimsMm[1] > 0 ? preview : null;
+  const shown: PlacedItem = trying ? { ...item, linkedProduct: trying } : item;
+
+  const size = spriteSizeMm(shown);
+  const label = labelDimsMm(shown);
   // the user's own size carries into the live room too, so a sprite they
   // resized in the photo is the same sprite when they enter AR
   const targetHeight = (size.heightMm / 1000) * item.scale;
   const targetWidth = (size.widthMm / 1000) * item.scale;
+  /* the printed figures are the listing's own; before one is linked they ride
+     along at the drawn size, so the first link counts from what stood there */
+  const targetLabelHeight = label?.heightMm ?? size.heightMm;
+  const targetLabelWidth = label?.widthMm ?? size.widthMm;
 
   /* the springs start ON target, so an item appears at its size and only a
      LINK CHANGE animates */
@@ -168,8 +201,27 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
     value: targetWidth,
     velocity: 0,
   });
+  /* the label's two figures, in millimetres, on the very same spring — the
+     number counts up exactly as the plane grows and lands when it lands */
+  const labelHeightSpring = React.useRef<SpringState>({
+    value: targetLabelHeight,
+    velocity: 0,
+  });
+  const labelWidthSpring = React.useRef<SpringState>({
+    value: targetLabelWidth,
+    velocity: 0,
+  });
+  const widthText = React.useRef<HTMLSpanElement | null>(null);
+  const heightText = React.useRef<HTMLSpanElement | null>(null);
 
   const reduced = React.useMemo(() => prefersReducedMotion(), []);
+
+  /* the accent and the warn, read off the same tokens the DOM uses; a material
+     cannot take a class name. Null leaves the material's own colour alone. */
+  const skeletonColor = React.useMemo(
+    () => ({ pending: tokenColor("--accent"), failed: tokenColor("--warn") }),
+    []
+  );
 
   useFrame((state, delta) => {
     const group = groupRef.current;
@@ -180,10 +232,18 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
     if (reduced) {
       heightSpring.current.value = targetHeight;
       widthSpring.current.value = targetWidth;
+      labelHeightSpring.current.value = targetLabelHeight;
+      labelWidthSpring.current.value = targetLabelWidth;
     } else {
       stepSpring(heightSpring.current, targetHeight, delta);
       stepSpring(widthSpring.current, targetWidth, delta);
+      stepSpring(labelHeightSpring.current, targetLabelHeight, delta);
+      stepSpring(labelWidthSpring.current, targetLabelWidth, delta);
     }
+    /* spring -> whole number -> text, written straight to the label so a count
+       never re-renders the scene; the spans are empty in React's eyes */
+    writeFigure(widthText.current, labelWidthSpring.current.value);
+    writeFigure(heightText.current, labelHeightSpring.current.value);
     const h = heightSpring.current.value;
     const w = widthSpring.current.value;
     mesh.scale.set(w, h, 1);
@@ -215,8 +275,12 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
   }, []);
   React.useEffect(() => clearPress, [clearPress]);
 
-  const label = labelDimsMm(item);
-  const caption = dimsCaption(item);
+  /* the caption speaks for the listing being looked at, even one with no size;
+     the figures speak for the listing whose millimetres they are */
+  const spokenFor: PlacedItem = preview ? { ...item, linkedProduct: preview } : item;
+  const caption = dimsCaption(spokenFor);
+  const figuresWarn = dimsTone(shown) === "warn";
+  const isShopPhoto = texture !== null && item.listingCutoutUrl !== null;
 
   /*
    * In an immersive session the page's own DOM is not composited — only the
@@ -288,7 +352,11 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
             /* the skeleton: the right proportion in the right place, so the
                composition is visible while /api/placeholder is drawing */
             <meshBasicMaterial
-              color={item.placeholderStatus === "failed" ? "#b4713c" : "#c97b5f"}
+              {...colorProp(
+                item.placeholderStatus === "failed"
+                  ? skeletonColor.failed
+                  : skeletonColor.pending
+              )}
               transparent
               opacity={0.22}
               depthWrite={false}
@@ -309,39 +377,47 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
             zIndexRange={[30, 10]}
             className="pointer-events-none"
           >
-            <div className="flex flex-col items-center gap-1">
-              <div className="flex flex-col items-center gap-0.5 whitespace-nowrap rounded-full border border-line/60 bg-background/75 px-3 py-1 backdrop-blur-md">
-                <span className="flex items-baseline gap-1">
-                  <NumberPlate
-                    value={label?.widthMm ?? null}
-                    size="sm"
-                    label="width"
-                  />
-                  <span className="text-xs text-muted-foreground">×</span>
-                  <NumberPlate
-                    value={label?.heightMm ?? null}
-                    unit="mm"
-                    size="sm"
-                    label="height"
-                  />
+            <div className="flex flex-col items-center gap-1.5 font-sans">
+              <div className="glass-thick flex flex-col items-center gap-0.5 whitespace-nowrap px-3.5 py-2 text-center">
+                <span
+                  className={cn(
+                    "tabular font-mono text-[13px] leading-5",
+                    figuresWarn ? "text-warn" : "text-foreground"
+                  )}
+                >
+                  {trying ? <span className="text-accent">trying on · </span> : null}
+                  {label ? (
+                    <>
+                      <span ref={widthText} aria-label="width" />
+                      <span className="text-muted-foreground"> × </span>
+                      <span ref={heightText} aria-label="height" />
+                      {" mm"}
+                    </>
+                  ) : (
+                    "— × — mm"
+                  )}
                 </span>
                 <span
                   className={cn(
-                    "text-[10px]",
-                    dimsTone(item) === "warn"
+                    "text-[11px] leading-4",
+                    dimsTone(spokenFor) === "warn"
                       ? "text-warn"
                       : "text-muted-foreground"
                   )}
                 >
+                  {preview && !trying ? (
+                    <span className="text-accent">trying on · </span>
+                  ) : null}
                   {caption}
                 </span>
               </div>
 
-              {/* the fit verdict, printed exactly as the kernel returned it */}
-              {item.fit && (failed || tight) ? (
+              {/* the fit verdict, printed exactly as the kernel returned it —
+                  for the listing it was run on, never one being tried on */}
+              {!preview && item.fit && (failed || tight) ? (
                 <p
                   className={cn(
-                    "max-w-[15rem] whitespace-normal rounded-xl bg-background/80 px-2 py-1 text-center text-[10px] backdrop-blur-md",
+                    "glass-thick max-w-[15rem] whitespace-normal px-3 py-1.5 text-center text-[11px] leading-4",
                     failed ? "text-warn" : "text-muted-foreground"
                   )}
                 >
@@ -349,8 +425,10 @@ export function PlaceholderSprite({ item }: PlaceholderSpriteProps) {
                 </p>
               ) : null}
 
-              <p className="text-[10px] text-muted-foreground">
-                Stand-in image — the product you pick is linked.
+              <p className="glass-pill px-3 py-1 text-[11px] leading-4 text-muted-foreground">
+                {isShopPhoto
+                  ? `${item.linkedProduct?.retailer ?? "the shop"}'s own photo`
+                  : "Stand-in image — the product you pick is linked."}
               </p>
             </div>
           </Html>

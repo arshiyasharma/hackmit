@@ -1,145 +1,290 @@
 "use client";
 
 import * as React from "react";
-import { Sheet as ModalSheet } from "react-modal-sheet";
-import { useReducedMotion } from "motion/react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+
+import { ENTER, EXIT, REDUCED } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /**
- * The ONLY bottom sheet in the app.
+ * The ONLY modal surface in the app — and on a laptop it is a DIALOG, not a
+ * bottom sheet (docs/ROOM3_PRODUCT_SPEC.md, 1b: "Dialogs, not bottom sheets").
  *
- * Built on react-modal-sheet (MIT, 5.6.0). Not Vaul, and not shadcn's Drawer,
- * which is built on Vaul — Vaul's author has marked it unmaintained.
+ * It used to be react-modal-sheet: a panel dragged up from the bottom edge of a
+ * phone. PIXX-AR is a website used with a mouse and a keyboard now, so the same
+ * props open a centred pane of thick glass over a pale veil instead. The name
+ * and the props stay exactly as they were, because the fit check, the doorway
+ * measurements, the order mode, the budget nudge and the account panel all call
+ * it — and none of them should have to know what it turned into.
  *
- * The handle, the backdrop blur and the rounded-t-3xl live here once so the AR
- * sheet, the fit sheet and the checkout sheet cannot drift apart.
+ * What a dialog owes the keyboard lives here once, so those five cannot drift:
+ *   - focus moves in when it opens and goes back where it was when it closes;
+ *   - Tab stays inside it;
+ *   - Escape and a click on the veil close it, unless `disableDrag` says the
+ *     shopper must not be able to walk away (mid-payment);
+ *   - only the dialog on top answers — the fit check opens the measurements
+ *     over itself, and one Escape must close one of them, not both.
  */
 
 export type SheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** fractions of the viewport, tallest first */
+  /** from the bottom-sheet days: how tall it rested. A dialog sizes to its content. */
   snapPoints?: number[];
-  /** index into snapPoints; 1 means the half-height rest position */
+  /** from the bottom-sheet days. Accepted, unused. */
   initialSnap?: number;
   children: React.ReactNode;
 
   /* optional, additive — the four props above are the contract */
+  /** lands on the pane; `max-w-…` here widens it past the 46rem default */
   className?: string;
-  /** hide the grab handle for a sheet that should not read as draggable */
+  /** from the bottom-sheet days: the grab handle. A dialog has none. */
   showHandle?: boolean;
-  /** stop the user dismissing by drag, e.g. mid-payment */
+  /** the shopper must not dismiss this: no Escape, no veil click, no close button */
   disableDrag?: boolean;
+  /** from the bottom-sheet days. A dialog has no snaps, so this is never called. */
   onSnap?: (index: number) => void;
-  /** accessible name; a sheet with no visible title needs one */
+  /** accessible name; a dialog with no visible title needs one */
   label?: string;
 };
+
+/**
+ * Which dialogs are open, oldest first. Module state on purpose: two `Sheet`s
+ * in different corners of the tree have no other way to know who is on top.
+ */
+const stack: symbol[] = [];
+
+function isOnTop(id: symbol): boolean {
+  return stack[stack.length - 1] === id;
+}
+
+const FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+function focusablesIn(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    // display:none and hidden ancestors have no boxes; they cannot take focus
+    (el) => el.getClientRects().length > 0
+  );
+}
+
+/** False on the server and while hydrating, true after: a portal needs a body. */
+function useHasDocument(): boolean {
+  return React.useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+}
 
 export function Sheet({
   open,
   onOpenChange,
-  snapPoints = [0.9, 0.4],
-  initialSnap = 1,
   children,
   className,
-  showHandle = true,
   disableDrag = false,
-  onSnap,
   label,
 }: SheetProps) {
-  // prefers-reduced-motion swaps the spring for a plain fade, everywhere
-  const reducedMotion = useReducedMotion() ?? false;
+  const reduced = useReducedMotion() ?? false;
+  const hasDocument = useHasDocument();
+
+  const paneRef = React.useRef<HTMLDivElement | null>(null);
+  // one identity per mounted dialog, for the "who is on top" stack
+  const [id] = React.useState(() => Symbol("sheet"));
+
+  // the caller's handler is usually an inline arrow; the listeners below must
+  // not be torn down and re-added every time the parent renders
+  const change = React.useRef(onOpenChange);
+  React.useEffect(() => {
+    change.current = onOpenChange;
+  });
+
+  /* focus in on open, back where it was on close */
+  React.useEffect(() => {
+    if (!open) return;
+    const before =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    stack.push(id);
+    // the pane itself, not its first button: opening a dialog should not light
+    // a focus ring on "close" before the shopper has pressed a key
+    const frame = window.requestAnimationFrame(() => {
+      const pane = paneRef.current;
+      if (pane && !pane.contains(document.activeElement)) {
+        pane.focus({ preventScroll: true });
+      }
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      const at = stack.indexOf(id);
+      if (at !== -1) stack.splice(at, 1);
+      if (before && before.isConnected) before.focus({ preventScroll: true });
+    };
+  }, [open, id]);
 
   /*
-   * react-modal-sheet 5 changed what snapPoints means. It now wants them
-   * ASCENDING, starting at 0 (fully closed) and ending at 1 (fully open), and
-   * it says so at runtime:
-   *   "First snap point should be 0 to ensure the sheet can be fully closed."
-   * Handed the old descending [0.9, 0.4] it opened at ~96% of the screen and
-   * could not be dragged shut — the options sheet covered the room and had no
-   * way out on a desktop.
-   *
-   * Callers still describe a sheet the way a person would: how much of the
-   * screen it covers, biggest first, with initialSnap indexing that list. The
-   * translation lives here so no call site has to know the library's rules.
-   */
-  const { points, snap } = React.useMemo(() => {
-    const wanted = snapPoints.filter((p) => p > 0 && p < 1);
-    const chosen =
-      wanted[Math.min(Math.max(initialSnap, 0), wanted.length - 1)] ??
-      wanted[0] ??
-      0.9;
-    const ascending = [0, ...[...new Set(wanted)].sort((a, b) => a - b), 1];
-    return { points: ascending, snap: ascending.indexOf(chosen) };
-  }, [snapPoints, initialSnap]);
-
-  /*
-   * A sheet you cannot dismiss is a sheet that owns the screen. Dragging it
-   * down has always worked; tapping the dimmed room and pressing Escape did
-   * not, which on a laptop left the options covering the room with no way out.
+   * Escape, heard on `document` rather than on the pane: room III answers the
+   * browser's Back button by dispatching an Escape there ("a dialog is up: Back
+   * closes that first"), and that event never passes through the pane. Marking
+   * it handled is what tells the room, and the listing tray under this dialog,
+   * that this Escape has been spent.
    */
   React.useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onOpenChange(false);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (!isOnTop(id)) return;
+      event.preventDefault();
+      if (!disableDrag) change.current(false);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onOpenChange]);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, id, disableDrag]);
 
-  return (
-    <ModalSheet
-      /*
-       * The library defaults its root to z-index 9999, which put the backdrop
-       * over the room-context strip: tapping a style chip while the options
-       * were open hit the backdrop instead and just closed the sheet, so the
-       * one edit the sheet exists to react to could not be made. The sheet
-       * sits above the room and below the top chrome now.
-       */
-      style={{ zIndex: 30 }}
-      isOpen={open}
-      onClose={() => onOpenChange(false)}
-      snapPoints={points}
-      initialSnap={snap}
-      onSnap={onSnap}
-      disableDrag={disableDrag}
-      prefersReducedMotion={reducedMotion}
-      avoidKeyboard
-      aria-label={label}
-    >
-      <ModalSheet.Container
-        className={cn(
-          "!rounded-t-3xl !bg-surface !shadow-[0_-8px_40px_rgb(0_0_0/0.18)]",
-          "border-t border-line",
-          className
-        )}
-      >
-        {showHandle ? (
-          <ModalSheet.Header
-            className="flex h-8 shrink-0 items-center justify-center"
-            disableDrag={disableDrag}
+  /*
+   * Focus that lands behind the dialog comes back. Tab from the pane's edges is
+   * caught below, but a click on the veil drops focus on <body>, and the next
+   * Tab from there would walk the page underneath. Toasts are left alone: an
+   * undo that appears while a dialog is up must still be reachable.
+   */
+  React.useEffect(() => {
+    if (!open) return;
+    const onFocusIn = (event: FocusEvent) => {
+      if (!isOnTop(id)) return;
+      const pane = paneRef.current;
+      const target = event.target;
+      if (!pane || !(target instanceof Element) || pane.contains(target)) return;
+      if (target.closest("[data-sonner-toaster]")) return;
+      pane.focus({ preventScroll: true });
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, [open, id]);
+
+  /* Tab walks the dialog and nothing behind it */
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return;
+    const pane = paneRef.current;
+    // a dialog opened from inside this one is a React child through its portal,
+    // so its keys bubble up to here; it keeps its own Tab
+    if (!pane || !pane.contains(event.target as Node)) return;
+
+    const stops = focusablesIn(pane);
+    if (stops.length === 0) {
+      event.preventDefault();
+      pane.focus({ preventScroll: true });
+      return;
+    }
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    const at = document.activeElement;
+
+    if (event.shiftKey && (at === first || at === pane)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && at === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  if (!hasDocument) return null;
+
+  const fade = reduced ? REDUCED : ENTER;
+  const leave = reduced ? REDUCED : EXIT;
+
+  return createPortal(
+    <AnimatePresence>
+      {open ? (
+        <div
+          key="dialog"
+          data-pixx-dialog=""
+          /*
+           * 9999 is where react-modal-sheet used to put itself, and it is above
+           * room III (z-index 200), whose body this is portalled beside. A
+           * dialog is modal, so covering the top chrome is right; the listing
+           * tray is the surface that must leave the style strip reachable, and
+           * it is not a dialog.
+           */
+          className="fixed inset-0 z-[9999] grid place-items-center p-4 desk:p-8"
+        >
+          {/* a pale, cool veil — the room stays a room behind it, never a dark scrim */}
+          <motion.div
+            aria-hidden
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: fade }}
+            exit={{ opacity: 0, transition: leave }}
+            onClick={() => {
+              if (!disableDrag) onOpenChange(false);
+            }}
+            className={cn(
+              "absolute inset-0 bg-accent-wash/55 backdrop-blur-[6px]",
+              !disableDrag && "cursor-pointer"
+            )}
+          />
+
+          <motion.div
+            ref={paneRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={label}
+            tabIndex={-1}
+            onKeyDown={onKeyDown}
+            initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1, transition: fade }}
+            exit={
+              reduced
+                ? { opacity: 0, transition: leave }
+                : { opacity: 0, scale: 0.98, transition: leave }
+            }
+            className={cn(
+              // the glass classes are declared after Tailwind's utilities in the
+              // same layer, so their radius wins a tie; hence the `!`
+              "glass-thick glass-sheen rounded-[28px]!",
+              "flex max-h-[86dvh] w-full max-w-[46rem] flex-col outline-none",
+              className
+            )}
           >
+            {disableDrag ? null : (
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                aria-label="Close"
+                className={cn(
+                  "absolute right-3 top-3 z-10 grid size-11 cursor-pointer place-items-center rounded-full",
+                  "border border-line bg-surface/80 text-foreground transition-colors",
+                  "hover:border-accent-pale hover:bg-accent-wash",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                )}
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            )}
+
+            {/* the close button owns the first 56px of the corner; what is said
+                starts under it, so no caller's heading can run beneath it */}
             <div
-              aria-hidden
-              className="h-1 w-10 rounded-full bg-foreground/15"
-            />
-          </ModalSheet.Header>
-        ) : null}
-
-        <ModalSheet.Content className="min-h-0 flex-1">
-          <div className="gutter pb-[max(24px,env(safe-area-inset-bottom))]">
-            {children}
-          </div>
-        </ModalSheet.Content>
-      </ModalSheet.Container>
-
-      <ModalSheet.Backdrop
-        onTap={() => {
-          if (!disableDrag) onOpenChange(false);
-        }}
-        className="!bg-foreground/25 backdrop-blur-sm"
-      />
-    </ModalSheet>
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 desk:px-8 desk:pb-8",
+                disableDrag ? "pt-6 desk:pt-8" : "pt-14"
+              )}
+            >
+              {children}
+            </div>
+          </motion.div>
+        </div>
+      ) : null}
+    </AnimatePresence>,
+    document.body
   );
 }
 

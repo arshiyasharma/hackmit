@@ -1,0 +1,200 @@
+/* Chapter IV, "About us". HackMIT's flat vector language — ribbons, clouds,
+   sparkles, a checker band, a scalloped tent valance — over the landing's own
+   paper rather than their deep navy, with the landing's blue standing in for it.
+
+   The hero is a depth field: photographs sit at real z behind the screen and
+   travel toward the viewer as you scroll, so the page walks through them. */
+
+.sense .about {
+  position: absolute; inset: 0; z-index: 52; overflow: hidden;
+  background: var(--paper-white);
+  --hack-coral: #E2705F;
+  --hack-peach: #F0A868;
+  --hack-butter: #F2D888;
+  --hack-sage: #9FC8A8;
+  --hack-lavender: #B5A8DE;
+  --hack-sky: #8FC4DE;
+  --edge-x: max(20px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+}
+.about-flood { z-index: 51; display: none; }
+
+/* ---- the sky behind everything ---- */
+/* the sky decorates the hero only, and scrolls away with it */
+.about-sky { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.decor-ribbon { position: absolute; left: -5%; top: -4%; width: 110%; height: 38vh; }
+.about-cloud, .about-spark { position: absolute; display: block; }
+.about-cloud { opacity: 0.5; }
+.about-cloud.c1 { left: -6%; top: 10%; }
+.about-cloud.c2 { right: -4%; top: 30%; }
+.about-cloud.c3 { left: 8%; bottom: 8%; }
+.about-spark { opacity: 0.85; animation: aboutTwinkle 4.5s var(--ease-out) infinite; }
+.about-spark.s1 { left: 16%; top: 22%; }
+.about-spark.s2 { right: 22%; top: 16%; animation-delay: 1.1s; }
+.about-spark.s3 { right: 12%; bottom: 26%; animation-delay: 2.2s; }
+.about-spark.s4 { left: 26%; bottom: 18%; animation-delay: 3.1s; }
+@keyframes aboutTwinkle { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.25); opacity: 0.4; } }
+
+/* ---- scrolling ---- */
+.about-scroll {
+  position: absolute; inset: 0; overflow: hidden;
+  /* the root kills touch for the 3D stage, so this opts back in */
+  touch-action: pan-y; overscroll-behavior: contain;
+}
+.about-content { padding-bottom: 8vh; }
+.about-close { top: var(--edge-t); right: var(--edge-r); z-index: 6; }
+
+/* ---- the depth hero ---- */
+.about-hero {
+  position: relative; height: 100dvh; display: grid; place-items: center;
+  perspective: 900px; perspective-origin: 50% 46%;
+}
+.about-field { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
+.about-photo {
+  position: absolute; left: 50%; top: 46%; margin: 0;
+  width: clamp(88px, 13vw, 190px); aspect-ratio: 3 / 4;
+  translate: -50% -50%;
+  transform: translate3d(var(--x), var(--y), var(--z)) scale(var(--s));
+  background: #fff; padding: 5px 5px 20px; box-shadow: 0 10px 34px rgba(17, 17, 17, 0.14);
+  opacity: 0;
+}
+/* the slot a supplied photograph will replace */
+.about-photo-slot {
+  display: grid; place-items: center; width: 100%; height: 100%;
+  background: repeating-linear-gradient(45deg, #efe9dc 0 9px, #e7e0d1 9px 18px);
+  font: 400 11px var(--font-mono); color: rgba(17, 17, 17, 0.4);
+}
+.about-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.about-title { position: relative; z-index: 2; text-align: center; width: min(760px, calc(100vw - 2 * var(--edge-x))); }
+/* the field converges on the middle, so the title carries its own paper */
+.about-title::before {
+  content: ""; position: absolute; left: 50%; top: 50%; translate: -50% -50%; z-index: -1;
+  width: 148%; height: 190%; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--paper-white) 46%, rgba(250, 247, 240, 0.86) 70%, transparent 100%);
+}
+.about-eyebrow {
+  margin: 0 0 1.4vh; font-family: var(--font-mono); font-size: clamp(10px, 1.5vh, 12px);
+  letter-spacing: 0.26em; text-indent: 0.26em; text-transform: uppercase; color: var(--hack-coral);
+}
+.about-title h1 {
+  margin: 0; font-family: var(--font-title); font-optical-sizing: auto;
+  font-size: clamp(54px, min(13dvh, 15vw), 132px); font-weight: 300; line-height: 0.95;
+  letter-spacing: 0.03em; color: var(--ink);
+}
+.about-lede {
+  margin: 2.6vh auto 0; max-width: 34ch;
+  font-size: clamp(15px, 2.1dvh, 19px); line-height: 1.55; color: rgba(17, 17, 17, 0.8);
+  text-wrap: balance;
+}
+.about-scrollhint {
+  margin: 3.4vh 0 0; font-family: var(--font-mono); font-size: clamp(10px, 1.4vh, 12px);
+  letter-spacing: 0.2em; text-transform: uppercase; color: rgba(17, 17, 17, 0.55);
+}
+
+/* ---- the bands and sections ---- */
+.about-band { height: 40px; overflow: hidden; opacity: 0.55; }
+.decor-checker { width: 100%; height: 40px; display: block; }
+
+.about-section {
+  position: relative; width: min(680px, calc(100vw - 2 * var(--edge-x)));
+  margin: 0 auto; padding: 9vh 0 2vh;
+}
+.about-section h2 {
+  margin: 0 0 2.4vh; font-family: var(--font-title); font-weight: 300;
+  font-size: clamp(30px, 5.4dvh, 54px); letter-spacing: 0.02em; color: var(--ink);
+}
+/* each section gets one of their colours as a rule above its heading */
+.about-section h2::before {
+  content: ""; display: block; width: 64px; height: 5px; border-radius: 3px;
+  margin-bottom: 2vh; background: var(--tone, var(--hack-coral));
+}
+.about-section[data-tone="problem"] { --tone: var(--hack-coral); }
+.about-section[data-tone="why"] { --tone: var(--hack-peach); }
+.about-section[data-tone="solves"] { --tone: var(--hack-sage); }
+.about-journey h2::before { background: var(--hack-lavender); }
+.about-gallery h2::before { background: var(--hack-sky); }
+.about-demo h2::before { background: var(--highlight); }
+
+.about-note { margin: 0; font-size: clamp(15px, 2dvh, 18px); line-height: 1.65; color: rgba(17, 17, 17, 0.82); }
+.about-list { margin: 0; padding-left: 1.1em; display: grid; gap: 1.2vh; }
+.about-list li { font-size: clamp(15px, 2dvh, 18px); line-height: 1.6; color: rgba(17, 17, 17, 0.82); }
+.about-list li::marker { color: var(--hack-sage); }
+
+/* a dashed slot, so an empty section still reads as deliberate */
+.about-ph {
+  margin: 3vh 0 0; padding: 18px 20px; border: 1.5px dashed rgba(17, 17, 17, 0.22); border-radius: 6px;
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; color: rgba(17, 17, 17, 0.45);
+}
+
+/* ---- journey ---- */
+.about-timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 2.2vh; }
+.about-timeline li {
+  background: var(--paper-card); border-radius: 5px; padding: 14px 18px;
+  rotate: var(--rot); box-shadow: 0 2px 10px rgba(17, 17, 17, 0.09);
+  display: grid; gap: 4px;
+}
+.about-when {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--hack-coral);
+}
+.about-what { font-size: clamp(14px, 1.9dvh, 17px); line-height: 1.5; color: var(--ink); }
+
+/* ---- the collage ---- */
+.about-collage {
+  margin-top: 3vh; display: grid; gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+}
+.about-tile {
+  margin: 0; aspect-ratio: 1; background: #fff; padding: 6px 6px 22px; rotate: var(--rot);
+  box-shadow: 0 4px 16px rgba(17, 17, 17, 0.12);
+}
+.about-tile span {
+  display: grid; place-items: center; width: 100%; height: 100%;
+  background: repeating-linear-gradient(45deg, #efe9dc 0 9px, #e7e0d1 9px 18px);
+  font: 400 10.5px var(--font-mono); color: rgba(17, 17, 17, 0.4);
+}
+.about-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ---- the demo ---- */
+.about-video {
+  margin-top: 3vh; background: #fff; padding: 8px; border-radius: 4px;
+  box-shadow: 0 6px 22px rgba(17, 17, 17, 0.14); rotate: -1deg;
+}
+.about-video video { width: 100%; display: block; border-radius: 2px; }
+.about-video-slot {
+  aspect-ratio: 16 / 9; display: grid; place-items: center; gap: 10px; align-content: center;
+  background: repeating-linear-gradient(45deg, #efe9dc 0 11px, #e7e0d1 11px 22px);
+  color: rgba(17, 17, 17, 0.45); font: 400 12px var(--font-mono);
+}
+
+/* ---- thanks ---- */
+.about-thanks { position: relative; margin-top: 10vh; padding-top: 56px; text-align: center; }
+.decor-valance { position: absolute; top: 0; left: 0; width: 100%; height: 56px; }
+.about-thanks p {
+  margin: 4vh 0 0; font-family: var(--font-title); font-weight: 300;
+  font-size: clamp(26px, 5dvh, 50px); letter-spacing: 0.02em; color: var(--ink);
+}
+
+@media (max-width: 767px) {
+  .about-photo { width: clamp(74px, 22vw, 120px); }
+  .about-title h1 { font-size: clamp(42px, min(10dvh, 17vw), 78px); }
+  .about-lede { max-width: 28ch; }
+  .about-collage { grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  .about-section { padding-top: 7vh; }
+  .decor-ribbon { height: 34vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-spark { animation: none; }
+  .about-scroll { overflow-y: auto; }
+}
+
+/* Past the hero the decoration thins out to one mark per section, so the
+   reading column never has a ribbon behind it. */
+.about-section::after {
+  content: ""; position: absolute; right: -6%; top: 12vh; width: 74px; height: 74px;
+  border-radius: 50%; background: var(--tone, var(--hack-coral)); opacity: 0.1;
+}
+.about-journey::after { background: var(--hack-lavender); }
+.about-gallery::after { background: var(--hack-sky); }
+.about-demo::after { background: var(--highlight); }

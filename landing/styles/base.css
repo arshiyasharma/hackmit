@@ -1,0 +1,63 @@
+/* One fixed canvas behind one fixed UI layer. The body never scrolls. */
+/* overscroll-behavior stops iOS rubber-banding and pull-to-refresh, which would
+   otherwise drag the whole fixed stage down while someone pans the room. */
+html:has(.sense), body:has(.sense) { overflow: hidden; height: 100%; background: #000; overscroll-behavior: none; }
+
+.sense {
+  /* a fixed inset:0 box is already the visible viewport on iOS, and since the
+     page cannot scroll the URL bar never collapses: no 100vh, nothing to jump */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.2;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  /* no grey flash on every tap, no long-press "Save Image" sheet over the
+     reveal, and no iOS text inflation in landscape */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+.sense *, .sense *::before, .sense *::after { box-sizing: border-box; }
+.sense button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+.sense :focus-visible { outline: 2px solid var(--highlight); outline-offset: 3px; }
+
+.sense-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sense .ui { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+/* :where() keeps these defaults at zero specificity, so any component that says
+   pointer-events: none (full-screen veils, hidden tiles) really is click-through */
+:where(.sense .ui) > :where(*) { pointer-events: auto; }
+.sense .layer { position: absolute; inset: 0; pointer-events: none; }
+:where(.sense .layer) > :where(*) { pointer-events: auto; }
+.sense [hidden] { display: none !important; }
+/* .sense takes touch-action away so the stage owns every drag. A region that
+   scrolls or drags has to hand it back or a finger does nothing on iOS. */
+.sense .scroll-y { touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.sense .scroll-x { touch-action: pan-x; overscroll-behavior: contain; }
+.sense .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* debug panel, toggled with the D key */
+.sense-debug {
+  position: absolute; left: var(--edge-l); top: calc(var(--edge-t) + 55px); z-index: 90;
+  width: min(232px, calc(100vw - var(--sal) - var(--sar) - 24px)); padding: 10px 12px;
+  background: rgba(10, 10, 20, 0.86); color: #fff; font: 11px/1.3 var(--font-mono);
+  border-radius: 6px; user-select: none;
+}
+.sense-debug h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.7; }
+.sense-debug label { display: grid; grid-template-columns: 70px 1fr 30px; gap: 6px; align-items: center; margin: 3px 0; }
+.sense-debug input[type="range"] { width: 100%; }
+.sense-debug .row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.sense .sense-debug button { background: #fff; color: #111; padding: 4px 7px; border-radius: 3px; font-size: 11px; }
+.sense .sense-debug button:disabled { opacity: 0.4; }
+.sense-debug-dot {
+  position: absolute; left: 0; top: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  border: 2px solid #ff2d95; pointer-events: none; z-index: 89;
+}
+.sense-debug-dot::after { content: attr(data-id); position: absolute; left: 16px; top: -4px; color: #ff2d95; font: 700 11px var(--font-mono); }

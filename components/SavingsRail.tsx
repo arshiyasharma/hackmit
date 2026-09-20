@@ -8,14 +8,17 @@ import NumberPlate, {
   type NumberPlateProps,
 } from "@/components/ui/NumberPlate";
 import { withDemo } from "@/lib/demo";
+import { DUR, EASE } from "@/lib/motion";
 import { linkedItems, spentCents, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Savings } from "@/types";
 
 /**
  * The savings counters. In v2 these were a rail down the edge of every screen;
- * under the pivot the screen carries ONE readout, so they moved behind a tap on
- * the budget number in components/BudgetHud.tsx, which mounts this panel.
+ * under the pivot the screen carries ONE readout, so they moved behind a click
+ * on the budget number in components/BudgetHud.tsx, which mounts this panel —
+ * inline under THE NUMBER in the laptop's agent panel, so it is two counters
+ * across rather than four down: the conversation below it keeps its height.
  *
  * Nothing about the counters changed — the two sponsor tracks are unconfirmed,
  * so the work is kept, not deleted, and costs one interaction at rest.
@@ -58,8 +61,8 @@ export function parseSavings(raw: unknown): Savings {
 }
 
 /**
- * The panel and the checkout review both ask for the ledger. One in-flight
- * request per ledger key, shared, so an edit is one round trip.
+ * One in-flight request per ledger key, shared, so an edit is one round trip
+ * however many panels are asking.
  */
 let inFlight: { key: string; promise: Promise<Savings | null> } | null = null;
 
@@ -105,20 +108,22 @@ function Counter({ label, value, unit, caption, format, tone }: CounterProps) {
     previous.current = value;
     if (value === null || reduced || !scope.current) return;
     // one flash of accent behind the number, exactly when it moves
-    animate(scope.current, { opacity: [0, 0.28, 0] }, { duration: 0.9 });
+    animate(
+      scope.current,
+      { opacity: [0, 0.28, 0] },
+      { duration: DUR.scene, ease: EASE.out }
+    );
   }, [value, reduced, animate, scope]);
 
   return (
-    <div className="py-2.5">
-      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-        {label}
-      </p>
-      <span className="relative mt-1 inline-flex">
+    <div className="min-w-0 border-t border-line py-3">
+      <p className="eyebrow text-muted-foreground">{label}</p>
+      <span className="relative mt-2 inline-flex">
         <span
           ref={scope}
           aria-hidden
           style={{ opacity: 0 }}
-          className="pointer-events-none absolute -inset-x-2 -inset-y-1 rounded-lg bg-accent"
+          className="pointer-events-none absolute -inset-x-2 -inset-y-1.5 rounded-lg bg-accent"
         />
         <NumberPlate
           value={value}
@@ -130,7 +135,7 @@ function Counter({ label, value, unit, caption, format, tone }: CounterProps) {
           className="relative"
         />
       </span>
-      <p className="mt-1 text-xs text-muted-foreground">{caption}</p>
+      <p className="mt-1.5 text-xs leading-snug text-muted-foreground">{caption}</p>
     </div>
   );
 }
@@ -209,11 +214,12 @@ export function SavingsRail({ className }: { className?: string }) {
 
   return (
     <div className={cn("text-foreground", className)}>
-      <p className="font-display text-sm font-semibold">
+      {/* Cormorant is slight: never under 20px, and 500 while it is this small */}
+      <p className="font-display text-[22px] leading-none font-medium tracking-[0.01em]">
         What you&rsquo;re saving
       </p>
 
-      <div className="mt-1 divide-y divide-line">
+      <div className="mt-3 grid grid-cols-2 gap-x-5">
         <Counter
           label="Budget"
           value={ledgerSpent === null ? null : centsToUnits(ledgerSpent)}
@@ -247,7 +253,7 @@ export function SavingsRail({ className }: { className?: string }) {
       </div>
 
       {unmeasured ? (
-        <p className="mt-3 border-t border-line pt-3 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="border-t border-line pt-3 text-[11px] leading-relaxed text-muted-foreground">
           A dash means we haven&rsquo;t measured it yet. These counters come from
           the run ledger, never from a guess.
         </p>

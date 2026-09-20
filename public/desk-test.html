@@ -1,0 +1,34 @@
+<!doctype html>
+<!-- Disposable: a laptop-sized viewport inside whatever window is to hand.
+     /desk-test.html?p=/landing%3Fproduct&w=1440&h=900
+     The frame is same-origin, so a test can reach window.f.__sense / __pixx. -->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>desk harness</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #20232a; overflow: hidden; }
+  #wrap { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  iframe { border: 0; display: block; background: #fff; }
+</style>
+<div id="wrap"><iframe id="f" allow="camera; clipboard-write"></iframe></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const w = +(q.get("w") || 1440), h = +(q.get("h") || 900);
+  const f = document.getElementById("f");
+  f.width = w; f.height = h;
+  f.src = q.get("p") || "/landing?product";
+  const fit = () => {
+    const s = Math.min(innerWidth / w, innerHeight / h);
+    document.getElementById("wrap").style.transform = `scale(${s})`;
+  };
+  addEventListener("resize", fit); fit();
+  Object.defineProperty(window, "f", { get: () => f.contentWindow });
+  // finish CSS animations and step the landing clock: the tab is often hidden
+  window.settle = async (seconds = 1) => {
+    const win = f.contentWindow;
+    win.document.getAnimations().forEach((a) => { try { a.finish(); } catch {} });
+    if (win.__sense) await win.__sense.advance(seconds);
+    return { state: win.__sense?.machine.state, cover: win.document.querySelector(".pixx-room-root")?.dataset.cover,
+             screen: win.document.querySelector(".pixx-room-root")?.dataset.screen, w: win.innerWidth, h: win.innerHeight };
+  };
+</script>

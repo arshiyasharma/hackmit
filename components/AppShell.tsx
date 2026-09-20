@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { useDemo } from "@/lib/demo";
+import { useAppNav, type AppNav } from "@/lib/nav";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +29,7 @@ const LONG_PRESS_SLOP_PX = 10;
 
 function useLongPressReset(
   reset: () => void,
-  router: ReturnType<typeof useRouter>
+  nav: AppNav
 ): React.DOMAttributes<HTMLElement> {
   const timer = React.useRef<number | null>(null);
   const origin = React.useRef<{ x: number; y: number } | null>(null);
@@ -56,7 +56,7 @@ function useLongPressReset(
           navigator.vibrate(20);
         }
         toast("Started over. Your doorway measurements were kept.");
-        router.push("/");
+        nav.push("/");
       }, LONG_PRESS_MS);
     },
     onPointerMove: (e: React.PointerEvent) => {
@@ -81,7 +81,7 @@ export type AppShellProps = {
   children: React.ReactNode;
   /** the name in the top bar */
   title?: string;
-  /** replaces router.back() */
+  /** replaces nav.back() */
   onBack?: () => void;
   /** the first screen has nowhere to go back to */
   showBack?: boolean;
@@ -106,9 +106,11 @@ export function AppShell({
   actions,
   className,
 }: AppShellProps) {
-  const router = useRouter();
+  // inside room III of the landing this swaps screens in place; on its own
+  // URL it is the Next.js one
+  const nav = useAppNav();
   const reset = useStore((s) => s.reset);
-  const longPress = useLongPressReset(reset, router);
+  const longPress = useLongPressReset(reset, nav);
 
   // false on the server and on the first client render, the real value after:
   // the flag lives in the URL and sessionStorage, which the server cannot see
@@ -132,7 +134,7 @@ export function AppShell({
           {canGoBack ? (
             <button
               type="button"
-              onClick={() => (onBack ? onBack() : router.back())}
+              onClick={() => (onBack ? onBack() : nav.back())}
               aria-label="Go back"
               className="tap -ml-2 flex size-11 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-muted active:bg-muted"
             >

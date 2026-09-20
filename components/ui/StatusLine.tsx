@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+
+import { DUR, EASE, EXIT, REDUCED } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -66,17 +68,26 @@ export function StatusLine({
         className
       )}
     >
+      {/*
+       * A line is a small thing, so it moves on the small clock: the new
+       * sentence rises in on the entrance curve, the old one leaves on the exit
+       * curve, both `DUR.micro`. Reduced motion keeps the words and drops the
+       * travel.
+       */}
       <AnimatePresence mode="wait" initial={false}>
         <motion.span
           key={message}
           className="block"
           initial={reduced ? { opacity: 0 } : { opacity: 0, y: 6 }}
-          animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0 }}
-          exit={reduced ? { opacity: 0 } : { opacity: 0, y: -6 }}
-          transition={
+          animate={
             reduced
-              ? { duration: 0.15 }
-              : { type: "spring", stiffness: 420, damping: 34 }
+              ? { opacity: 1, transition: REDUCED }
+              : { opacity: 1, y: 0, transition: { duration: DUR.micro, ease: EASE.out } }
+          }
+          exit={
+            reduced
+              ? { opacity: 0, transition: REDUCED }
+              : { opacity: 0, y: -6, transition: EXIT }
           }
         >
           {message}
