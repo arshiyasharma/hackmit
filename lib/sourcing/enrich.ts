@@ -220,12 +220,12 @@ function enrichVisualMatch(match: SerpVisualMatch): Product | null {
 }
 
 function storePurchaseUrl(store: SerpImmersiveStore): string | null {
-  const raw =
-    (typeof store.direct_link === "string" && store.direct_link) ||
-    (typeof store.link === "string" && store.link) ||
-    null;
-  if (!raw) return null;
-  return unwrapProductUrl(raw);
+  for (const raw of [store.direct_link, store.link]) {
+    if (typeof raw !== "string" || !raw) continue;
+    const url = unwrapProductUrl(raw);
+    if (url && isDirectRetailerUrl(url)) return url;
+  }
+  return null;
 }
 
 function pickDirectStore(
@@ -316,10 +316,21 @@ function toShoppingCandidate(
   const unwrapped = unwrapProductUrl(googleLink);
   if (!unwrapped) return null;
 
+  const sourceRetailer = retailerFromSourceLabel(item.source);
+  let existing_direct_url = isDirectRetailerUrl(unwrapped) ? unwrapped : null;
+  if (!existing_direct_url && typeof item.link === "string") {
+    const alternative = unwrapProductUrl(item.link);
+    // Shopping can provide both a Google product_link and a merchant link.
+    // Use that free direct link only for the seller whose price we received.
+    if (alternative && isDirectRetailerUrl(alternative) &&
+        (!sourceRetailer || sameRetailer(resolveRetailer(alternative), sourceRetailer))) {
+      existing_direct_url = alternative;
+    }
+  }
   const retailer =
-    (!isGoogleHostedUrl(unwrapped) &&
-      resolveRetailer(unwrapped, item.source)) ||
-    retailerFromSourceLabel(item.source);
+    (existing_direct_url && resolveRetailer(existing_direct_url, item.source)) ||
+    (!isGoogleHostedUrl(unwrapped) && resolveRetailer(unwrapped, item.source)) ||
+    sourceRetailer;
   if (!retailer) return null;
 
   const price: SerpVisualMatch["price"] =
@@ -331,8 +342,6 @@ function toShoppingCandidate(
 
   const priceCents = priceToCents(extractRawPrice(price));
   if (priceCents == null || typeof item.title !== "string" || !item.title.trim()) return null;
-  const existing_direct_url = isDirectRetailerUrl(unwrapped) ? unwrapped : null;
-
   return {
     title: typeof item.title === "string" ? item.title : "",
     image_url: typeof item.thumbnail === "string" ? item.thumbnail : "",

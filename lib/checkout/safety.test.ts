@@ -8,6 +8,7 @@ import { POST as mandate } from "@/app/api/visa/mandate/route";
 import { POST as enroll } from "@/app/api/visa/enroll/route";
 import { POST as payment } from "@/app/api/payments/authorize/route";
 import { createRun, findRunByBasketId, getRun, setInstructionId, setTransactionReference, updateLine } from "./runs";
+import { RETAILERS, RETAILER_DOMAINS } from "./retailers";
 import type { Basket } from "./types";
 
 vi.mock("@/lib/checkout/agent", () => ({ runCheckout: vi.fn(async () => {}) }));
@@ -30,6 +31,18 @@ function owner() { return crypto.randomUUID(); }
 afterEach(() => vi.useRealTimers());
 
 describe("checkout adversarial inputs", () => {
+  it.each(RETAILERS)("accepts a direct HTTPS product link for registered store %s", async (retailer) => {
+    const input = basket();
+    input.lines[0].retailer = retailer;
+    input.lines[0].productUrl = `https://www.${RETAILER_DOMAINS[retailer]}/product/1`;
+    expect((await checkout(request({ basket: input }))).status).toBe(200);
+  });
+  it.each(["https://www.google.com/search?ibp=oshop&q=lamp", "https://www.walmart.com.evil.test/ip/1", "https://www.wayfair.com/p/1"])("rejects an unresolved or mismatched Walmart destination: %s", async (productUrl) => {
+    const input = basket();
+    input.lines[0].retailer = "walmart";
+    input.lines[0].productUrl = productUrl;
+    expect((await checkout(request({ basket: input }))).status).toBe(400);
+  });
   it.each([null, [], 1, "basket", true])("returns a 400 for non-object JSON: %j", async (body) => {
     for (const route of [checkout, credential, confirm, mandate, enroll, payment]) {
       expect((await route(request(body))).status).toBe(400);

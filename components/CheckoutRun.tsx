@@ -17,7 +17,7 @@ import {
   type PaymentView,
   type TapView,
 } from "@/lib/checkout/lineView";
-import { RETAILER_NAMES } from "@/lib/checkout/retailers";
+import { RETAILERS, RETAILER_NAMES } from "@/lib/checkout/retailers";
 import type { Retailer } from "@/lib/checkout/types";
 import { cartSubtotalCents, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -511,6 +511,9 @@ export function CheckoutRun({
                   );
                 })}
               </ul>
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                Supported stores: {RETAILERS.map((retailer) => RETAILER_NAMES[retailer]).join(", ")}. A direct store link is required.
+              </p>
             </div>
           ) : null}
 

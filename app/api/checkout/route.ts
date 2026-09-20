@@ -8,8 +8,8 @@ import {
 } from "@/lib/checkout/basket";
 import { createRun, findRunByBasketId, getRun, isTerminal, updateLine } from "@/lib/checkout/runs";
 import { checkoutOwner, ownerCookie, readObject, rejectCrossOrigin } from "@/lib/checkout/request";
-import { hostBelongsTo } from "@/lib/checkout/retailers";
-import type { Basket, BasketLine, Retailer } from "@/lib/checkout/types";
+import { hostBelongsTo, isRetailer } from "@/lib/checkout/retailers";
+import type { Basket, BasketLine } from "@/lib/checkout/types";
 
 /**
  * POST /api/checkout — hand the basket to the agent.
@@ -42,16 +42,6 @@ export const runtime = "nodejs";
  * ceiling for both together, not for the response.
  */
 export const maxDuration = 60;
-
-const RETAILERS: ReadonlySet<string> = new Set<Retailer>([
-  "amazon",
-  "wayfair",
-  "ikea",
-  "target",
-  "westelm",
-  "cb2",
-  "etsy",
-]);
 
 /** A whole, nonnegative number of cents — or nothing. Never a float. */
 function minor(value: unknown): number | undefined {
@@ -93,7 +83,7 @@ function toLine(raw: unknown, index: number): BasketLine | LineProblem {
   }
 
   const retailer = str(r.retailer);
-  if (!RETAILERS.has(retailer)) {
+  if (!isRetailer(retailer)) {
     return { index, reason: `we do not know the shop behind ${title}` };
   }
 
@@ -111,7 +101,7 @@ function toLine(raw: unknown, index: number): BasketLine | LineProblem {
     return { index, reason: `${title} has an invalid shop link` };
   }
   if (url.protocol !== "https:" || url.username || url.password || url.port ||
-      !hostBelongsTo(retailer as Retailer, url.hostname)) {
+      !hostBelongsTo(retailer, url.hostname)) {
     return { index, reason: `${title} has a link that does not belong to its shop` };
   }
   const quantity = r.quantity === undefined ? 1 : r.quantity;
@@ -142,7 +132,7 @@ function toLine(raw: unknown, index: number): BasketLine | LineProblem {
     lineId,
     placementId,
     listingId: str(r.listingId),
-    retailer: retailer as Retailer,
+    retailer: retailer,
     title,
     productUrl,
     imageUrl: str(r.imageUrl),

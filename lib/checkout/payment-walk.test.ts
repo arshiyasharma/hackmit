@@ -114,14 +114,15 @@ describe("the walk with PAYMENT_PROVIDER=acceptance", () => {
     authorizeMock.mockResolvedValue(authorized("84.00"));
 
     const run = createRun(
-      basket([line("ikea", { priceMinor: 4200, quantity: 2 }), line("wayfair", { priceMinor: 1999 })])
+      basket([line("walmart", { priceMinor: 4200, quantity: 2 }), line("wayfair", { priceMinor: 1999 }), line("macys", { priceMinor: 9999 })])
     );
     await runCheckout(run.runId, { stepMs: 1 });
 
-    expect(authorizeMock).toHaveBeenCalledTimes(2);
+    expect(authorizeMock).toHaveBeenCalledTimes(3);
     // quantity counts: 4200 x 2
     expect(authorizeMock.mock.calls[0][0]).toMatchObject({ amountMinor: 8400, currency: "USD" });
     expect(authorizeMock.mock.calls[1][0]).toMatchObject({ amountMinor: 1999 });
+    expect(authorizeMock.mock.calls[2][0]).toMatchObject({ amountMinor: 9999 });
 
     for (const l of getRun(run.runId)!.lines) {
       expect(l.status.state).toBe("placed");

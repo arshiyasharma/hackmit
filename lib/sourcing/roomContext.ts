@@ -226,6 +226,38 @@ function titleHas(title: string, word: string): boolean {
 
 const EXPLICIT_DESCRIPTORS = new Set([...REQUEST_COLOURS, "leather", "velvet"]);
 
+/** Retailer names describe the seller, not words required in a product title. */
+const NAMED_RETAILERS = [
+  { domain: "walmart.com", names: ["walmart"], pattern: /\b(?:(?:from|at|by|on)\s+)?walmart(?:\.com|\s+com)?\b/gi },
+  { domain: "wayfair.com", names: ["wayfair"], pattern: /\b(?:(?:from|at|by|on)\s+)?wayfair(?:\.com|\s+com)?\b/gi },
+  { domain: "amazon.com", names: ["amazon"], pattern: /\b(?:(?:from|at|by|on)\s+)?amazon(?:\.com|\s+com)?\b/gi },
+  { domain: "ikea.com", names: ["ikea"], pattern: /\b(?:(?:from|at|by|on)\s+)?ikea(?:\.com|\s+com)?\b/gi },
+  { domain: "etsy.com", names: ["etsy"], pattern: /\b(?:(?:from|at|by|on)\s+)?etsy(?:\.com|\s+com)?\b/gi },
+  { domain: "target.com", names: ["target"], pattern: /\b(?:(?:from|at|by|on)\s+)?target(?:\.com|\s+com)?\b/gi },
+  { domain: "westelm.com", names: ["west elm", "westelm"], pattern: /\b(?:(?:from|at|by|on)\s+)?west\s*elm(?:\.com|\s+com)?\b/gi },
+  { domain: "macys.com", names: ["macys", "macy's"], pattern: /\b(?:(?:from|at|by|on)\s+)?macy['’]?s(?:\.com|\s+com)?\b/gi },
+];
+
+function namedRetailerDomain(value: string | undefined): string | null {
+  const identity = (value ?? "").trim().toLowerCase().replace(/’/g, "'").replace(/\.$/, "");
+  const retailer = NAMED_RETAILERS.find(({ domain, names }) =>
+    names.includes(identity) || identity === domain || identity.endsWith(`.${domain}`));
+  return retailer?.domain ?? null;
+}
+
+function retailerIntent(query: string): { productQuery: string; domains: Set<string> } {
+  const domains = new Set<string>();
+  let productQuery = query;
+  for (const { domain, pattern } of NAMED_RETAILERS) {
+    productQuery = productQuery.replace(pattern, () => {
+      domains.add(domain);
+      return " ";
+    });
+  }
+  return { productQuery, domains };
+}
+
+
 /**
  * Keep products whose titles match the design query (e.g. pink + lamp).
  *
@@ -242,16 +274,19 @@ const EXPLICIT_DESCRIPTORS = new Set([...REQUEST_COLOURS, "leather", "velvet"]);
  * finds plush and vases finds vase.
  */
 export function filterProductsByDesignQuery<
-  T extends { title: string },
+  T extends { title: string; retailer?: string },
 >(products: T[], designQuery: string): T[] {
-  const words = contentWords(designQuery);
-  if (words.length === 0) return products;
+  const { productQuery, domains } = retailerIntent(designQuery);
+  const matchingRetailers = domains.size === 0 ? products : products.filter((product) =>
+    domains.has(namedRetailerDomain(product.retailer) ?? ""));
+  const words = contentWords(productQuery);
+  if (words.length === 0) return matchingRetailers;
 
   const known = words.filter((w) => PRODUCT_NOUNS.has(w));
   const nouns = known.length > 0 ? known : [words[words.length - 1]!];
   const modifiers = words.filter((w) => !nouns.includes(w));
 
-  return products.filter((p) => {
+  return matchingRetailers.filter((p) => {
     const title = (p.title || "").toLowerCase();
 
     // Every product noun in the query must appear ("table" query ≠ only "lamp").
@@ -268,10 +303,9 @@ export function filterProductsByDesignQuery<
           /\b(?:floor|table)\s+lamp\s*shades?\b|\b(?:replacement|shade[- ]only|lampshade[- ]only)\b|\blamp\s*shades?\b.*\bfor\b.*\blamps?\b|\blight\s+bulbs?\b/.test(title)) return false;
     }
 
-    // Block cross-category collisions: "side table" must not match "table lamp"
-    // when the query did not ask for a lamp (and vice versa).
+    // Furniture requests must not match lamps that merely sit on that furniture.
     if (
-      nouns.includes("table") &&
+      nouns.some((word) => ["table", "tables", "desk", "desks"].includes(word)) &&
       !nouns.includes("lamp") &&
       !nouns.includes("lamps") &&
       /\blamps?\b/.test(title)

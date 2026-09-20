@@ -10,6 +10,7 @@ import {
   isBroadProductQuery,
 } from "@/lib/sourcing/roomContext";
 import { scrapeRetailerDimensions } from "@/lib/sourcing/scrapeDimensions";
+import { isDirectRetailerUrl } from "@/lib/sourcing/whitelist";
 import {
   buildShoppingQueryFallbacks,
   searchGoogleShopping,
@@ -262,16 +263,19 @@ export async function sourceProductsForQuery(
      * asked and the catalogue's hits are merged in behind the answer.
      */
     const elasticUnique = dedupeByTitle(elasticProducts);
+    // Indexed Google wrappers are useful browsing fallbacks, but they have no
+    // merchant Buy link. They must not permanently short-circuit enrichment.
+    const directElastic = elasticUnique.filter((product) => isDirectRetailerUrl(product.product_url));
     const trustElastic =
-      elasticUnique.length >= Math.max(elasticMin, Math.ceil(limit * 0.75)) &&
-      (!broad || !isColorDominated(elasticUnique));
+      directElastic.length >= Math.max(elasticMin, Math.ceil(limit * 0.75)) &&
+      (!broad || !isColorDominated(directElastic));
 
     if (trustElastic) {
       const filled = await fillMissingDimensions(
-        finalizeProducts(elasticProducts, designQuery, limit)
+        finalizeProducts(directElastic, designQuery, limit)
       );
       const improved = filled.some((p, i) => {
-        const before = elasticProducts[i]?.dimensions;
+        const before = directElastic[i]?.dimensions;
         const after = p.dimensions;
         if (!before) return true;
         return (
