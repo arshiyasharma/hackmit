@@ -171,6 +171,19 @@ function toRoomContext(raw: unknown): RoomContext | null {
 
 /* ------------------------------------------------------------------- calls */
 
+/**
+ * Nothing on this route may outlast the user's patience. Gemini answered in
+ * 6 s one run and 31 s the next, and for those 31 s the strip on /room sat
+ * empty — so the call is raced against a clock and a slow answer is simply not
+ * an answer. The route still returns 200 with the neutral palette.
+ */
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    work,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
 /** Arshiya's call from 52037d4, mapped onto the RoomContext contract. */
 async function readRoomGemini(
   dataUrl: string,
@@ -283,9 +296,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const context = gemini
-      ? ((await readRoomGemini(dataUrl, gemini)) ??
-        (openai ? await readRoomOpenAI(dataUrl, openai) : null))
-      : await readRoomOpenAI(dataUrl, openai as string);
+      ? ((await withTimeout(readRoomGemini(dataUrl, gemini), TIMEOUT_MS)) ??
+        (openai
+          ? await withTimeout(readRoomOpenAI(dataUrl, openai), TIMEOUT_MS)
+          : null))
+      : await withTimeout(readRoomOpenAI(dataUrl, openai as string), TIMEOUT_MS);
     return answer(context ?? NEUTRAL);
   } catch {
     // timeout, network, refusal — the capture screen is already on /room

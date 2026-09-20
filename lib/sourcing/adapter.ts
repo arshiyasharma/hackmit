@@ -106,7 +106,32 @@ export async function sourceOptions({
         : null,
   });
 
-  return sourced
+  const options = sourced
     .map((product) => toProduct(product, itemId))
     .filter((product): product is Product => product !== null);
+
+  /*
+   * A listing whose dimensions the retailer published comes first.
+   *
+   * Nothing is dropped — a listing with no size still shows, still says "no
+   * dimensions listed", and is still buyable. But most Etsy pages quote no
+   * size at all, so a live search regularly puts three unmeasurable lamps
+   * ahead of the one the fit check can actually judge. The sprite can only
+   * stand at its true height, and the fit check can only fire, on a listing
+   * that carries millimetres — so those lead.
+   */
+  const rank: Record<DimsSource, number> = {
+    quoted: 0,
+    estimated: 1,
+    missing: 2,
+  };
+
+  return options
+    .map((option, index) => ({ option, index }))
+    .sort(
+      (a, b) =>
+        rank[a.option.dimsSource] - rank[b.option.dimsSource] ||
+        a.index - b.index,
+    )
+    .map(({ option }) => option);
 }
