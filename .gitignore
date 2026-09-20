@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cloned reference repos — read-only, never shipped
+ref/
+
+# generated placeholder sprites — content-addressed cache, rebuilt on demand
+/.placeholder-cache/

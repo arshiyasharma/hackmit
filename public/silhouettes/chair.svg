@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 440" width="380" height="440" role="img" aria-label="Armchair">
+  <!-- Stand-in silhouette. #C97B5F and #2A2724 are replaced at render time
+       with the room's own palette by lib/placeholder.ts. -->
+  <path d="M74 36h232a30 30 0 0 1 30 30v170H44V66a30 30 0 0 1 30-30Z" fill="#C97B5F"/>
+  <rect x="44" y="164" width="292" height="24" rx="12" fill="#2A2724" fill-opacity="0.3"/>
+  <rect x="22" y="196" width="54" height="128" rx="24" fill="#2A2724"/>
+  <rect x="304" y="196" width="54" height="128" rx="24" fill="#2A2724"/>
+  <rect x="60" y="228" width="260" height="76" rx="22" fill="#C97B5F"/>
+  <rect x="66" y="304" width="20" height="104" rx="9" fill="#2A2724"/>
+  <rect x="294" y="304" width="20" height="104" rx="9" fill="#2A2724"/>
+</svg>

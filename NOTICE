@@ -1,0 +1,110 @@
+VISA — HackMIT 2026
+Third-party notices
+
+This file records (1) code patterns copied out of the reference repositories in
+ref/ and (2) the licences of the runtime dependencies the UI is built on.
+
+ref/ itself is gitignored and is never shipped. Nothing in app/, components/ or
+lib/ imports from it.
+
+
+================================================================================
+1. CODE COPIED OUT OF ref/
+================================================================================
+
+--------------------------------------------------------------------------------
+vercel/commerce — https://github.com/vercel/commerce
+Licence: MIT — Copyright (c) 2025 Vercel, Inc. (ref/commerce/license.md)
+Cloned to: ref/commerce
+--------------------------------------------------------------------------------
+
+  components/ProductCard.tsx
+      formatPrice() — the money-formatting pattern (integer minor units through
+      Intl.NumberFormat with style "currency" and currencyDisplay
+      "narrowSymbol").
+      Taken from: ref/commerce/components/price.tsx
+
+  components/CartLine.tsx
+      formatMoney() — the same Intl.NumberFormat pattern, adapted so a whole
+      number of dollars drops its cents.
+      Taken from: ref/commerce/components/price.tsx
+
+      The cart line-item row and the quantity stepper: the shape of the row
+      (thumbnail, title, price, stepper, remove) and the stepper's plus/minus
+      buttons.
+      Taken from: ref/commerce/components/cart/edit-item-quantity-button.tsx
+                  ref/commerce/components/cart/delete-item-button.tsx
+                  ref/commerce/components/cart/modal.tsx
+
+  app/cart/page.tsx
+      The optimistic-update pattern: React.useOptimistic wrapping the cart
+      mutations so the total and the budget bar move on the tap and the server
+      reconciles afterwards. Vercel's Shopify data layer was NOT taken — only
+      the update pattern.
+      Taken from: ref/commerce/components/cart/actions.ts
+                  ref/commerce/components/cart/modal.tsx
+
+  components/CheckoutSheet.tsx
+  components/Confirmation.tsx
+      The order-summary layout (one line per merchant, then the total) and the
+      money formatting, both via formatMoney above.
+      Taken from: ref/commerce/components/cart/modal.tsx
+
+--------------------------------------------------------------------------------
+cynthiachiu/3D-WebXR-Furniture — https://github.com/cynthiachiu/3D-WebXR-Furniture
+Licence: MIT
+Cloned to: ref/webxr-furniture
+--------------------------------------------------------------------------------
+
+  Read for its WebXR hit-test loop and its placement reticle while building
+  components/ArScene.tsx, in particular the "move your phone to find the floor"
+  beat. NO CODE WAS COPIED — @google/model-viewer owns the hit testing in our
+  implementation. Recorded here for completeness.
+
+--------------------------------------------------------------------------------
+immersive-web/webxr-samples — https://github.com/immersive-web/webxr-samples
+Licence: MIT
+Cloned to: ref/webxr-samples
+--------------------------------------------------------------------------------
+
+  Read hit-test.html and hit-test-anchors.html as the canonical reference for
+  WebXR anchoring behaviour. NO CODE WAS COPIED.
+
+  (This clone is partial — the .html and .js samples only — so the upstream
+  LICENSE file is not present locally. The project is MIT upstream.)
+
+
+================================================================================
+2. RUNTIME DEPENDENCIES
+================================================================================
+
+Apache-2.0
+  @google/model-viewer 4.3.1   AR — WebXR, Scene Viewer and iOS Quick Look
+
+MIT
+  next 16.3.5                  the framework
+  react / react-dom 19.2.8     the runtime
+  three 0.183.1                model-viewer's renderer (pinned: model-viewer's
+                               peer is ^0.183.0, which for a 0.x package means
+                               >=0.183.0 <0.184.0)
+  konva 10.6.0                 the selection canvas
+  react-konva 19.2.7           (pinned: 19.3.0 requires React ^19.3.0)
+  zustand 5                    the single store
+  framer-motion / motion 13.4  layout transitions and springs
+  react-modal-sheet            every bottom sheet (not Vaul, which is
+                               unmaintained)
+  sonner                       every toast
+  @number-flow/react 0.6.2     every animated number
+  embla-carousel-react 8.6.0   every horizontal snapping row
+  @use-gesture/react 10.3.1    pinch and drag detection
+  exifr 7.1.3                  EXIF orientation on capture
+  lucide-react                 icons
+  tailwindcss 4                styling
+  tw-animate-css               Tailwind v4 animation utilities
+  shadcn/ui                    the primitives in components/ui, copied into this
+                               repository as source we own
+  vitest                       the fit-kernel tests
+
+Fonts (SIL Open Font License 1.1), served through next/font/google
+  Fraunces                     display serif — headings and numbers
+  Instrument Sans              body and UI

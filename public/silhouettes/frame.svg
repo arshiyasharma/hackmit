@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 420" width="320" height="420" role="img" aria-label="Framed picture">
+  <!-- Stand-in silhouette. #C97B5F and #2A2724 are replaced at render time
+       with the room's own palette by lib/placeholder.ts. -->
+  <rect x="16" y="16" width="288" height="388" rx="10" fill="#C97B5F"/>
+  <rect x="48" y="48" width="224" height="324" rx="4" fill="#2A2724" fill-opacity="0.24"/>
+  <path d="M48 300l72-86 58 62 44-38 50 54v80H48Z" fill="#2A2724"/>
+  <circle cx="112" cy="122" r="26" fill="#C97B5F"/>
+</svg>

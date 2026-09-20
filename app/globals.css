@@ -1,26 +1,201 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+  Dark mode is driven by prefers-color-scheme (the product rule), and a `.dark`
+  class still works for devtools toggling and for a future manual switch.
+  `.light` on <html> forces light even on a dark system.
+*/
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:not(.light), :not(.light) *) {
+      @slot;
+    }
+  }
+  &:where(.dark, .dark *) {
+    @slot;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ---------------------------------------------------------------------------
+   VISA palette. One accent, terracotta. Do not add a second accent.
+   All of shadcn's own tokens below are mapped onto these eight so every
+   component copied into components/ui inherits the palette automatically.
+--------------------------------------------------------------------------- */
+:root {
+  --background: #fbfaf7; /* off-white */
+  --surface: #ffffff;
+  --foreground: #2a2724; /* warm charcoal */
+  --muted: #8a837a; /* muted TEXT, not a surface */
+  --accent: #c97b5f; /* terracotta — the only accent */
+  --line: #e6e1d9;
+  --ok: #5f7d5a;
+  --warn: #b4713c;
+
+  /* Derived. Tailwind's `bg-muted` / `bg-secondary` need a SURFACE, and our
+     --muted is a text colour, so shadcn's surface tokens point here instead. */
+  --surface-muted: #f1eee8;
+  --on-accent: #fffaf6;
+
+  /* shadcn's own contract, mapped onto ours */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+  --primary: var(--accent);
+  --primary-foreground: var(--on-accent);
+  --secondary: var(--surface-muted);
+  --secondary-foreground: var(--foreground);
+  --muted-foreground: var(--muted);
+  --accent-foreground: var(--on-accent);
+  --destructive: var(--accent);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--accent);
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--on-accent);
+  --sidebar-accent: var(--surface-muted);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--accent);
+
+  --radius: 0.625rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: #191715;
+    --surface: #221f1c;
+    --foreground: #f2efe9;
+    --muted: #9a938a;
+    --accent: #d98f73;
+    --line: #2e2a26;
+    --ok: #7e9a78;
+    --warn: #d0925e;
+
+    --surface-muted: #2a2623;
+    --on-accent: #1b1613;
+  }
+}
+
+.dark {
+  --background: #191715;
+  --surface: #221f1c;
+  --foreground: #f2efe9;
+  --muted: #9a938a;
+  --accent: #d98f73;
+  --line: #2e2a26;
+  --ok: #7e9a78;
+  --warn: #d0925e;
+
+  --surface-muted: #2a2623;
+  --on-accent: #1b1613;
+}
+
+@theme inline {
+  /* ours */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-line: var(--line);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+
+  /* shadcn's, pointed at ours */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--surface-muted);
+  --color-muted-foreground: var(--muted);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* type: Fraunces for headings and numbers, Instrument Sans for everything else */
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
+  /* shadcn's radius scale, kept */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    background-color: var(--background);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* the phone is the design target; never let a canvas drag scroll the page */
+    overscroll-behavior-y: none;
+  }
+
+  /* Numbers are display-serif and tabular everywhere in the app. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+@layer utilities {
+  /* 16px minimum side gutter, one place to change it */
+  .gutter {
+    padding-inline: 16px;
+  }
+
+  /* 44px minimum tap target without changing the visible box */
+  .tap {
+    position: relative;
+  }
+  .tap::after {
+    content: "";
+    position: absolute;
+    inset: 50% 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.15s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.15s !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Cloned reference repos — read-only, never shipped.
+    "ref/**",
   ]),
 ]);
 
