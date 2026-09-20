@@ -1,3 +1,5 @@
+import { GoogleGenAI } from "@google/genai";
+
 import type { NextRequest } from "next/server";
 
 import type { RoomContext } from "@/types";
@@ -19,14 +21,22 @@ import type { RoomContext } from "@/types";
  * every one of those answers 200 with a neutral palette, no style words and
  * source "fallback", and the strip on /room says the search will be generic.
  *
- * Runs on gpt-4o-mini in JSON mode over the plain HTTP API — the `openai`
- * package is deliberately not a dependency.
+ * TWO PROVIDERS, tried in order, because the team has two keys in play:
+ *   1. Gemini via @google/genai — the model call Arshiya committed in 52037d4
+ *   2. gpt-4o-mini in JSON mode over the plain HTTP API, since the `openai`
+ *      package is deliberately not a dependency
+ * Whichever key exists wins; with neither, the answer is NEUTRAL.
+ *
+ * The body may be { dataUrl } (the capture screen) or { imageBase64 } (the
+ * /generate page), and the response carries `searchTerms` alongside
+ * `suggestions` so both callers read the field they expect.
  */
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const MODEL = "gpt-4o-mini";
+const OPENAI_MODEL = "gpt-4o-mini";
+const GEMINI_MODEL = "gemini-3.6-flash";
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const TIMEOUT_MS = 15_000;
 
@@ -139,20 +149,63 @@ function toRoomContext(raw: unknown): RoomContext | null {
 
   const lighting = text(raw, "lighting")?.toLowerCase();
 
+  // Gemini answers with searchTerms; the OpenAI prompt asks for suggestions
+  const suggestions = [
+    ...strings(raw, "suggestions", 4),
+    ...strings(raw, "searchTerms", 5),
+  ]
+    .map((s) => s.toLowerCase())
+    .filter((s, i, all) => all.indexOf(s) === i)
+    .slice(0, 4);
+
   return {
     styleTags,
     palette,
     lighting:
       lighting === "warm" || lighting === "cool" ? lighting : "neutral",
     roomType: text(raw, "roomType")?.toLowerCase(),
-    suggestions: strings(raw, "suggestions", 4).map((s) => s.toLowerCase()),
+    suggestions,
     source: "model",
   };
 }
 
-/* -------------------------------------------------------------------- call */
+/* ------------------------------------------------------------------- calls */
 
-async function readRoom(dataUrl: string, key: string): Promise<RoomContext | null> {
+/** Arshiya's call from 52037d4, mapped onto the RoomContext contract. */
+async function readRoomGemini(
+  dataUrl: string,
+  key: string,
+): Promise<RoomContext | null> {
+  const [header, data] = dataUrl.split(",", 2);
+  const mimeType = header.match(/^data:(image\/[a-zA-Z+.-]+);base64$/)?.[1];
+  if (!mimeType || !data) return null;
+
+  const ai = new GoogleGenAI({ apiKey: key });
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: `${SYSTEM} ${INSTRUCTION}` },
+          { inlineData: { mimeType, data } },
+        ],
+      },
+    ],
+    config: { responseMimeType: "application/json" },
+  });
+
+  try {
+    return toRoomContext(JSON.parse(response.text ?? ""));
+  } catch {
+    return null;
+  }
+}
+
+async function readRoomOpenAI(
+  dataUrl: string,
+  key: string,
+): Promise<RoomContext | null> {
   const res = await fetch(ENDPOINT, {
     method: "POST",
     headers: {
@@ -160,7 +213,7 @@ async function readRoom(dataUrl: string, key: string): Promise<RoomContext | nul
       Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: OPENAI_MODEL,
       // JSON mode: the answer is always parseable, so there is no regex here
       response_format: { type: "json_object" },
       temperature: 0.2,
@@ -197,17 +250,22 @@ async function readRoom(dataUrl: string, key: string): Promise<RoomContext | nul
   }
 }
 
+/** `searchTerms` keeps the /generate page reading the field it expects. */
+function answer(context: RoomContext) {
+  return Response.json({ ...context, searchTerms: context.suggestions ?? [] });
+}
+
 /* ------------------------------------------------------------------- route */
 
 export async function POST(request: NextRequest) {
   if (request.nextUrl.searchParams.get("demo") === "1") {
-    return Response.json(FROZEN);
+    return answer(FROZEN);
   }
 
   let dataUrl: string | undefined;
   try {
     const body: unknown = await request.json();
-    const candidate = text(body, "dataUrl");
+    const candidate = text(body, "dataUrl") ?? text(body, "imageBase64");
     if (
       candidate &&
       candidate.startsWith("data:image/") &&
@@ -219,13 +277,18 @@ export async function POST(request: NextRequest) {
     /* unreadable body — answer neutral, same as any other failure */
   }
 
-  const key = process.env.OPENAI_API_KEY;
-  if (!dataUrl || !key) return Response.json(NEUTRAL);
+  const gemini = process.env.GEMINI_API_KEY;
+  const openai = process.env.OPENAI_API_KEY;
+  if (!dataUrl || (!gemini && !openai)) return answer(NEUTRAL);
 
   try {
-    return Response.json((await readRoom(dataUrl, key)) ?? NEUTRAL);
+    const context = gemini
+      ? ((await readRoomGemini(dataUrl, gemini)) ??
+        (openai ? await readRoomOpenAI(dataUrl, openai) : null))
+      : await readRoomOpenAI(dataUrl, openai as string);
+    return answer(context ?? NEUTRAL);
   } catch {
     // timeout, network, refusal — the capture screen is already on /room
-    return Response.json(NEUTRAL);
+    return answer(NEUTRAL);
   }
 }
