@@ -19,6 +19,34 @@ import type { Carton, DimsSource, Product } from "@/types";
 
 const MM_PER_INCH = 25.4;
 
+/*
+ * ONE CALL PER QUESTION, NOT ELEVEN.
+ *
+ * The server log caught the same query going out eleven times in forty
+ * seconds — a re-render storm upstream, each repeat spending a SerpAPI request
+ * and each fanning out again over the query ladder. That is how a key hits its
+ * rate limit inside a minute, and a rate-limited key is what "nothing came
+ * back from that" actually is most of the time.
+ *
+ * So identical questions share one answer: a query already in flight is
+ * awaited rather than asked again, and a query that just answered — including
+ * one that answered with nothing — is replayed from memory for a short while.
+ * Whatever is re-rendering upstream can no longer cost credits.
+ */
+const inFlight = new Map<string, Promise<Product[] | null>>();
+const recent = new Map<string, { options: Product[]; at: number }>();
+const RECENT_TTL_MS = 60_000;
+
+function now(): number {
+  return Date.now();
+}
+
+function sweep(): void {
+  for (const [key, value] of recent) {
+    if (now() - value.at > RECENT_TTL_MS) recent.delete(key);
+  }
+}
+
 /**
  * Eight. The sheet is a swipeable row, so more listings cost a scroll rather
  * than a screen, and with most listings carrying no dimensions a wider set is
@@ -90,14 +118,42 @@ export type SourceOptionsInput = {
  * Returns null when SERPAPI_KEY is unset, so the caller can fall through to
  * its own "not connected yet" answer rather than reporting an empty shop.
  */
-export async function sourceOptions({
-  query,
-  request,
-  itemId,
-  budgetRemainingCents,
-}: SourceOptionsInput): Promise<Product[] | null> {
+export async function sourceOptions(
+  input: SourceOptionsInput
+): Promise<Product[] | null> {
   const apiKey = process.env.SERPAPI_KEY;
   if (!apiKey) return null;
+
+  const key = `${input.query}|${input.request}`.toLowerCase();
+
+  sweep();
+  const cached = recent.get(key);
+  if (cached) {
+    console.info(
+      `[search] "${input.query}" — answered from the last minute (${cached.options.length})`
+    );
+    return cached.options.map((option) => ({ ...option, itemId: input.itemId }));
+  }
+
+  const running = inFlight.get(key);
+  if (running) {
+    console.info(`[search] "${input.query}" — already in flight, sharing it`);
+    const shared = await running;
+    return shared?.map((option) => ({ ...option, itemId: input.itemId })) ?? null;
+  }
+
+  const job = fetchOptions(input, apiKey).finally(() => inFlight.delete(key));
+  inFlight.set(key, job);
+
+  const options = await job;
+  if (options) recent.set(key, { options, at: now() });
+  return options;
+}
+
+async function fetchOptions(
+  { query, request, itemId, budgetRemainingCents }: SourceOptionsInput,
+  apiKey: string
+): Promise<Product[] | null> {
 
   /*
    * The query on screen IS the query that runs. Logged because the strip is

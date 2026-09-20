@@ -65,6 +65,10 @@ const MAX_STYLE_TAGS = 6;
 /** Five come off the photo; a couple more by hand is a palette, not a swatch book. */
 const MAX_PALETTE = 8;
 
+/** How much of the strip actually reaches a shop's search box. */
+const MAX_QUERY_TAGS = 3;
+const MAX_QUERY_COLOURS = 2;
+
 /** "#ABC", "abc123", "#AABBCC" all become "#aabbcc"; anything else is null. */
 function normalizeHex(input: string): string | null {
   const raw = input.trim().replace(/^#/, "").toLowerCase();
@@ -694,13 +698,26 @@ export function searchQuery(
   context: RoomContext | null,
   request: string
 ): string {
-  const tags = context?.styleTags ?? [];
+  /*
+   * A SHORT QUERY FINDS THINGS; A LONG ONE FINDS NOTHING.
+   *
+   * "modern velvet minimalist geometric luxury expensive rug" is seven
+   * adjectives and a noun, and Google Shopping answers it with an empty page —
+   * which is how "nothing came back from that" happens. Shops match on a few
+   * words, so the query carries the THREE most recent style words and TWO
+   * picked colours at most. The strip still shows everything; the user can see
+   * exactly which words are in play, and removing one changes the query.
+   *
+   * Newest first, because a word someone just typed is what they are chasing
+   * right now — the model's own adjectives are the ones that get dropped.
+   */
+  const tags = [...(context?.styleTags ?? [])].slice(-MAX_QUERY_TAGS);
   /*
    * Hand-picked colours join the query as WORDS, because "#7b8b6f" is not
    * something a shop can search for but "sage" is. Only the picked ones: the
    * five read off the photo describe the room, and pushing all of them in
    * ("brown gold rust cream black tall lamp") buries the object itself.
    */
-  const colours = colourNames(context?.picked ?? []);
+  const colours = colourNames(context?.picked ?? []).slice(-MAX_QUERY_COLOURS);
   return [...tags, ...colours, request.trim()].filter(Boolean).join(" ");
 }

@@ -69,6 +69,8 @@ export function useOptionsOpen(): boolean {
 
 /** One search per item, even across a remount of the sheet. */
 const started = new Set<string>();
+/** itemId -> the exact query already sent for it, so a repeat is a no-op */
+const asked = new Map<string, string>();
 const inFlight = new Map<string, AbortController>();
 
 type SearchAnswer = {
@@ -101,6 +103,19 @@ export function OptionSheet() {
     const state = useStore.getState();
     const context = roomContextFor(state);
     const sent = searchQuery(context, target.request);
+
+    /*
+     * THE SAME QUESTION IS NOT ASKED TWICE.
+     *
+     * Every call here spends a SerpAPI request, and the server log caught this
+     * firing eleven times for one query inside forty seconds — a re-render
+     * upstream re-entering the effect that starts a search. The guard is the
+     * pair (item, query): if that exact question is already asked, this call
+     * is a duplicate and it stops here. `started` alone could not see it,
+     * because it only knows the item.
+     */
+    if (asked.get(target.id) === sent) return;
+    asked.set(target.id, sent);
 
     inFlight.get(target.id)?.abort();
     const controller = new AbortController();
@@ -137,6 +152,8 @@ export function OptionSheet() {
       }));
     } catch (err) {
       if (controller.signal.aborted) return;
+      // a failure is not an answer: let the same query be asked again
+      asked.delete(target.id);
       console.warn("[options] /api/search failed", err);
       useStore.getState().setOptions(target.id, null);
       setQueriesUsed((q) => ({ ...q, [target.id]: sent }));
@@ -174,6 +191,8 @@ export function OptionSheet() {
     const target = item;
     const timer = window.setTimeout(() => {
       started.delete(target.id);
+      // the query itself changed, so this is a new question, not a repeat
+      asked.delete(target.id);
       void runSearch(target);
     }, 700);
     return () => window.clearTimeout(timer);
@@ -200,6 +219,7 @@ export function OptionSheet() {
 
   const retry = () => {
     started.delete(item.id);
+    asked.delete(item.id); // a deliberate re-ask, so the guard steps aside
     void runSearch(item);
   };
 

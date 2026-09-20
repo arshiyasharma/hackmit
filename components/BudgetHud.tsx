@@ -276,9 +276,8 @@ export function BudgetHud() {
    * the budget the finish line rather than the fuel. Going past it is still
    * said plainly, because that part is not a game.
    */
-  const leftCents = budgetCents - spent;
+
   const ratio = budgetCents > 0 ? spent / budgetCents : spent > 0 ? 1 : 0;
-  const warn = overCents > 0;
   // the bar FILLS towards the mark
   const fillPercent = Math.max(0, Math.min(100, ratio * 100));
   /** within a tenth of the target, or past it: the room is furnished */
