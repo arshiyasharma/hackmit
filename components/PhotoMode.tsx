@@ -28,7 +28,6 @@ import { Check, Maximize2, RotateCw, Trash2 } from "lucide-react";
 import { useDrag, usePinch } from "@use-gesture/react";
 import { toast } from "sonner";
 
-import { NumberPlate } from "@/components/ui/NumberPlate";
 import { StatusLine } from "@/components/ui/StatusLine";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -636,6 +635,24 @@ function PhotoSprite({
   /** true once a press has travelled far enough to be a drag, not a tap */
   const draggedFar = React.useRef(false);
 
+  /*
+   * THE HANDLES ARE NOT ALWAYS THERE.
+   *
+   * They are 44px each and they sit on the object's corners, so on a small
+   * sprite — a stool, a framed print, anything a metre or less — they covered
+   * the thing they were meant to be adjusting. The active item carries a thin
+   * outline instead, which says "this one, and you can touch it", and a tap on
+   * it brings the handles out.
+   */
+  const [handles, setHandles] = React.useState(false);
+
+  /* handing focus to another item puts them away */
+  const [hadFocus, setHadFocus] = React.useState(active);
+  if (hadFocus !== active) {
+    setHadFocus(active);
+    if (!active) setHandles(false);
+  }
+
   /* the product itself once one is linked, the drawing of it until then */
   const spriteSrc =
     item.listingCutoutUrl ??
@@ -709,7 +726,14 @@ function PhotoSprite({
       aria-label={`${item.category}${
         item.linkedProduct ? `, ${item.linkedProduct.title}` : ", nothing linked yet"
       }`}
-      className="absolute cursor-grab touch-none active:cursor-grabbing"
+      className={cn(
+        "absolute cursor-grab touch-none active:cursor-grabbing",
+        // the outline IS the affordance while the handles are away
+        active && !handles
+          ? "rounded-lg outline-2 outline-offset-4 outline-dashed outline-accent/70"
+          : "",
+        active && handles ? "rounded-lg outline-2 outline-offset-4 outline-accent" : ""
+      )}
       style={{ left, top }}
       // rotation rides with motion's own transform; a `rotate` in style is
       // discarded by it, which is why the handle turned nothing
@@ -719,7 +743,18 @@ function PhotoSprite({
       onClick={(e) => {
         e.stopPropagation();
         if (draggedFar.current) return;
-        onActivate();
+        /*
+         * TWO DIFFERENT TAPS. On an item that is not the active one, a tap
+         * selects it and brings its listings up — that is how you get back to
+         * something you placed. On the item that is ALREADY active, a tap is
+         * about the object itself, so it shows the handles.
+         */
+        if (!active) {
+          setHandles(false);
+          onActivate();
+          return;
+        }
+        setHandles((shown) => !shown);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -846,7 +881,7 @@ function PhotoSprite({
        * the screen. Dragging a handle is a deliberate "I know" — so it is
        * allowed, and the label says the sprite is no longer to scale.
        */}
-      {active ? (
+      {active && handles ? (
         <>
           <SpriteHandle
             kind="resize"
