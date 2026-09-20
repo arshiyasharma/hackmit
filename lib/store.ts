@@ -59,6 +59,22 @@ export const DEFAULT_PROFILE: Profile = {
  */
 const MAX_STYLE_TAGS = 6;
 
+/** Five come off the photo; a couple more by hand is a palette, not a swatch book. */
+const MAX_PALETTE = 8;
+
+/** "#ABC", "abc123", "#AABBCC" all become "#aabbcc"; anything else is null. */
+function normalizeHex(input: string): string | null {
+  const raw = input.trim().replace(/^#/, "").toLowerCase();
+  const full =
+    raw.length === 3
+      ? raw
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : raw;
+  return /^[0-9a-f]{6}$/.test(full) ? `#${full}` : null;
+}
+
 /** $600. The budget is editable, but nobody should have to set one first. */
 export const DEFAULT_BUDGET_CENTS = 60000;
 
@@ -126,6 +142,9 @@ export type VisaActions = {
   removeStyleTag: (tag: string) => void;
   /** the user knows something the photo does not say — "brass", "rattan" */
   addStyleTag: (tag: string) => void;
+  /** a colour the photo missed, or one the user simply wants */
+  addPaletteColor: (hex: string) => void;
+  removePaletteColor: (hex: string) => void;
 
   /* items */
   /** creates the item and makes it active; returns its id for the async jobs */
@@ -256,6 +275,43 @@ export const useStore = create<VisaStore>()(
             },
           };
         }),
+
+      /*
+       * The palette is not decoration: it goes into the placeholder prompt and
+       * into the silhouette tint, so a colour added here changes the next
+       * stand-in that gets drawn. Normalised to #rrggbb so the same colour
+       * typed two ways cannot appear twice or bust the generation cache key.
+       */
+      addPaletteColor: (hex) =>
+        set((s) => {
+          const colour = normalizeHex(hex);
+          if (!colour) return {};
+
+          const context = s.roomContext ?? {
+            styleTags: [],
+            palette: [],
+            lighting: "neutral" as const,
+            source: "fallback" as const,
+          };
+          if (context.palette.includes(colour)) return {};
+          if (context.palette.length >= MAX_PALETTE) return {};
+
+          return {
+            roomContext: { ...context, palette: [...context.palette, colour] },
+          };
+        }),
+
+      removePaletteColor: (hex) =>
+        set((s) =>
+          s.roomContext
+            ? {
+                roomContext: {
+                  ...s.roomContext,
+                  palette: s.roomContext.palette.filter((c) => c !== hex),
+                },
+              }
+            : {}
+        ),
 
       /* items — the item exists before either async job returns */
       addItem: ({ request, category, position }) => {

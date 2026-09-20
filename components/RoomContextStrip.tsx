@@ -128,6 +128,87 @@ function AddStyleTag() {
   );
 }
 
+/**
+ * The "+" swatch at the end of the palette.
+ *
+ * The palette is not a readout either: it goes into the placeholder prompt and
+ * the silhouette tint, so a colour added here changes the next stand-in that
+ * gets drawn. Two ways in, because people arrive with either — the OS colour
+ * picker for "something like that", a hex field for "#C97B5F, exactly".
+ */
+function AddPaletteColor() {
+  const addPaletteColor = useStore((s) => s.addPaletteColor);
+  const [open, setOpen] = React.useState(false);
+  const [hex, setHex] = React.useState("#c97b5f");
+
+  const commit = (value: string) => {
+    addPaletteColor(value);
+    if (
+      typeof navigator !== "undefined" &&
+      typeof navigator.vibrate === "function"
+    ) {
+      navigator.vibrate(8);
+    }
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Add a colour to the palette"
+        className={cn(
+          "pointer-events-auto grid size-5 shrink-0 place-items-center rounded-full",
+          "border border-dashed border-accent/70 text-accent",
+          "transition-colors hover:bg-accent/10 active:bg-accent/15"
+        )}
+      >
+        <Plus className="size-3" aria-hidden />
+      </button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        commit(hex);
+      }}
+      className={cn(
+        "pointer-events-auto flex shrink-0 items-center gap-1 rounded-full",
+        "border border-accent bg-surface px-1.5 py-0.5 backdrop-blur-sm"
+      )}
+    >
+      {/* the OS picker: tapping the swatch opens it, and a pick lands at once */}
+      <input
+        type="color"
+        value={hex}
+        onChange={(e) => {
+          setHex(e.target.value);
+          commit(e.target.value);
+        }}
+        aria-label="Pick a colour"
+        className="size-5 cursor-pointer rounded-full border-0 bg-transparent p-0"
+      />
+      <input
+        value={hex}
+        onChange={(e) => setHex(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+        }}
+        aria-label="Colour hex code"
+        placeholder="#c97b5f"
+        maxLength={7}
+        className="w-16 bg-transparent font-mono text-[10px] text-foreground outline-none placeholder:text-muted-foreground"
+      />
+      <button type="submit" aria-label="Add this colour" className="tap text-accent">
+        <Check className="size-3.5" aria-hidden />
+      </button>
+    </form>
+  );
+}
+
 export function RoomContextStrip() {
   const roomContext = useStore((s) => s.roomContext);
   const roomImage = useStore((s) => s.roomImage);
@@ -158,7 +239,9 @@ export function RoomContextStrip() {
     );
   }
 
-  const palette = roomContext.palette.slice(0, 5);
+  // five come off the photo, the rest were added by hand — show them all, or
+  // a colour someone just picked silently vanishes
+  const palette = roomContext.palette.slice(0, 8);
   const tags = roomContext.styleTags;
   const generic = roomContext.source === "fallback";
 
@@ -182,6 +265,8 @@ export function RoomContextStrip() {
         <span className="sr-only">
           The colours read from your photo: {palette.join(", ")}
         </span>
+
+        <AddPaletteColor />
       </div>
 
       {/* one scrolling line, never a wrapping block: the strip is 58% of a
