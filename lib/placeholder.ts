@@ -361,9 +361,10 @@ export function cacheKeyFor(
 
 /* ------------------------------------------------------------------- cache */
 
+// Generated sprites are runtime cache data, not deployment assets.
 const CACHE_DIR =
   process.env.PLACEHOLDER_CACHE_DIR ??
-  path.join(process.cwd(), ".placeholder-cache");
+  path.join(/* turbopackIgnore: true */ process.cwd(), ".placeholder-cache");
 
 export type CacheEntry = {
   widthRatio: number;
@@ -377,11 +378,11 @@ export type CacheEntry = {
 const KEY_RE = /^[0-9a-f]{64}$/;
 
 function pngPath(key: string) {
-  return path.join(CACHE_DIR, `${key}.png`);
+  return path.join(/* turbopackIgnore: true */ CACHE_DIR, `${key}.png`);
 }
 
 function metaPath(key: string) {
-  return path.join(CACHE_DIR, `${key}.json`);
+  return path.join(/* turbopackIgnore: true */ CACHE_DIR, `${key}.json`);
 }
 
 /** Content-addressed, so the URL never needs busting. */
@@ -392,12 +393,12 @@ export function urlForKey(key: string): string {
 async function readCacheEntry(key: string): Promise<CacheEntry | null> {
   if (!KEY_RE.test(key)) return null;
   try {
-    const raw = await readFile(metaPath(key), "utf8");
+    const raw = await readFile(/* turbopackIgnore: true */ metaPath(key), "utf8");
     const parsed = JSON.parse(raw) as CacheEntry;
     if (typeof parsed?.widthRatio !== "number" || !(parsed.widthRatio > 0)) {
       return null;
     }
-    if (!existsSync(pngPath(key))) return null;
+    if (!existsSync(/* turbopackIgnore: true */ pngPath(key))) return null;
     return parsed;
   } catch {
     return null;
@@ -419,7 +420,7 @@ export async function readCachedPng(
   const entry = await readCacheEntry(key);
   if (!entry) return null;
   try {
-    return { png: await readFile(pngPath(key)), entry };
+    return { png: await readFile(/* turbopackIgnore: true */ pngPath(key)), entry };
   } catch {
     return null;
   }
@@ -702,7 +703,8 @@ function resolveCli(): string {
     "/usr/local/bin/higgsfield",
   ].filter((c): c is string => !!c);
   for (const c of candidates) {
-    if (existsSync(c)) return c;
+    // This executable is provisioned on the runtime host, outside the bundle.
+    if (existsSync(/* turbopackIgnore: true */ c)) return c;
   }
   return "higgsfield";
 }
@@ -735,7 +737,7 @@ function runCli(args: string[], timeoutMs: number, signal?: AbortSignal): Promis
   return new Promise((resolve, reject) => {
     // No shell. Every argument is passed as its own argv entry, so nothing the
     // user typed can be read as a command even if sanitisation is loosened.
-    const child = spawn(resolveCli(), args, {
+    const child = spawn(/* turbopackIgnore: true */ resolveCli(), args, {
       stdio: ["ignore", "pipe", "pipe"],
       signal,
     });

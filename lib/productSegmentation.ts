@@ -25,11 +25,12 @@ const runtime = host.__pixxCutout512 ??= { sessions: new Map(), tail: Promise.re
 
 async function modelBytes(spec: ModelSpec): Promise<Buffer> {
   const override = spec === FAST_MODEL ? process.env.CUTOUT_MODEL_PATH : undefined;
-  const modelPath = override ?? path.join(
-    process.env.PLACEHOLDER_CACHE_DIR ?? path.join(process.cwd(), ".placeholder-cache"), "models", spec.file,
+  const modelPath = override ?? path.join(/* turbopackIgnore: true */
+    process.env.PLACEHOLDER_CACHE_DIR ?? path.join(/* turbopackIgnore: true */ process.cwd(), ".placeholder-cache"), "models", spec.file,
   );
   const valid = (bytes: Buffer) => createHash(spec.hash).update(bytes).digest("hex") === spec.checksum;
-  const cached = await readFile(modelPath).catch(() => null);
+  // Models are provisioned or downloaded at runtime, never bundled from a local cache.
+  const cached = await readFile(/* turbopackIgnore: true */ modelPath).catch(() => null);
   if (cached && valid(cached)) return cached;
   if (override) throw new Error("CUTOUT_MODEL_PATH must point to the verified 512 model");
   const response = await fetch(spec.url, { signal: AbortSignal.timeout(20_000) });

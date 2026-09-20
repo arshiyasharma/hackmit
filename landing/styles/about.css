@@ -164,11 +164,16 @@
 .pitch-visa-heading > img { width: 125px; height: auto; }
 .pitch-visa > h3 { font: 500 clamp(37px, 4.5vw, 64px)/1 var(--font-title); letter-spacing: -.025em; }
 .pitch-visa-intro { max-width: 760px; font-size: 17px; margin-top: 23px !important; color: #5f6171; }
-.pitch-visa-proof { display: grid; grid-template-columns: 1fr 1.6fr; align-items: center; gap: 10px 25px; background: #e9edfb; color: #203688; padding: 23px 26px; margin: 33px 0; }
-.pitch-visa-proof > span { font: 10px/1.7 var(--font-mono); max-width: 160px; grid-row: span 2; }
-.pitch-visa-proof strong { font: 500 42px/1.15 var(--font-title); }
-.pitch-visa-proof strong small { font: 12px var(--font-ui); }
-.pitch-visa-proof p { font-size: 11px; }
+.pitch-visa-proof { display: grid; grid-template-columns: 170px minmax(0,1fr); align-items: start; gap: 25px; background: #e9edfb; color: #203688; border-left: 3px solid #1434cb; padding: 28px; margin: 33px 0; }
+.pitch-visa-proof-label { font: 10px/1.8 var(--font-mono); padding-top: 5px; }
+.pitch-visa-proof-content h4 { font: 500 clamp(24px, 2.6vw, 34px)/1.2 var(--font-title); letter-spacing: -.015em; }
+.pitch-visa-proof-content > p { font-size: 13px; line-height: 1.7; max-width: 650px; margin-top: 12px !important; }
+.pitch-visa-proof-receipt { border-top: 1px solid #20368825; padding-top: 14px; }
+.pitch-visa-proof-receipt strong { font-weight: 650; }
+.pitch-visa-proof-content > a { display: inline-flex; align-items: center; gap: 12px; color: #1434cb; font-size: 13px; font-weight: 600; padding: 12px 0; text-underline-offset: 4px; }
+.pitch-visa-proof-content > a:hover { text-decoration: underline; }
+.pitch-visa-proof-content > a:focus-visible { outline: 2px solid #1434cb; outline-offset: 4px; }
+.pitch-visa-proof-content > small { display: block; max-width: 650px; font-size: 10px; line-height: 1.6; color: #4d5b7b; }
 .pitch-visa-stages > details { border-top: 1px solid var(--pitch-line); }
 .pitch-visa-stages > details:last-child { border-bottom: 1px solid var(--pitch-line); }
 .pitch-visa-stages summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 32px 1fr auto 16px; align-items: center; gap: 15px; min-height: 72px; padding: 15px 0; font-size: 17px; }
@@ -235,7 +240,7 @@
   .pitch-gallery-heading { flex-direction: column; align-items: flex-start; gap: 14px; margin-top: 55px; }.pitch-gallery-heading h3 { font-size: 40px; }
   .pitch-gallery-grid { gap: 24px 14px; }.pitch-photo-wide { grid-column: 1/-1; }.pitch-photo-portrait { grid-column: span 6; }.pitch-photo-small { grid-column: span 6; }.pitch-photo-wide a { height: auto; aspect-ratio: 16/9; }.pitch-photo-portrait a { height: auto; aspect-ratio: 3/4; }
   .pitch-photo-panorama { grid-column: 1/-1; }.pitch-photo-panorama a,.pitch-photo-panorama img { aspect-ratio: 4/3; }.pitch-photo-panorama img { object-position: center; }.pitch-photo figcaption { font-size: 9px; }
-  .pitch-visa { padding: 26px; }.pitch-visa-heading > img { width: 95px; }.pitch-visa-intro { font-size: 14px; }.pitch-visa-proof { grid-template-columns: 1fr; gap: 12px; padding: 21px; }.pitch-visa-proof > span { max-width: none; grid-row: auto; font-size: 8px; }.pitch-visa-proof strong { font-size: 38px; }.pitch-visa-proof strong small { display: block; margin-top: 3px; }
+  .pitch-visa { padding: 26px; }.pitch-visa-heading > img { width: 95px; }.pitch-visa-intro { font-size: 14px; }.pitch-visa-proof { grid-template-columns: 1fr; gap: 12px; padding: 21px; }.pitch-visa-proof-label { font-size: 9px; }.pitch-visa-proof-content > p { font-size: 12px; }
   .pitch-visa-stages summary { grid-template-columns: 23px 1fr 15px; gap: 7px 12px; font-size: 15px; min-height: 78px; }.pitch-stage-status { grid-column: 2; grid-row: 2; text-align: left; font-size: 9px; }.pitch-expand { grid-column: 3; grid-row: 1/3; }.pitch-stage-body { grid-template-columns: 1fr; gap: 20px; padding: 6px 0 27px 35px; }.pitch-stage-body p { font-size: 12px; }
   .pitch-script blockquote { font-size: 20px; padding-left: 18px; }.pitch-sponsor-grid { grid-template-columns: 1fr; }.pitch-sponsor-grid article { padding: 29px; }.pitch-sponsor-grid h3 { font-size: 32px; }
   .pitch-thanks { grid-template-columns: 1fr; padding: 64px 8%; gap: 25px; }.pitch-thanks > img { width: 190px; margin: 0 0 0 auto; }.pitch-thanks h2 { font-size: 80px; }.pitch-thanks .pitch-eyebrow { font-size: 8px; }.pitch-thanks > div > p:not(.pitch-eyebrow) { font-size: 13px; }

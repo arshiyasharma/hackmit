@@ -1,188 +1,139 @@
-# The demo, and what is true
+# PIXX-AR demo guide
 
-Written for the Visa "Reimagine Shopping" table. Everything in Part 2 is a
-sentence you can say out loud without it becoming untrue when somebody opens
-the laptop.
+Show the working path: a room photo, a specific product request, real listings,
+a reviewed basket, agent verification, and a clearly labeled test checkout.
+Describe each provider only as far as its observed response supports.
 
----
+## Before presenting
 
-## Part 0. Before you stand up
+1. Start the local server and use the same origin throughout the demo. Checkout
+   runs are held in one server process, not durable shared storage. Restarting
+   the process or reaching a different instance can lose the run.
+2. Set `CHECKOUT_MODE=test` and `ENABLE_REAL_ORDERS=false`. The UI should show
+   test mode. Real retailer ordering is not implemented; enabling the server's
+   live flags makes the agent refuse rather than place an order.
+3. Check TAP with `GET /api/tap/demo`. A successful response has `ok: true`.
+   The private signing key and the public entry in `data/tap-registry.json`
+   must agree. Generate development keys with `npm run keys:tap` if needed.
+4. Rehearse a specific search such as “a warm brass floor lamp under $150”.
+   Inspect the returned price, retailer link, and size source before linking it.
+   Search caches help repeat requests, but new searches depend on upstream
+   availability. Dimensions marked approximate are not measured delivery fit.
+5. Choose the payment demonstration explicitly. With `PAYMENT_PROVIDER` unset
+   or `simulated`, checkout simulates payment. With `acceptance`, it calls the
+   configured Visa Acceptance sandbox merchant using test-card data and
+   `capture: false`. Verify a successful sandbox response before presenting it.
+6. Check `/api/visa/health` separately. Present VIC as connected only when a
+   successful authenticated response supports it. Configuration alone, a
+   gateway rejection, or an Acceptance approval does not prove VIC readiness.
+   Mandate creation also needs `VISA_ENROLLMENT_REFERENCE_ID`.
+7. Repeat the relevant checks against the actual presentation URL after deploy.
 
-| # | Check | How you know it worked |
+**Network rehearsal:** do not promise that the whole product works offline.
+Room analysis, uncached sourcing, remote images, generated stand-ins, first-time
+cutout model downloads, and enabled Visa calls can require the network. An
+isolated `/api/checkout` simulation with a prepared basket, local TAP keys,
+`PAYMENT_PROVIDER` unset, and `TAP_VERIFY_BASE_URL` unset uses the in-process
+verifier and simulated payment. The checkout UI separately attempts an optional
+VIC mandate, which can make a network request when configured.
+
+## What the demo proves
+
+| Piece | Demonstrated behavior | Boundary |
 |---|---|---|
-| 1 | `.env.local` has the four `TAP_*` lines | `curl localhost:3000/api/tap/demo` returns `"ok": true` |
-| 2 | `TAP_KEY_ID` matches a key in `data/tap-registry.json` | same call — a mismatch gives `unknown-key` |
-| 3 | `CHECKOUT_MODE=test`, `ENABLE_REAL_ORDERS` unset | the checkout screen shows the green **TEST MODE — no money moves** bar |
-| 4 | `PAYMENT_PROVIDER` **unset** for the offline rehearsal | the walk completes with the router off |
-| 5 | `PAYMENT_PROVIDER=acceptance` only if you want a live Visa authorization on screen | each line shows `Visa authorized · $120.00 · <reconciliation id>` |
-| 6 | Check the **deployed** env in the Vercel dashboard, not just your laptop | the TEST MODE bar is on the deployed URL too |
-| 7 | If VIC credentials arrived, paste them into `.env.local` | `curl localhost:3000/api/visa/health` returns 200 instead of 503 |
-| 8 | Both Androids charged | iPhone Safari still has no WebXR |
+| Room and listings | Gemini room analysis with an OpenAI fallback; deterministic request normalization; indexed/live Shopping results and retailer dimension reads. | Providers can fail. Missing data remains unknown; some offers open Google Shopping. Explicit demo results are labeled. |
+| Product preview and fit | A selected listing can supply its own cutout and dimensions. Fit uses product size plus measured route clearances. | Approximate sizes and missing measurements do not establish delivery clearance. Even a measured pass is a model result. |
+| TAP identity | Ed25519 request signatures bind authority, path, expiry, and operation; our verifier checks them against the registry. | The merchant verifier is ours. This does not demonstrate adoption or checkout access at an external retailer. |
+| Retailer checkout | The server validates basket amounts, budget, quantities, duplicate IDs, retailer hosts, and session ownership; it streams per-line test progress. | Basket actions and `TEST-` order references are simulated. Retailer accounts are not changed and goods are not ordered. |
+| Visa Acceptance | When enabled and successful, a signed request returns sandbox authorization evidence and a reconciliation ID. | Uses the configured sandbox merchant and published test-card fixtures. No capture. It is a separate payment path from VIC. |
+| Visa Intelligent Commerce | Code supports sandbox health, mandate, credential, cancellation, and confirmation requests. | An actual returned instruction ID is required. Missing onboarding, token references, or rejected calls are reported honestly. Acceptance approval is not confirmation of a VIC purchase. |
 
-**The offline rehearsal.** Run the app locally, turn the router off, press
-checkout. Every line must still go green. The server's walk makes no outbound
-request in test mode — there is no `fetch(` in `lib/checkout/agent.ts` and a
-test asserts it — so if anything stalls, something is fetching that should not
-be.
+## A short walkthrough
 
----
+**Room → request.** “Start with the room you have. Tell PIXX-AR what you want,
+and compare listings in the context of your space.”
 
-## Part 1. What is real, in one table
+**Results → review.** Choose a listing with a direct supported retailer link.
+Point out its price and whether dimensions are quoted or approximate. “These
+are the items in the basket and the cap we set. Nothing has been ordered.”
+Unsupported stores and unresolved offer links are excluded from checkout and
+remain available through their listing links.
 
-Have this in your head. The single fastest way to lose a payments judge is to
-be caught overstating; the single fastest way to win one is to name your own
-boundary before they find it.
+**Agent identity.** “Our demo merchant verifies the agent's signature for this
+store, this page, and this operation.” Show the tamper example below. Do not
+claim that every retailer supports this integration or that no other team does.
 
-| Piece | Real | Simulated |
-|---|---|---|
-| Agent identity (TAP) | Ed25519 signature over RFC 9421, bound to the shop's domain and the exact page, five-minute window. Verified against a key resolved from a registry. | The **merchant** is ours. No real retailer implements TAP yet. |
-| The retailer walk | The listings, the prices, the product URLs. | The purchase. No retailer exposes an API we could buy through. Order refs are `TEST-` prefixed. |
-| The payment | A signed authorization to `apitest.visaacceptance.com`, a Visa-operated endpoint, returning a real `AUTHORIZED` and a reconciliation id. | The merchant is Visa's published **shared test merchant**, the card is Visa's published test PAN, and `capture: false` — nothing is ever captured. |
-| The mandate (VIC) | Built and tested. The X-Pay token, the JWE encryption and the payload builders all work offline; the mandate's `declineThreshold` is the budget HUD's cap. | Waiting on credentials. Without them every VIC endpoint answers 503 and the checkout run is untouched. The mandate line does not appear unless the server has a real `instructionId`. **Never faked.** |
+**Test checkout.** “The retailer checkout steps are simulated. We can also show
+a separate Visa Acceptance sandbox authorization when that provider is enabled.
+It uses our configured sandbox merchant, a test card, and no capture.”
 
----
+**Optional VIC.** Show only the status and IDs actually returned. “The mandate
+request carries the basket's budget cap. This is separate from the Acceptance
+sandbox authorization.” If VIC is unavailable, name the returned stage rather
+than implying that the budget is already enforced by Visa.
 
-## Part 2. The ninety-second payment beat
+## API examples
 
-Rehearse until it is muscle memory. Timings are the whole beat, not each line.
-
-**1 · The room. (0:00)**
-Lamp and two frames standing in the room, budget reading $1,250 with $310 left.
-
-> "Nothing is bought yet. This is just a basket with a cap on it."
-
-**2 · Press checkout. (0:10)**
-The green TEST MODE bar is already on screen and stays there.
-
-> "One button. Four items, three different stores."
-
-**3 · The first line lights up, and the signature line appears under it. (0:20)**
-`signature verified · visa-room-agent`
-
-> "Before it touches a store, the agent proves who it is — Visa's Trusted
-> Agent Protocol, a real signature, bound to that store's domain and that exact
-> page. The store checks it."
-
-**4 · The tamper demo. (0:40) — four seconds, and it is the moment that separates you.**
+Run these from a shell against the same local server used for the demo.
+The TAP examples use a sample URL without fetching that retailer page.
 
 ```bash
-curl -s localhost:3000/api/tap/demo?tamper=authority | jq '.ok, .reason'
-# false
-# "authority-mismatch"
-```
+curl -s http://localhost:3000/api/tap/demo | jq '.ok, .agentId'
 
-> "Change one character of the domain and it is rejected. It cannot be replayed
-> anywhere else."
+curl -s 'http://localhost:3000/api/tap/demo?tamper=authority' | jq '.ok, .reason'
+# false, "authority-mismatch"
+curl -s 'http://localhost:3000/api/tap/demo?tamper=expiry' | jq '.reason'
+# "expired"
+curl -s 'http://localhost:3000/api/tap/demo?tamper=signature' | jq '.reason'
+# "bad-signature"
+curl -s 'http://localhost:3000/api/tap/demo?tamper=tag' | jq '.reason'
+# "wrong-operation": the signature is valid for browsing, not payment
 
-The other three are worth knowing if they ask: `expiry` → `expired`,
-`signature` → `bad-signature`, `tag` → a valid signature that was only cleared
-to browse, not to buy.
-
-**5 · The walk completes. (1:00)**
-Four test orders, `TEST-IKEA-…`, `TEST-WAYFAIR-…`.
-
-> "Test mode. Real ordering is behind a flag that is off, and that button
-> cannot reach it. The retailer walk is a simulation per store — no store
-> exposes an API we could buy through, and I would rather say that than bluff."
-
-**6 · If `PAYMENT_PROVIDER=acceptance` is on. (1:10)**
-Each line carries `Visa authorized · $120.00 · 7898716909956640004807`.
-
-> "And that authorization is real. Signed request, Visa's own sandbox, a real
-> reconciliation id. It is Visa's shared test merchant and Visa's test card,
-> and it is never captured — but it is not a mock."
-
-**7 · If the mandate has landed** — `/api/visa/health` is green and VTS gave you a token reference.
-
-> "And the cap on the budget is not our UI — it is the decline threshold on a
-> Visa purchase mandate. The number in the corner is how much this agent is
-> authorized to spend."
-
-**Line 7 is the one to lead with if the Visa rep is standing there and you only
-get one sentence.** Until Prompt 7 ships, line 3 is.
-
----
-
-## Part 3. Questions they will ask
-
-**"Are you really buying from Amazon?"**
-> "No, and there is no version of this where we could — no retailer exposes an
-> API to buy through. We freeze real listings and replay them, and the purchase
-> step runs in test mode against real payment infrastructure."
-
-**"Is that a real card?"**
-> "It is Visa's published test card against Visa's published shared test
-> merchant, and we authorize without capturing. Nothing moves."
-
-**"What is the agent actually doing that a script could not?"**
-> "It proves its identity cryptographically, per request, bound to each
-> merchant's domain — so the merchant can tell our agent from a scraper, and a
-> captured signature cannot be replayed at another store. That is the half of
-> agentic commerce nobody else at this table has built."
-
-**"Do you send Visa fake transaction data?"**
-> "No, and you can prove it. `/api/visa/confirm` returns a 409 for any line
-> that was only simulated — it refuses to report an approval for a purchase
-> that did not happen. Signals are how Visa resolves disputes; feeding the
-> sandbox fiction would be worse than sending nothing."
-
-**"What happens if the verification fails?"**
-> "The line fails with the reason and the run carries on. Open the tamper
-> endpoint and I will show you all four failure modes."
-
----
-
-## Part 4. The endpoints, for a judge with curl
-
-```bash
-# the agent's signature, and a shop checking it
-curl -s localhost:3000/api/tap/demo | jq
-
-# the same, tampered four different ways
-curl -s "localhost:3000/api/tap/demo?tamper=authority"  | jq '.reason'
-curl -s "localhost:3000/api/tap/demo?tamper=expiry"     | jq '.reason'
-curl -s "localhost:3000/api/tap/demo?tamper=signature"  | jq '.reason'
-curl -s "localhost:3000/api/tap/demo?tamper=tag"        | jq '.reason'
-
-# a shop refusing a signature made for a different shop
-curl -s -X POST localhost:3000/api/retailer/ikea/verify \
-  -H "Signature-Input: <from the demo>" -H "Signature: <from the demo>" \
+# Present a Wayfair-bound signature to our IKEA verifier.
+curl -s -X POST http://localhost:3000/api/retailer/ikea/verify \
+  -H 'Signature-Input: <from the demo>' -H 'Signature: <from the demo>' \
   -H 'content-type: application/json' \
   -d '{"targetUrl":"https://www.wayfair.com/furniture/pdp/arc-floor-lamp-123"}' | jq
 
-# a real Visa sandbox authorization
-curl -s -X POST localhost:3000/api/payments/authorize \
+# Optional: makes an actual sandbox request using the configured merchant.
+curl -s -X POST http://localhost:3000/api/payments/authorize \
   -H 'content-type: application/json' -d '{"amountMinor":12000}' | jq
+# Check status == "AUTHORIZED" and captured == false; do not assume success.
 
-# is VIC wired up? names and booleans only, never values
-curl -s localhost:3000/api/visa/health | jq
-
-# the mandate — 503 vts-pending until Visa Token Service onboarding lands
-curl -s -X POST localhost:3000/api/visa/mandate \
-  -H 'content-type: application/json' -d '{"runId":"<from /api/checkout>"}' | jq
-
-# the one worth showing a judge: we REFUSE to tell Visa a purchase happened
-curl -s -X POST localhost:3000/api/visa/confirm \
-  -H 'content-type: application/json' \
-  -d '{"runId":"<runId>","lineId":"l1","instructionId":"x","transactionReferenceId":"y"}' | jq
-# → 409 "That line was only ever simulated, so there is no transaction outcome
-#        to report. We do not tell Visa a purchase was approved when it did not happen."
+# VIC health reports presence booleans, never credential values.
+curl -s http://localhost:3000/api/visa/health | jq
 ```
 
-## Part 5. The two onboardings, if someone asks why the mandate is not live
+Checkout runs belong to their originating guest session. For curl, save and
+reuse the cookie jar; a browser's run ID alone is insufficient. `basket.json`
+should contain the reviewed `{ "basket": { "basketId", "budgetMinor", "lines" } }`
+payload, with the actual IDs, prices, quantities, and supported retailer links.
+Do not invent a product price for the demonstration.
 
-VIC needs **two separate approvals**, not one:
+```bash
+curl -s -c /tmp/pixx-demo.cookies -X POST http://localhost:3000/api/checkout \
+  -H 'content-type: application/json' --data-binary @basket.json | jq
 
-- **VIC onboarding** gives the API key, shared secret and the MLE certificate. That is enough to *create* a mandate.
-- **Visa Token Service** is a second product with its own approval, and it is what produces `VISA_ENROLLMENT_REFERENCE_ID` — the card token every instruction is written against.
+curl -s -b /tmp/pixx-demo.cookies \
+  'http://localhost:3000/api/checkout/<runId>' | jq
 
-Without VTS there is no token to mandate against, so `/api/visa/mandate` answers
-`503 { stage: "vts-pending" }` and the checkout run completes exactly as it
-otherwise would. The code path is built, tested and waiting on a credential.
+curl -s -b /tmp/pixx-demo.cookies -X POST http://localhost:3000/api/visa/mandate \
+  -H 'content-type: application/json' -d '{"runId":"<runId>"}' | jq
+# 503 vic-unconfigured: required VIC configuration is missing.
+# 503 vts-pending: the app has no enrollment reference for this instruction.
+# 502: the upstream request was refused, failed, or lacked an instruction ID.
 
-> "The mandate layer is built — the token, the encryption and the payload are
-> tested against Visa's own client. What we are waiting on is the second
-> onboarding, Visa Token Service, which issues the card token an instruction is
-> written against. Rather than fake an instruction id, we let the endpoint say
-> so and the run carries on."
+# Use only IDs returned for this session's run; fabricated IDs are rejected.
+curl -s -b /tmp/pixx-demo.cookies -X POST http://localhost:3000/api/visa/confirm \
+  -H 'content-type: application/json' \
+  -d '{"runId":"<runId>","lineId":"<lineId>","instructionId":"<instructionId>"}' | jq
+```
 
+Confirmation requires the run's own instruction, a retrieved transaction
+reference, and authorization using that VIC credential. A simulated line is
+not an approved purchase. The current Acceptance test-card path is separate,
+so it cannot produce a linked VIC confirmation. Depending on which prerequisite
+is absent, the route returns `409` with `instruction-mismatch`, `no-transaction`,
+`nothing-to-confirm`, or `unlinked-authorization`; another session gets `404`.
+Browser write requests also enforce same-origin checks. These controls do not
+replace durable storage, production authentication, or retailer integrations.

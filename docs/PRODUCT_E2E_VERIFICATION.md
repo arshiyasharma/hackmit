@@ -102,3 +102,13 @@ Existing ready photos with an older version automatically upgrade once per linke
 An isolated guest browser used a local room fixture and a real public stone-lamp listing. Its automatic upgrade called the actual `/api/cutout`, decoded the returned PNG, and reached `ready` with `white-matte-v7` in about 2.1 seconds, preserving position, rotation 8°, and scale 1.2. A follow-up fixture confirmed the previous source-photo URL remained during pending and the cached replacement then swapped in. No paid generation/search or checkout was invoked.
 
 **Adjust** is restored to the far right of the selected-item action group, including 390px mobile. Desktop and phone checks confirmed resize/rotation interaction and no horizontal overflow. TypeScript, targeted ESLint, whitespace checks, and the full regression suite passed: 644 tests, with 3 opt-in Visa sandbox tests skipped.
+
+
+## Frontend-v3 release verification
+
+The release includes the Room IV pitch, six isolated sponsor cards, transparent sponsor marks, and a highlighted Visa Acceptance sandbox pipeline with a merchant-portal link. The README and demo/environment guides describe the current product and separate verified sandbox authorization from pending VIC tokenization and simulated retailer fulfillment.
+
+- Full regression suite: **644 passed**, with **3 opt-in Visa sandbox tests skipped**. No new external payment was submitted by this release check.
+- Full ESLint, TypeScript in the production build, and whitespace checks passed. ESLint now excludes independent local agent worktrees.
+- The production build passes without warnings. Runtime model/cache paths and the optional externally provisioned Higgsfield executable no longer cause whole-project tracing. Generated server trace manifests contain no source artwork, local cache, environment, or Git metadata; committed silhouettes and required ONNX native dependencies remain included.
+- Browser checks against the production server verified the Visa card and portal URL, a 390px phone layout without horizontal overflow, all six sponsor selections showing exactly one card, return-to-story navigation, and product sign-in → guest → room upload. No browser errors were recorded during those checks. The earlier full journey checks above remain the record for sourcing, product cutouts, fit, and checkout behavior.
