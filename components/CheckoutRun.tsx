@@ -146,6 +146,10 @@ export function CheckoutRun({
   // the agent's fit constraint runs on the server, and this is the only place
   // the room's measurements exist. Send them or the constraint is off.
   const profile = useStore((s) => s.profile);
+  // `budgetCents` carries a default from the moment the app loads, and the
+  // room's budget ask is dismissible. Only a number the person actually chose
+  // is allowed to stop the agent buying something.
+  const budgetSet = useStore((s) => s.budgetSet);
 
   const [phase, setPhase] = React.useState<RunPhase>("idle");
   const [lineViews, setLineViews] = React.useState<LineView[]>([]);
@@ -327,6 +331,7 @@ export function CheckoutRun({
 
     const { basket, unsupported } = toBasket(lines, budgetCents, {
       profileMm: profile,
+      budgetSet,
     });
     setSkipped(unsupported.map((u) => u.reason));
 
@@ -440,7 +445,7 @@ export function CheckoutRun({
     } catch {
       void poll();
     }
-  }, [applyLine, budgetCents, closeStream, lines, profile, readRun, requestMandate, settle, writeViews]);
+  }, [applyLine, budgetCents, budgetSet, closeStream, lines, profile, readRun, requestMandate, settle, writeViews]);
 
   /* ------------------------------------------------------------- the copy */
 

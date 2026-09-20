@@ -98,6 +98,7 @@ function fourLinesThreeRetailers(): Basket {
   return {
     basketId: crypto.randomUUID(),
     budgetMinor: 125000,
+    budgetSet: true,
     profileMm: null,
     lines: [line("ikea"), line("wayfair"), line("ikea"), line("target")],
   };
@@ -122,6 +123,7 @@ describe("the walk, with the agent's identity switched on", () => {
     const run = createRun({
       basketId: crypto.randomUUID(),
       budgetMinor: 125000,
+      budgetSet: true,
       profileMm: null,
       lines: [line("ikea")],
     });
@@ -144,6 +146,7 @@ describe("the walk, with the agent's identity switched on", () => {
     const run = createRun({
       basketId: crypto.randomUUID(),
       budgetMinor: 125000,
+      budgetSet: true,
       profileMm: null,
       // an IKEA line pointing at a Wayfair page: the signature is made for
       // wayfair.com and IKEA's verifier can see it is not for them
@@ -228,6 +231,7 @@ describe("TAP_VERIFY_BASE_URL — the same check, one hop away", () => {
       const run = createRun({
         basketId: crypto.randomUUID(),
         budgetMinor: 125000,
+        budgetSet: true,
         profileMm: null,
         lines: [line("ikea"), line("wayfair")],
       });
@@ -272,6 +276,7 @@ describe("TAP_VERIFY_BASE_URL — the same check, one hop away", () => {
       const run = createRun({
         basketId: crypto.randomUUID(),
         budgetMinor: 125000,
+        budgetSet: true,
         profileMm: null,
         lines: [line("ikea")],
       });

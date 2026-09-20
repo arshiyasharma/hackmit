@@ -68,6 +68,20 @@ export interface Basket {
   lines: BasketLine[];
   budgetMinor: number;       // the HUD's cap
   /**
+   * Did the PERSON choose that number, or is it just the default sitting there?
+   *
+   * The room asks once and the ask is dismissible, so `budgetCents` carries a
+   * sensible default long before anybody agrees to it. The agent may only
+   * refuse to buy something over a budget its owner actually set — holding a
+   * chair against a figure nobody picked is the same mistake as holding one
+   * against a doorway nobody measured.
+   *
+   * It does NOT gate the Visa mandate: `budgetMinor` is still the decline
+   * threshold either way, because Visa needs a real ceiling and the default is
+   * a reasonable one. This flag only governs whether the agent stops itself.
+   */
+  budgetSet: boolean;
+  /**
    * The doorway and landing the delivery has to survive, in integer millimetres.
    *
    * `null` when the screen sent none, and null means the agent's fit constraint

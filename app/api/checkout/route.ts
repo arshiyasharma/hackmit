@@ -255,6 +255,10 @@ export async function POST(request: NextRequest) {
     basketId: str(rawBasket.basketId) || crypto.randomUUID(),
     lines,
     budgetMinor: minor(rawBasket.budgetMinor) ?? 0,
+    // only an explicit true. A basket that forgot to say gets no budget
+    // constraint, which is the safe direction: the agent buys what it was
+    // asked for rather than refusing against a number nobody chose.
+    budgetSet: rawBasket.budgetSet === true,
     profileMm: toProfile(rawBasket.profileMm),
   };
 

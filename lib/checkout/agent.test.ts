@@ -23,7 +23,7 @@ function line(retailer: Retailer, patch: Partial<BasketLine> = {}): BasketLine {
 }
 
 function basket(lines: BasketLine[]): Basket {
-  return { basketId: crypto.randomUUID(), lines, budgetMinor: 125000, profileMm: null };
+  return { basketId: crypto.randomUUID(), lines, budgetMinor: 125000, budgetSet: true, profileMm: null };
 }
 
 /** The demo basket: four lines, three shops, one of them twice. */
@@ -252,6 +252,7 @@ describe("the agent refuses itself", () => {
     const run = createRun({
       basketId: crypto.randomUUID(),
       budgetMinor: 125000,
+      budgetSet: true,
       profileMm: ROOM,
       lines: [
         line("ikea", { dimensionsMm: TOO_BIG }),
@@ -283,6 +284,7 @@ describe("the agent refuses itself", () => {
     const run = createRun({
       basketId: crypto.randomUUID(),
       budgetMinor: 125000,
+      budgetSet: true,
       profileMm: null,
       lines: [line("ikea", { dimensionsMm: TOO_BIG })],
     });
@@ -298,6 +300,7 @@ describe("the agent refuses itself", () => {
     const run = createRun({
       basketId: crypto.randomUUID(),
       budgetMinor: 13000,
+      budgetSet: true,
       profileMm: null,
       lines: [line("ikea"), line("wayfair"), line("ikea"), line("target")],
     });
@@ -313,6 +316,26 @@ describe("the agent refuses itself", () => {
     expect(placed).toBe(3);
     expect(held).toBe(1);
     expect(getRun(run.runId)!.finishedAt).not.toBeNull();
+  });
+
+  it("ignores a budget nobody chose — the default is a suggestion, not a cap", async () => {
+    delete process.env.CHECKOUT_MODE;
+    // the same basket and the same too-small number, except that the person
+    // never set it. The room's budget ask is dismissible, so this is the state
+    // an untouched app is actually in.
+    const run = createRun({
+      basketId: crypto.randomUUID(),
+      budgetMinor: 13000,
+      budgetSet: false,
+      profileMm: null,
+      lines: [line("ikea"), line("wayfair"), line("ikea"), line("target")],
+    });
+
+    await runCheckout(run.runId, { stepMs: 1 });
+
+    for (const l of getRun(run.runId)!.lines) {
+      expect(l.status.state).toBe("placed");
+    }
   });
 });
 

@@ -34,7 +34,7 @@ function line(retailer: Retailer, patch: Partial<BasketLine> = {}): BasketLine {
 }
 
 function basket(lines: BasketLine[], budgetMinor = 125000): Basket {
-  return { basketId: "b1", lines, budgetMinor, profileMm: null };
+  return { basketId: "b1", lines, budgetMinor, budgetSet: true, profileMm: null };
 }
 
 const CONTEXT = { clientReferenceId: "ref-1", clientDeviceId: "dev-1" };

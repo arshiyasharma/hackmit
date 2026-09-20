@@ -295,6 +295,7 @@ function committedMinor(runId: string): number {
 interface LaneContext {
   stepMs: number;
   budgetMinor: number;
+  budgetSet: boolean;
   profileMm: ProfileMm | null;
 }
 
@@ -336,6 +337,7 @@ async function walkLine(
   const verdict = evaluateLine(line, {
     profileMm: ctx.profileMm,
     budgetMinor: ctx.budgetMinor,
+    budgetSet: ctx.budgetSet,
     committedMinor: committedMinor(runId),
   });
   if (!verdict.ok) {
@@ -407,6 +409,7 @@ export async function runCheckout(
   const ctx: LaneContext = {
     stepMs: options.stepMs ?? STEP_MS,
     budgetMinor: run.basket.budgetMinor,
+    budgetSet: run.basket.budgetSet,
     profileMm: run.basket.profileMm,
   };
 

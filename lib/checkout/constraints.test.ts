@@ -29,7 +29,13 @@ function line(patch: Partial<BasketLine> = {}): BasketLine {
   };
 }
 
-const noLimits = { profileMm: null, budgetMinor: 0, committedMinor: 0 };
+const noLimits = {
+  profileMm: null,
+  budgetMinor: 0,
+  // the person chose their number; the cases below vary the number itself
+  budgetSet: true,
+  committedMinor: 0,
+};
 
 describe("the door", () => {
   it("lets through something that clears it", () => {
@@ -129,6 +135,31 @@ describe("the budget", () => {
     expect(verdict.ok).toBe(true);
   });
 
+  it("does not enforce a number the person never chose", () => {
+    // `budgetCents` carries a default from app start and the room's ask can be
+    // dismissed, so a real basket reaches here with a plausible number nobody
+    // agreed to. Refusing against it would be the money version of holding a
+    // chair against a doorway nobody measured.
+    const overTheDefault = { priceMinor: 90000 };
+
+    expect(
+      evaluateLine(line(overTheDefault), {
+        ...noLimits,
+        budgetMinor: 60000,
+        budgetSet: false,
+      }).ok
+    ).toBe(true);
+
+    // the same basket, once they have picked that number, is held
+    expect(
+      evaluateLine(line(overTheDefault), {
+        ...noLimits,
+        budgetMinor: 60000,
+        budgetSet: true,
+      }).ok
+    ).toBe(false);
+  });
+
   it("cannot be spent twice by two lanes — the second sees the first's commitment", () => {
     // what the parallel walk does: each lane asks with what the others have
     // already booked. The ledger is derived, so the second lane cannot reuse it.
@@ -150,7 +181,7 @@ describe("which reason wins", () => {
   it("says the door before the money when both would stop it", () => {
     const verdict = evaluateLine(
       line({ dimensionsMm: { w: 2400, h: 900, d: 1100 }, priceMinor: 99999 }),
-      { profileMm: ROOM, budgetMinor: 100, committedMinor: 0 }
+      { profileMm: ROOM, budgetMinor: 100, budgetSet: true, committedMinor: 0 }
     );
 
     expect(verdict.ok).toBe(false);

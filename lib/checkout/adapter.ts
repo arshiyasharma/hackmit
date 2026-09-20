@@ -105,7 +105,13 @@ export interface BasketConversion {
 export function toBasket(
   lines: readonly CartItem[],
   budgetCents: number,
-  options: { basketId?: string; profileMm?: ProfileMm | null } = {}
+  options: {
+    basketId?: string;
+    profileMm?: ProfileMm | null;
+    /** whether the person chose `budgetCents`. Defaults to false: an agent
+     *  should not enforce a number nobody agreed to. */
+    budgetSet?: boolean;
+  } = {}
 ): BasketConversion {
   const unsupported: BasketConversion["unsupported"] = [];
   const basketLines: BasketLine[] = [];
@@ -153,6 +159,7 @@ export function toBasket(
       basketId: options.basketId ?? `basket-${Date.now()}`,
       lines: basketLines,
       budgetMinor: Number.isInteger(budgetCents) && budgetCents > 0 ? budgetCents : 0,
+      budgetSet: options.budgetSet === true,
       profileMm: options.profileMm ?? null,
     },
     unsupported,

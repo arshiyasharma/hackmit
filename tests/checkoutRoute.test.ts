@@ -41,7 +41,7 @@ function line(patch: Partial<BasketLine> = {}): BasketLine {
 }
 
 function basket(lines: BasketLine[], budgetMinor = 125000): Basket {
-  return { basketId: "basket-1", lines, budgetMinor, profileMm: null };
+  return { basketId: "basket-1", lines, budgetMinor, budgetSet: true, profileMm: null };
 }
 
 /** Next hands the handler a NextRequest; a plain Request is the same shape here. */

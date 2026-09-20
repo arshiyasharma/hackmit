@@ -28,8 +28,10 @@ export type LineVerdict =
 export interface ConstraintContext {
   /** null switches the fit constraint off. Off, not failing. */
   profileMm: ProfileMm | null;
-  /** the HUD's cap, integer cents. 0 means no cap was set. */
+  /** the HUD's cap, integer cents. */
   budgetMinor: number;
+  /** false switches the budget constraint off — see `Basket.budgetSet`. */
+  budgetSet: boolean;
   /** integer cents already spoken for by lines this run has let through. */
   committedMinor: number;
 }
@@ -62,8 +64,9 @@ export function evaluateLine(
   // to refuse to shop — the same contract `fitFor` keeps on the review screen.
 
   // --- is there money left? ---
-  // budgetMinor === 0 means the HUD never set a cap. No cap, no ceiling.
-  if (ctx.budgetMinor > 0) {
+  // Only a budget its owner actually chose can stop the agent. An untouched
+  // default is a suggestion, not a mandate.
+  if (ctx.budgetSet && ctx.budgetMinor > 0) {
     const after = ctx.committedMinor + lineTotalMinor(line);
     if (after > ctx.budgetMinor) {
       return {
