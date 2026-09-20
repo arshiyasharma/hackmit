@@ -179,9 +179,9 @@ function AddPaletteColor() {
         commit(hex);
       }}
       /*
-       * A POPOVER, not another swatch in the row. Inline, the picker and the
-       * hex field pushed the tick out past the strip's 58% and under the budget
-       * readout in the corner, where it could not be clicked at all.
+       * A POPOVER under the control, which sits on the LEFT of the row. Inline
+       * it pushed the tick towards the budget readout in the top-right corner
+       * and ended up behind it, where it could not be clicked at all.
        */
       className={cn(
         "pointer-events-auto absolute left-0 top-full z-50 mt-1 flex items-center gap-1.5",
@@ -285,8 +285,10 @@ export function RoomContextStrip() {
        * for was the first to disappear. It sits on the right now, over a short
        * fade, and the colours pass beneath it.
        */}
-      <div className="relative">
-        <div className="no-scrollbar -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5 pr-8">
+      {/* z-50: the popover hangs below this row, and the chip row that comes
+          after it in the DOM would otherwise paint over the tick */}
+      <div className="relative z-50">
+        <div className="no-scrollbar -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5 pl-8">
         {/*
          * A swatch is a control, like a style chip: the palette steers what the
          * stand-in is drawn in, so a colour the photo got wrong has to be
@@ -343,9 +345,9 @@ export function RoomContextStrip() {
         {/* the fade tells you there is more to the left of the pinned control */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-6 w-4 bg-gradient-to-r from-transparent to-background"
+          className="pointer-events-none absolute inset-y-0 left-6 w-4 bg-gradient-to-l from-transparent to-background"
         />
-        <div className="absolute inset-y-0 right-0 grid place-items-center bg-background/80 pl-0.5 backdrop-blur-sm">
+        <div className="absolute inset-y-0 left-0 grid place-items-center bg-background/80 pr-0.5 backdrop-blur-sm">
           <AddPaletteColor />
         </div>
       </div>
@@ -355,7 +357,7 @@ export function RoomContextStrip() {
           the top chrome 180px down the screen */}
       {tags.length > 0 ? (
         <div className="relative mt-1.5">
-          <ul className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 pr-16">
+          <ul className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 pl-16">
           <AnimatePresence initial={false}>
             {tags.map((tag) => (
               <motion.li
@@ -397,9 +399,9 @@ export function RoomContextStrip() {
           {/* same rule as the swatches: the way in never scrolls away */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-14 w-5 bg-gradient-to-r from-transparent to-background"
+            className="pointer-events-none absolute inset-y-0 left-14 w-5 bg-gradient-to-l from-transparent to-background"
           />
-          <div className="absolute inset-y-0 right-0 flex items-center bg-background/80 pl-1 backdrop-blur-sm">
+          <div className="absolute inset-y-0 left-0 flex items-center bg-background/80 pr-1 backdrop-blur-sm">
             <AddStyleTag />
           </div>
         </div>
