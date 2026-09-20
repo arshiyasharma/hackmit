@@ -1,8 +1,18 @@
 import Image from "next/image";
+import { SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
 
 export default function Home() {
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+      <header className="w-full flex justify-end gap-3 px-6 py-4">
+        <Show when="signed-out">
+          <SignInButton><button className="px-4 py-1.5 text-sm rounded-full border border-black/10 hover:bg-black/5">sign in</button></SignInButton>
+          <SignUpButton><button className="px-4 py-1.5 text-sm rounded-full bg-black text-white hover:bg-zinc-800">sign up</button></SignUpButton>
+        </Show>
+        <Show when="signed-in">
+          <UserButton />
+        </Show>
+      </header>
       <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
         <Image
           className="dark:invert h-5 w-[100px]"
