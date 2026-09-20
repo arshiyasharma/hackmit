@@ -54,6 +54,17 @@ describe("listing cutout cache", () => {
     expect(await cutout.cutoutFromListing(imageUrl)).toBeNull();
     expect(fetchPublicImage).toHaveBeenCalledTimes(2);
   });
+  it("segments a coloured photo and caches the transparent result", async () => {
+    const imageUrl = "https://example.com/coloured-lamp.jpg";
+    fetchPublicImage.mockResolvedValue(await sharp({ create: { width: 128, height: 128, channels: 3, background: "#886655" } }).png().toBuffer());
+    const png = await packshot();
+    segmentProductCutout.mockResolvedValue({ png, width: 40, height: 70, keyedRatio: 0.7, trimmedRatio: 0.4 });
+    const first = await cutout.cutoutFromListing(imageUrl);
+    expect(first).toMatchObject({ keyed: true, widthRatio: 40 / 70, keyedRatio: 0.7 });
+    expect(segmentProductCutout).toHaveBeenCalledTimes(1);
+    expect(await cutout.cutoutFromListing(imageUrl)).toEqual(first);
+    expect(segmentProductCutout).toHaveBeenCalledTimes(1);
+  });
   it("does not fetch unsupported URLs or create a cutout from an unavailable photo", async () => {
     expect(await cutout.cutoutFromListing("file:///private/photo.png")).toBeNull();
     expect(fetchPublicImage).not.toHaveBeenCalled();
