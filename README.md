@@ -1,12 +1,19 @@
 # PIXX-AR — The spatial marketplace
 
+<!-- Replace this line with the demo video thumbnail/link when the film is ready. Keep it directly below the title. -->
+**Watch the demo — coming soon.**
+
 **Your room is the starting point. Everything it could become is the possibility.**
 
 Built at [HackMIT 2026](https://hackmit.org/), PIXX-AR turns a room photo and an everyday request into real furniture options, previews in your space, dimension checks, and one reviewable basket across retailers.
 
 [Explore the code](https://github.com/ygadipalli/hackmit) · [Watch our validation interviews](https://www.youtube.com/shorts/yD_aFuvd4iY) · [Run locally](#run-locally) · [Sponsor pitches](#the-challenges-we-built-for)
 
-**Demo film: coming soon.** The Room IV walkthrough currently uses a clearly labeled placeholder. Set `pitch.demoVideoUrl` in [the presentation data](landing/data/pitch.ts) when the final film is ready.
+<p align="center">
+  <img src="public/assets/about/photos/team-build.webp" alt="The PIXX-AR team working together around a table of laptops at HackMIT." width="900" />
+  <br />
+  <em>A table, four laptops, one idea.</em>
+</p>
 
 ## The question
 
@@ -106,6 +113,21 @@ OpenAI vision provides an alternate room-analysis path. Codex supported implemen
 **Eligibility still needs confirmation.** The track brief recorded by the team requires Cursor plus Grok Imagine or Voice API in a space-data project. The current build does not demonstrate that integration or focus. We do not claim that Grok or ElevenLabs powers this demo. [Cursor for students](https://cursor.com/students) · [SpaceXAI](https://x.ai/).
 
 ## Under the hood
+
+The build had a few different offices. Some quieter than others.
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="public/assets/about/photos/focus-mode.webp" alt="A teammate working at a laptop with their blue HackMIT hoodie pulled forward." height="300" /><br />
+      <em>Do not disturb. Probably debugging.</em>
+    </td>
+    <td align="center" width="50%">
+      <img src="public/assets/about/photos/hallway-build.webp" alt="An overhead view of the team working on laptops along a red hallway bench." height="300" /><br />
+      <em>Our second office.</em>
+    </td>
+  </tr>
+</table>
 
 ```text
 Room photo + request + budget
@@ -282,7 +304,20 @@ The commerce roadmap includes VIC/VTS tokenization and passkey consent, persiste
 | Yashasree Gadipalli | Application architecture, authentication, basket and checkout orchestration, budget safeguards, caching, and verification |
 | Yutian Gong | Early sourcing and retailer-page scraping, search performance, AR workflow, and Google authentication |
 
-The [photo collection](public/assets/about/photos) and [gallery captions](landing/data/pitch.ts) preserve the weekend: the opening ceremony, matching hoodies, our build table, the hallway office, and the people we met along the way.
+<table>
+  <tr>
+    <td align="center" width="35%">
+      <img src="public/assets/about/photos/team-selfie.webp" alt="Four PIXX-AR teammates taking a selfie in matching blue HackMIT hoodies." height="280" /><br />
+      <em>The people behind the pixels.</em>
+    </td>
+    <td align="center" width="65%">
+      <img src="public/assets/about/photos/hackmit-meetup.webp" alt="A group posing together at the colorful HackMIT photo backdrop, surrounded by balloons." height="280" /><br />
+      <em>And the people we met along the way.</em>
+    </td>
+  </tr>
+</table>
+
+[More from our HackMIT weekend](public/assets/about/photos).
 
 ## Thank you, HackMIT
 
