@@ -260,3 +260,35 @@
 .pitch-sponsor-identity .pitch-logo-cursor { width: 157px; height: auto; }
 .pitch-sponsor-identity .pitch-logo-spacexai { width: 94px; height: auto; }
 @media(max-width:470px) { .pitch-sponsor-identity { gap: 22px; flex-wrap: wrap; }.pitch-sponsor-identity .pitch-logo-cursor { width: 140px; }.pitch-sponsor-identity .pitch-logo-spacexai { width: 76px; } }
+
+/* Each sponsor has a separate card; presenting hides the deck controls. */
+.pitch-card-controls { display: flex; align-items: center; gap: 24px; margin: -12px 0 28px; }
+.pitch-card-picker { display: flex; align-items: center; gap: 16px; margin-right: auto; }
+.pitch-card-picker label { font-size: 12px; color: var(--pitch-muted); }
+.pitch-card-picker select { min-width: 170px; min-height: 46px; padding: 10px 35px 10px 14px; font: 14px var(--font-ui); color: var(--pitch-ink); background: var(--pitch-paper); border: 1px solid var(--pitch-line); border-radius: 0; }
+.pitch-card-link { font-size: 12px; border-bottom: 1px solid currentColor; }
+.sense .pitch-present { background: var(--about-indigo); color: var(--pitch-paper); min-height: 46px; padding: 12px 18px; display: inline-flex; align-items: center; gap: 18px; font-size: 12px; }
+.pitch-flashcard { min-height: 490px; }
+.pitch-card-brand { display: flex; justify-content: space-between; gap: 24px; align-items: center; margin-bottom: 35px; }
+.pitch-card-brand .pitch-sponsor-identity { margin: 0 !important; min-height: 52px; }
+.pitch-card-keywords { list-style: none; padding: 0; margin: 35px 0; display: grid; grid-template-columns: repeat(3,1fr); gap: 30px; }
+.pitch-card-keywords li { border-top: 1px solid var(--pitch-line); padding-top: 20px; font: 500 clamp(25px,3vw,37px)/1.2 var(--font-title); }
+.pitch-card-demo { border-top: 1px solid var(--pitch-line); padding-top: 22px; }
+.pitch-card-demo .pitch-eyebrow { color: var(--pitch-muted); font-size: 9px; }
+.pitch-card-demo p { max-width: 750px; margin-top: 10px !important; font-size: 14px; }
+.pitch-card-details { border-top: 1px solid var(--pitch-line); margin-top: 28px; }
+.pitch-card-details > summary { list-style: none; cursor: pointer; padding: 20px 0; display: flex; align-items: center; gap: 18px; font-size: 13px; }
+.pitch-card-details > summary::-webkit-details-marker { display: none; }
+.pitch-card-details[open] > summary svg { transform: rotate(90deg); }
+.pitch-presentation-bar { display: none; }
+.sense .about.is-presenting { background: #ede6db; }
+.about.is-presenting .about-header, .about.is-presenting .about-sheet > :not(.pitch-tracks), .about.is-presenting .pitch-tracks > .pitch-kicker, .about.is-presenting .pitch-tracks > .pitch-section-heading, .about.is-presenting .pitch-card-controls { display: none; }
+.about.is-presenting .pitch-tracks { min-height: 100%; padding-top: 28px; padding-bottom: 45px; }
+.about.is-presenting .pitch-presentation-bar { display: flex; align-items: center; justify-content: space-between; gap: 25px; margin-bottom: 27px; }
+.pitch-presentation-bar button { display: inline-flex; gap: 10px; align-items: center; font-size: 11px; min-height: 44px; }
+@media(max-width:760px) {
+ .pitch-card-controls { flex-wrap: wrap; gap: 18px; }.pitch-card-picker { width: 100%; justify-content: space-between; margin: 0; }.pitch-card-picker select { width: 65%; }.pitch-present { margin-left: auto; }
+ .pitch-card-brand { flex-direction: column; align-items: flex-start; gap: 20px; }.pitch-card-keywords { gap: 15px; }.pitch-card-keywords li { font-size: 26px; padding-top: 17px; }.pitch-card-demo p { font-size: 13px; }.pitch-flashcard { min-height: 0; }
+ .about.is-presenting .pitch-tracks { padding: 20px 5% 35px; }
+}
+@media(prefers-reduced-motion: reduce) { .pitch-card-details > summary svg { transition: none; } }

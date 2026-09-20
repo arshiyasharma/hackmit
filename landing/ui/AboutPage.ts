@@ -16,6 +16,7 @@ export class AboutPage {
   private done?: () => void;
   private built = false;
   private dead = false;
+  private prepareSponsor?: () => void;
   private previousFocus?: HTMLElement;
   private observer?: IntersectionObserver;
   private viewportObserver?: MutationObserver;
@@ -47,7 +48,7 @@ export class AboutPage {
       <header class="about-header">
         <a class="about-wordmark" href="#about-top" data-scroll="about-top" aria-label="PIXX-AR, back to top">PIXX-AR</a>
         <nav class="about-nav" aria-label="Pitch sections">
-          <a href="#about-problem" data-scroll="about-problem">The idea</a><a href="#about-demo" data-scroll="about-demo">Demo</a><a href="#about-stack" data-scroll="about-stack">The build</a><a href="#about-details" data-scroll="about-details">Features</a><a href="#about-tracks" data-scroll="about-tracks">Tracks</a>
+          <a href="#about-problem" data-scroll="about-problem">The idea</a><a href="#about-demo" data-scroll="about-demo">Demo</a><a href="#about-stack" data-scroll="about-stack">The build</a><a href="#about-details" data-scroll="about-details">Features</a><a href="#about-tracks" data-scroll="about-tracks">Pitch</a>
         </nav>
         <button type="button" class="about-back" aria-label="Back to the rooms">${icon("arrowLeft", 17)}<span>The rooms</span></button>
       </header>
@@ -115,14 +116,76 @@ export class AboutPage {
 
         <section class="pitch-section pitch-future" id="about-next" aria-labelledby="pitch-next-title"><p class="pitch-kicker"><span>06 / JUST THE BEGINNING</span><span>WHAT’S NEXT</span></p><div class="pitch-section-heading"><h2 id="pitch-next-title">AR &amp;<br/><em>3D spaces.</em></h2><p>Bring the room off the screen.<br/>Make the whole space part of the experience.</p></div><div class="pitch-roadmap">${roadmap.map((item, i) => `<article><span>0${i + 1}</span><h3>${safe(item.title)}</h3><p>${safe(item.body)}</p></article>`).join("")}</div></section>
 
-        <section class="pitch-section pitch-tracks" id="about-tracks" aria-labelledby="pitch-tracks-title"><p class="pitch-kicker"><span>07 / SPONSOR TRACKS</span><span>SPONSOR TRACKS</span></p><div class="pitch-section-heading"><h2 id="pitch-tracks-title">One project.<br/><em>A bigger brief.</em></h2><p>How PIXX-AR connects with the challenges<br/>that brought us here.</p></div>
-          <article class="pitch-visa"><div class="pitch-visa-heading"><img src="${asset("about/visa-logo.png")}" alt="Visa" width="960" height="312" loading="lazy"/><span class="pitch-status">FEATURED TRACK</span></div><h3>Reimagine Shopping.</h3><p class="pitch-visa-intro">Visa asks how AI can transform the shopping journey. We designed against all seven stages—and built the loop from discovery to a verified sandbox payment.</p><div class="pitch-visa-proof"><span>VERIFIED IN OUR MERCHANT PORTAL</span><strong>$119.99 <small>authorized in sandbox</small></strong><p>Signed request. Test card. Capture disabled.</p></div><div class="pitch-visa-stages">${visaStages.map((stage,i) => `<details ${i===4 ? "open" : ""}><summary><span class="pitch-stage-number">0${i+1}</span><span>${safe(stage.title)}</span><span class="pitch-stage-status">${safe(stage.status)}</span><span class="pitch-expand" aria-hidden="true">+</span></summary><div class="pitch-stage-body"><div><span>THE OPPORTUNITY</span><p>${safe(stage.ask)}</p></div><div><span>OUR RESPONSE</span><p>${safe(stage.answer)}</p></div></div></details>`).join("")}</div><details class="pitch-script"><summary>The 45-second pitch ${icon("arrowRight",18)}</summary><blockquote>“PIXX-AR starts where shopping should: in your room. A photo and a vague feeling become a search for real products. Your room’s colors and style shape discovery; dimension-aware previews help you decide. One basket brings the choices together across retailers. We then demonstrate the payment step with signed Visa Acceptance sandbox authorizations, verified in our own merchant portal. The prototype simulates retailer checkout; VIC tokenization and passkey consent are our next step. Across the journey, the goal is the same: less guesswork between the room you have and the room you imagine.”</blockquote></details></article>
-          <div class="pitch-sponsor-grid">${sponsorTracks.map(track => `<article><span class="pitch-eyebrow">${safe(track.tag)}</span><h3 class="pitch-sponsor-identity"><span class="pitch-sr-only">${safe(track.sponsor)}</span>${track.logos.map(logo => `<img class="pitch-logo-${logo.file.split(".")[0]}" src="${asset(`about/sponsors/${logo.file}`)}" alt="" aria-hidden="true" width="${logo.width}" height="${logo.height}" loading="lazy"/>`).join("")}</h3><h4>${safe(track.title)}</h4><p>${safe(track.body)}</p></article>`).join("")}</div><p class="pitch-track-source">Track briefs: <a href="https://dayof.hackmit.org/resources" target="_blank" rel="noopener noreferrer">HackMIT sponsor challenges ↗</a></p>
+        <section class="pitch-section pitch-tracks" id="about-tracks" aria-labelledby="pitch-tracks-title">
+          <p class="pitch-kicker"><span>07 / THE CHALLENGE</span><span>OUR RESPONSE</span></p>
+          <div class="pitch-section-heading"><h2 id="pitch-tracks-title">Built for<br/><em>your challenge.</em></h2></div>
+          <div class="pitch-card-controls">
+            <div class="pitch-card-picker"><label for="pitch-sponsor-select">Presentation</label><select id="pitch-sponsor-select"><option value="visa">Visa</option>${sponsorTracks.map(track => `<option value="${safe(track.id)}">${safe(track.label)}</option>`).join("")}</select></div>
+            <a class="pitch-card-link" data-card-link href="/landing?about&sponsor=visa">Open this card ↗</a>
+            <button class="pitch-present" type="button" data-present-card>Present card ${icon("arrowRight",17)}</button>
+            <span class="pitch-sr-only" data-sponsor-status role="status" aria-live="polite"></span>
+          </div>
+          <div class="pitch-presentation-bar"><span class="about-wordmark">PIXX-AR</span><button type="button" data-presentation-exit>${icon("arrowLeft",17)} Back to story</button></div>
+          <article class="pitch-visa pitch-flashcard" data-sponsor-card="visa" aria-label="Visa presentation"><div class="pitch-visa-heading"><img src="${asset("about/visa-logo.png")}" alt="Visa" width="960" height="312" loading="lazy"/><span class="pitch-status">PIXX-AR × VISA</span></div><h3 id="pitch-card-visa" tabindex="-1">Reimagine Shopping.</h3><p class="pitch-visa-intro">Visa asks how AI can transform the shopping journey. We designed against all seven stages—and built the loop from discovery to a verified sandbox payment.</p><div class="pitch-visa-proof"><span>VERIFIED IN OUR MERCHANT PORTAL</span><strong>$119.99 <small>authorized in sandbox</small></strong><p>Signed request. Test card. Capture disabled.</p></div><details class="pitch-card-details"><summary>Explore the seven stages ${icon("arrowRight",18)}</summary><div class="pitch-visa-stages">${visaStages.map((stage,i) => `<details ${i===4 ? "open" : ""}><summary><span class="pitch-stage-number">0${i+1}</span><span>${safe(stage.title)}</span><span class="pitch-stage-status">${safe(stage.status)}</span><span class="pitch-expand" aria-hidden="true">+</span></summary><div class="pitch-stage-body"><div><span>THE OPPORTUNITY</span><p>${safe(stage.ask)}</p></div><div><span>OUR RESPONSE</span><p>${safe(stage.answer)}</p></div></div></details>`).join("")}</div></details><details class="pitch-script"><summary>The 45-second pitch ${icon("arrowRight",18)}</summary><blockquote>“PIXX-AR starts where shopping should: in your room. A photo and a vague feeling become a search for real products. Your room’s colors and style shape discovery; dimension-aware previews help you decide. One basket brings the choices together across retailers. We then demonstrate the payment step with signed Visa Acceptance sandbox authorizations, verified in our own merchant portal. The prototype simulates retailer checkout; VIC tokenization and passkey consent are our next step. Across the journey, the goal is the same: less guesswork between the room you have and the room you imagine.”</blockquote></details></article>
+          ${sponsorTracks.map(track => `<article class="pitch-visa pitch-flashcard" data-sponsor-card="${safe(track.id)}" aria-label="${safe(track.label)} presentation" hidden>
+            <div class="pitch-card-brand"><div class="pitch-sponsor-identity" aria-label="${safe(track.sponsor)}">${track.logos.map(logo => `<img class="pitch-logo-${logo.file.split(".")[0]}" src="${asset(`about/sponsors/${logo.file}`)}" alt="${safe(logo.label)}" width="${logo.width}" height="${logo.height}" loading="lazy"/>`).join("")}</div><span class="pitch-status">PIXX-AR × ${safe(track.label.toUpperCase())}</span></div>
+            <h3 id="pitch-card-${safe(track.id)}" tabindex="-1">${safe(track.title)}</h3><p class="pitch-visa-intro">${safe(track.body)}</p>
+            <ul class="pitch-card-keywords">${track.points.map(point => `<li>${safe(point)}</li>`).join("")}</ul>
+            <div class="pitch-card-demo"><span class="pitch-eyebrow">IN THE DEMO</span><p>${safe(track.demo)}</p></div>
+          </article>`).join("")}
         </section>
         <section class="pitch-thanks" aria-labelledby="pitch-thanks-title"><img src="${asset("about/hackmit/about-cloud.png")}" alt="" width="1548" height="1037" loading="lazy" aria-hidden="true"/><div><p class="pitch-eyebrow">TO EVERYONE WHO MADE THIS WEEKEND POSSIBLE</p><h2 id="pitch-thanks-title">Thank you,<br/><em>HackMIT.</em></h2><p>To the judges, organizers, mentors, volunteers, and every person who stopped to share an idea: this room is better because you were in it.</p><a href="/landing?product" class="pitch-button">Explore PIXX-AR ${icon("arrowRight",19)}</a></div></section>
         <footer class="about-footer"><span class="about-wordmark">PIXX-AR</span><p>Made with curiosity, in Cambridge.<br/><small>HackMIT illustrations supplied by our team.</small></p><a href="#about-top" data-scroll="about-top">Back to top ↑</a></footer>
       </div>
 `;
+    const sponsorSelect = this.root.querySelector<HTMLSelectElement>("#pitch-sponsor-select")!;
+    const cards = [...this.root.querySelectorAll<HTMLElement>("[data-sponsor-card]")];
+    const presentButton = this.root.querySelector<HTMLButtonElement>("[data-present-card]")!;
+    const exitPresentation = this.root.querySelector<HTMLButtonElement>("[data-presentation-exit]")!;
+    const names = new Map([["visa", "Visa"], ...sponsorTracks.map(track => [track.id, track.label] as [string, string])]);
+    const selectSponsor = (requested: string | null) => {
+      const id = requested && names.has(requested) ? requested : "visa";
+      sponsorSelect.value = id;
+      cards.forEach(card => { card.hidden = card.dataset.sponsorCard !== id; });
+      this.root.querySelector<HTMLAnchorElement>("[data-card-link]")!.href = `/landing?about&sponsor=${id}`;
+      this.root.querySelector("[data-sponsor-status]")!.textContent = `${names.get(id)} presentation selected`;
+      return id;
+    };
+    const setPresentation = (enabled: boolean, moveFocus = true) => {
+      this.root.classList.toggle("is-presenting", enabled);
+      this.root.setAttribute("aria-labelledby", enabled ? `pitch-card-${sponsorSelect.value}` : "about-title");
+      this.root.querySelectorAll<HTMLIFrameElement>("[data-video-src]").forEach(frame => {
+        const source = enabled ? "about:blank" : frame.dataset.videoSrc!;
+        if (frame.src !== source) frame.src = source;
+      });
+      if (!moveFocus) return;
+      if (enabled) {
+        this.root.scrollTop = 0;
+        exitPresentation.focus({ preventScroll: true });
+      } else {
+        const section = this.root.querySelector<HTMLElement>("#about-tracks")!;
+        const header = this.root.querySelector<HTMLElement>(".about-header")!;
+        this.root.scrollTop += section.getBoundingClientRect().top - this.root.getBoundingClientRect().top - header.offsetHeight;
+        presentButton.focus({ preventScroll: true });
+      }
+    };
+    this.prepareSponsor = () => {
+      const requested = new URLSearchParams(location.search).get("sponsor");
+      selectSponsor(requested);
+      setPresentation(!!requested && names.has(requested), false);
+    };
+    const rememberSponsor = () => {
+      const id = selectSponsor(sponsorSelect.value);
+      const url = new URL(location.href);
+      url.searchParams.delete("product");
+      url.searchParams.set("about", "");
+      url.searchParams.set("sponsor", id);
+      url.hash = "";
+      history.replaceState(history.state, "", url);
+    };
+    sponsorSelect.addEventListener("change", rememberSponsor);
+    presentButton.addEventListener("click", () => { rememberSponsor(); setPresentation(true); });
+    exitPresentation.addEventListener("click", () => { setPresentation(false); });
     const search = this.root.querySelector<HTMLInputElement>("#pitch-stack-search")!;
     const rows = [...this.root.querySelectorAll<HTMLElement>("[data-stack-row]")];
     search.addEventListener("input", () => {
@@ -148,9 +211,14 @@ export class AboutPage {
       });
     });
     this.root.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); void this.leave(); }
+      if (event.key === "Escape") {
+        if (event.target instanceof HTMLSelectElement) return;
+        event.preventDefault(); event.stopPropagation();
+        if (this.root.classList.contains("is-presenting")) setPresentation(false);
+        else void this.leave();
+      }
       if (event.key !== "Tab") return;
-      const targets = [...this.root.querySelectorAll<HTMLElement>("button:not(:disabled), a[href], input, summary, iframe, [tabindex='0']")].filter((el) => el.getClientRects().length > 0);
+      const targets = [...this.root.querySelectorAll<HTMLElement>("button:not(:disabled), a[href], input, select:not(:disabled), summary, iframe, [tabindex='0']")].filter((el) => el.getClientRects().length > 0);
       const first = targets[0];
       const last = targets[targets.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -172,6 +240,7 @@ export class AboutPage {
     if (this.dead) return;
     if (this.open$) return this.open$;
     this.build();
+    this.prepareSponsor?.();
     this.previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
     this.open$ = new Promise<void>((resolve) => { this.done = resolve; });
     const opened = this.open$;
@@ -199,7 +268,7 @@ export class AboutPage {
       });
       this.viewportObserver.observe(viewport, { attributes: true, attributeFilter: ["content"] });
     }
-    this.root.querySelectorAll<HTMLIFrameElement>("[data-video-src]").forEach(frame => { if (frame.src === "about:blank") frame.src = frame.dataset.videoSrc!; });
+    this.root.querySelectorAll<HTMLIFrameElement>("[data-video-src]").forEach(frame => { if (frame.src === "about:blank" && !this.root.classList.contains("is-presenting")) frame.src = frame.dataset.videoSrc!; });
     this.root.scrollTop = 0;
     this.close.disabled = true;
     void sound.sfx("paperSlide", 0.4);
@@ -208,7 +277,7 @@ export class AboutPage {
     gsap.set(this.flood, { opacity: 0, display: "none" });
     if (!reduced) gsap.fromTo(this.root.querySelectorAll("[data-hero-reveal]"), { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: .85, stagger: .1, ease: "power2.out", clearProps: "opacity,transform" });
     this.close.disabled = false;
-    this.close.focus({ preventScroll: true });
+    (this.root.classList.contains("is-presenting") ? this.root.querySelector<HTMLButtonElement>("[data-presentation-exit]")! : this.close).focus({ preventScroll: true });
     return opened;
   }
 
