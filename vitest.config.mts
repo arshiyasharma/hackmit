@@ -13,6 +13,16 @@ export default defineConfig({
   test: {
     // ref/ holds cloned reference repos we read but never ship; they carry
     // their own test files and their own toolchain, so keep them out of ours.
-    exclude: ["node_modules/**", ".next/**", "ref/**"],
+    //
+    // .claude/worktrees/ holds throwaway checkouts an agent works in, each with
+    // its own copy of node_modules. Leaving them in turned one run of 125 tests
+    // into 12,692 — every dependency's own suite, run from inside our project.
+    exclude: [
+      "node_modules/**",
+      ".next/**",
+      "ref/**",
+      ".claude/**",
+      "**/node_modules/**",
+    ],
   },
 });

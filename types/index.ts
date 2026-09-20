@@ -185,6 +185,20 @@ export type Profile = {
 export type AssetStatus = "pending" | "ready" | "failed";
 
 /**
+ * Which of the two pictures a sprite is wearing: the linked listing's own
+ * photograph, or the drawing that was generated before any listing existed.
+ *
+ * Both are legitimate answers and which one is better is not something the
+ * program can decide. A listing photo keyed cleanly off its white background is
+ * the real product and beats any drawing of it, which is why it is the default
+ * wherever one exists. A photo that would not key is a whole rectangular
+ * picture — a lifestyle shot, a padded thumbnail, an advert — standing in the
+ * middle of somebody's living room, and there the drawing is the honest one. So
+ * the preference is remembered per item and the user has the final word.
+ */
+export type SpriteSource = "photo" | "drawing";
+
+/**
  * One object the user asked for, standing in the room.
  *
  * THE ITEM EXISTS BEFORE EITHER ASYNC JOB RETURNS. `placeholderUrl` is "" and
@@ -209,6 +223,24 @@ export type PlacedItem = {
    */
   listingCutoutUrl: string | null;
   listingWidthRatio: number | null;
+  /**
+   * Whether the background actually came off that photo. /api/cutout answers
+   * with the listing photo untouched when it cannot key one cleanly, rather
+   * than refusing and leaving the drawing standing where a real product had
+   * just been chosen — so the url alone no longer tells us what is in the
+   * picture, and this says which of the two arrived.
+   */
+  listingCutoutKeyed: boolean;
+  /**
+   * The user's OWN choice of picture, and null until they make one.
+   *
+   * Kept apart from the two urls for the same reason the room context keeps
+   * edits apart from the model's answer: a choice is intent and must outlive
+   * whatever lands afterwards, while an absent choice has to be worked out
+   * fresh from the pictures that are actually there. Read it through
+   * spriteSourceFor() rather than directly — null is a question, not an answer.
+   */
+  spriteSource: SpriteSource | null;
   /** the cutout's natural width / height, so the plane never distorts */
   placeholderWidthRatio: number;
   placeholderStatus: AssetStatus;

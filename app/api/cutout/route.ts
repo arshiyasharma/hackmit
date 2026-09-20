@@ -3,16 +3,26 @@ import type { NextRequest } from "next/server";
 import { cutoutFromListing } from "@/lib/cutout";
 
 /**
- * POST /api/cutout — { imageUrl } in, { url, widthRatio } out.
+ * POST /api/cutout — { imageUrl } in, { url, widthRatio, keyed } out.
  *
  * The sprite standing in the room becomes the product the user actually linked:
  * the listing's own photo, keyed off its white background and trimmed to the
  * object. Cached by URL, so relinking back and forth costs one fetch each.
  *
- * NEVER 500s and never blocks the link. A photo that will not key cleanly
- * answers 200 with { url: null }, and the room keeps the generated stand-in —
- * a drawing that is honest about being a drawing beats a cutout with a slice of
- * someone else's room stuck to it.
+ * NEVER 500s and never blocks the link. A photo that cannot be used at all —
+ * unreachable, not an image, shaped like a banner — answers 200 with
+ * { url: null } and the room keeps the generated stand-in.
+ *
+ * `keyed` IS PART OF THE ANSWER AND THE CALLER MUST STORE IT.
+ *
+ * A photo whose background would not come off cleanly still comes back with a
+ * url, untouched and opaque, because refusing outright left a drawing standing
+ * where the user had just chosen a real product. The cost of that is a whole
+ * rectangular picture in the middle of the room, which some people want and
+ * some people very much do not. This flag is how the room tells the two apart:
+ * false means the picture arrived with its own background still on it, and the
+ * store defaults such an item to the drawing while leaving the photo one tap
+ * away. Drop the flag on the floor and every listing looks cleanly keyed.
  */
 
 export const runtime = "nodejs";
@@ -51,6 +61,10 @@ export async function POST(request: NextRequest) {
       keyedRatio: cut.keyedRatio,
       trimmedRatio: cut.trimmedRatio,
       keyed: cut.keyed,
+      // said out loud so the room can explain itself rather than just look odd
+      note: cut.keyed
+        ? undefined
+        : "That photo would not come off its background — showing the drawing.",
     });
   } catch {
     return Response.json({ url: null, note: "Could not read that photo." });

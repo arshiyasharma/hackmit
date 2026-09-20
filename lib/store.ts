@@ -16,6 +16,7 @@ import type {
   Room,
   RoomContext,
   Savings,
+  SpriteSource,
 } from "@/types";
 
 /**
@@ -215,8 +216,14 @@ export type VisaActions = {
   /** the linked listing's own photo, cut out; null drops back to the stand-in */
   setListingCutout: (
     id: string,
-    cutout: { url: string; widthRatio: number } | null
+    cutout: { url: string; widthRatio: number; keyed?: boolean } | null
   ) => void;
+  /**
+   * The user disagrees with which picture is standing in their room. Flips to
+   * whichever of the two it is not wearing right now, and that choice is then
+   * remembered for this item.
+   */
+  toggleSpriteSource: (id: string) => void;
   removeItem: (id: string) => void;
   /** put a removed item back exactly where it was — the undo toast's action */
   restoreItem: (item: PlacedItem, index?: number) => void;
@@ -384,6 +391,8 @@ export const useStore = create<VisaStore>()(
               scale: 1,
               listingCutoutUrl: null,
               listingWidthRatio: null,
+              listingCutoutKeyed: false,
+              spriteSource: null,
               placed: position !== undefined,
               linkedProduct: null,
               fit: null,
@@ -452,12 +461,40 @@ export const useStore = create<VisaStore>()(
           })),
         })),
 
+      /*
+       * `keyed` is what /api/cutout says it managed to do, and an absent one
+       * means the clean key: the route only ever omits it on the old path
+       * where a refusal was a refusal and nothing untouched could come back.
+       * It is stored rather than acted on here — the preference below reads
+       * it, so an un-keyed photo starts on the drawing and a toggle can still
+       * put the photo back.
+       *
+       * A relink drops the old photo through here with null before the new one
+       * lands, and that must not forget what the user chose. The choice lives
+       * in its own field for exactly that reason and is never cleared here.
+       */
       setListingCutout: (id, cutout) =>
         set((s) => ({
           items: patchItem(s.items, id, (item) => ({
             ...item,
             listingCutoutUrl: cutout?.url ?? null,
             listingWidthRatio: cutout?.widthRatio ?? null,
+            listingCutoutKeyed: cutout ? (cutout.keyed ?? true) : false,
+          })),
+        })),
+
+      /*
+       * Written as the opposite of what is EFFECTIVE rather than of what is
+       * stored, so the first tap always changes the picture on screen. Stored
+       * is null until the user has ever chosen, and flipping null would
+       * otherwise land on whichever value the default had already picked and
+       * appear to do nothing at all.
+       */
+      toggleSpriteSource: (id) =>
+        set((s) => ({
+          items: patchItem(s.items, id, (item) => ({
+            ...item,
+            spriteSource: spriteSourceFor(item) === "photo" ? "drawing" : "photo",
           })),
         })),
 
@@ -662,6 +699,80 @@ export function itemById(
 /** The active item, or null. Every overlay reads this. */
 export function useActiveItem(): PlacedItem | null {
   return useStore((s) => itemById(s.items, s.activeItemId));
+}
+
+/* ------------------------------------------------- which picture it wears */
+
+/** The linked listing's photo has arrived and is standing by. */
+function hasListingPhoto(item: PlacedItem): boolean {
+  return item.listingCutoutUrl !== null && item.listingCutoutUrl !== "";
+}
+
+/** The generated stand-in has arrived and is standing by. */
+function hasGeneratedDrawing(item: PlacedItem): boolean {
+  return item.placeholderStatus === "ready" && item.placeholderUrl !== "";
+}
+
+/**
+ * WHICH OF THE TWO PICTURES THIS SPRITE IS ACTUALLY WEARING. Derived on every
+ * read, like the spend, because the parts it is derived from arrive at
+ * different moments and a field written once would be stale by the time the
+ * second one landed.
+ *
+ * The user's own choice wins wherever both pictures exist, and that is the
+ * whole point of the toggle. With only one picture there is nothing to choose
+ * between, so the one that exists is the answer whatever they last said —
+ * which is also what makes a choice safe to keep across a relink, since the
+ * seconds between dropping the old photo and the new one arriving cannot be
+ * misread as a change of mind.
+ *
+ * With no choice made, a cleanly keyed photo is the real product and wins,
+ * while a photo the key gave up on is the whole rectangular picture the user
+ * complained about and loses to the drawing.
+ */
+export function spriteSourceFor(item: PlacedItem): SpriteSource {
+  if (!hasListingPhoto(item)) return "drawing";
+  if (!hasGeneratedDrawing(item)) return "photo";
+  if (item.spriteSource) return item.spriteSource;
+  return item.listingCutoutKeyed ? "photo" : "drawing";
+}
+
+/**
+ * A toggle with one option is furniture. Both pictures have to be standing by
+ * before there is a question worth asking, which is also why this is false for
+ * most of an item's life: the drawing arrives first and the photo only after a
+ * listing is linked and keyed.
+ */
+export function canChooseSpriteSource(item: PlacedItem): boolean {
+  return hasListingPhoto(item) && hasGeneratedDrawing(item);
+}
+
+/** The picture itself, or null while neither has arrived. */
+export function spriteUrlFor(item: PlacedItem): string | null {
+  return spriteSourceFor(item) === "photo"
+    ? item.listingCutoutUrl
+    : hasGeneratedDrawing(item)
+      ? item.placeholderUrl
+      : null;
+}
+
+/**
+ * The aspect ratio belonging to THAT picture, or null when it is not known.
+ *
+ * The two pictures are not the same shape, so a sprite drawn at the photo's
+ * ratio while wearing the drawing is a stretched drawing. The caller supplies
+ * its own fallback for the null, because what a nameless object should look
+ * like is a question about categories rather than about images.
+ */
+export function spriteWidthRatioFor(item: PlacedItem): number | null {
+  if (spriteSourceFor(item) === "photo") {
+    return item.listingWidthRatio && item.listingWidthRatio > 0
+      ? item.listingWidthRatio
+      : null;
+  }
+  return hasGeneratedDrawing(item) && item.placeholderWidthRatio > 0
+    ? item.placeholderWidthRatio
+    : null;
 }
 
 /** Over budget is shown, never clamped and never hidden. */
