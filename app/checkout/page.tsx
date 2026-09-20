@@ -5,23 +5,25 @@ import { useUser, SignInButton } from "@clerk/nextjs";
 import { useCartStore, type CartItem } from "@/lib/cart-store";
 import { checkFit } from "@/lib/fit-check";
 import BudgetSidebar from "@/components/BudgetSidebar";
-import OrderOrchestration from "@/components/OrderOrchestration";
+import AgentSwarm from "@/components/AgentSwarm";
 
 // Demo items for rehearsal until Jose/Yutian wire their modules into the store.
+// The sectional is deliberately too deep for a standard doorway — it's the item
+// the Wayfair agent holds back, which is how the constraint layer shows itself.
 const DEMO_ITEMS: CartItem[] = [
-  { id: "d1", title: "woven jute rug", retailer: "Etsy", price: 128, imageUrl: "", dimensions: { h: 1, w: 60, d: 96, unit: "in" } },
-  { id: "d2", title: "oak floor lamp", retailer: "IKEA", price: 79, imageUrl: "", dimensions: { h: 68, w: 12, d: 12, unit: "in" } },
-  { id: "d3", title: "linen accent chair", retailer: "Wayfair", price: 340, imageUrl: "", dimensions: { h: 34, w: 30, d: 32, unit: "in" } },
+  { id: "d1", title: "woven jute rug", retailer: "Etsy", price: 128, imageUrl: "", color: "natural", dimensions: { h: 1, w: 60, d: 96, unit: "in" } },
+  { id: "d2", title: "oak floor lamp", retailer: "IKEA", price: 79, imageUrl: "", color: "oak", dimensions: { h: 68, w: 12, d: 12, unit: "in" } },
+  { id: "d3", title: "linen accent chair", retailer: "Wayfair", price: 340, imageUrl: "", color: "oatmeal", dimensions: { h: 34, w: 30, d: 32, unit: "in" } },
+  { id: "d4", title: "deep sectional sofa", retailer: "Wayfair", price: 420, imageUrl: "", color: "oatmeal", dimensions: { h: 38, w: 90, d: 40, unit: "in" } },
 ];
-
-type Confirmed = { visaToken: string; retailers: string[]; amount: number };
 
 export default function CheckoutPage() {
   const { user, isSignedIn } = useUser();
-  const { items, total, doorway, overBudget, addItem, removeItem, setDoorway, retailers } = useCartStore();
+  const { items, total, doorway, room, budget, overBudget, addItem, removeItem, setDoorway, retailers } =
+    useCartStore();
 
-  const [confirmed, setConfirmed] = useState<Confirmed | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Once set, the swarm takes over the screen.
+  const [swarmPayload, setSwarmPayload] = useState<object | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Doorway prompt: show once, before checkout, if we have items but no doorway yet.
@@ -46,39 +48,21 @@ export default function CheckoutPage() {
     }));
   };
 
-  const handlePay = async () => {
-    setLoading(true);
+  // One tap: open the spend mandate and dispatch one agent per retailer.
+  const dispatchSwarm = () => {
     setError(null);
-    try {
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Payment failed — try again.");
-        return;
-      }
-      setConfirmed({ visaToken: data.visaToken, retailers: data.retailers, amount: data.amount });
-    } catch {
-      setError("Network error — try again.");
-    } finally {
-      setLoading(false);
-    }
+    setSwarmPayload({
+      items,
+      budget,
+      doorway,
+      room,
+      spaceAware: true,
+    });
   };
 
-  // ---- Confirmation screen (staggered multi-retailer orchestration) ----
-  if (confirmed) {
-    return (
-      <OrderOrchestration
-        retailers={confirmed.retailers}
-        visaToken={confirmed.visaToken}
-        amount={confirmed.amount}
-        itemCount={items.length}
-        firstName={user?.firstName}
-      />
-    );
+  // ---- Live agent swarm takes over the screen ----
+  if (swarmPayload) {
+    return <AgentSwarm payload={swarmPayload} />;
   }
 
   // ---- Cart review ----
@@ -116,7 +100,8 @@ export default function CheckoutPage() {
               <span>total</span><span>${total().toFixed(2)}</span>
             </div>
             <p className="text-xs text-black/40 mb-6">
-              {items.length} items across {retailers().length} {retailers().length === 1 ? "retailer" : "retailers"} · one checkout
+              {items.length} items · {retailers().length} {retailers().length === 1 ? "retailer" : "retailers"} ·{" "}
+              {retailers().length} {retailers().length === 1 ? "agent" : "agents"} · one payment
             </p>
 
             {error && (
@@ -133,15 +118,13 @@ export default function CheckoutPage() {
               </SignInButton>
             ) : (
               <button
-                onClick={handlePay}
-                disabled={loading || overBudget()}
+                onClick={dispatchSwarm}
+                disabled={overBudget()}
                 className="w-full py-3 bg-black text-white rounded-full disabled:opacity-40"
               >
-                {loading
-                  ? "placing your orders…"
-                  : overBudget()
+                {overBudget()
                   ? "over budget — remove an item"
-                  : `buy all ${items.length} items · one tap`}
+                  : `send ${retailers().length} ${retailers().length === 1 ? "agent" : "agents"} · buy all ${items.length}`}
               </button>
             )}
           </>

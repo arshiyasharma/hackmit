@@ -21,20 +21,27 @@ export type CartItem = {
   price: number;
   imageUrl: string;
   dimensions: { h: number; w: number; d: number; unit: "in" | "cm" };
+  /** Agents verify this against the approved design before buying. */
+  color?: string;
   fitStatus?: FitStatus;
 };
 
 export type Doorway = { width: number; height: number };
 
+/** Room the purchased items have to fit inside (inches). */
+export type RoomDims = { width: number; depth: number; height: number };
+
 type CartState = {
   items: CartItem[];
   budget: number;
   doorway: Doorway | null;
+  room: RoomDims | null;
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
   clear: () => void;
   setBudget: (n: number) => void;
   setDoorway: (d: Doorway) => void;
+  setRoom: (r: RoomDims) => void;
   total: () => number;
   retailers: () => Retailer[];
   overBudget: () => boolean;
@@ -44,6 +51,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   budget: 1000,
   doorway: null,
+  // Reasonable dorm-room default so the space constraint is active before the user measures.
+  room: { width: 120, depth: 144, height: 96 },
 
   // Dedupe by id — teammates may fire addItem more than once for the same product.
   addItem: (item) =>
@@ -61,6 +70,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   setBudget: (n) => set({ budget: n }),
 
   setDoorway: (d) => set({ doorway: d }),
+
+  setRoom: (r) => set({ room: r }),
 
   total: () => get().items.reduce((sum, i) => sum + i.price, 0),
 
