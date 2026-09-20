@@ -4,7 +4,7 @@ import {
   type Dimensions,
 } from "@/lib/sourcing/dims";
 
-const FETCH_TIMEOUT_MS = 5_000;
+const FETCH_TIMEOUT_MS = 2_500;
 
 const DEFAULT_HEADERS: HeadersInit = {
   "User-Agent":

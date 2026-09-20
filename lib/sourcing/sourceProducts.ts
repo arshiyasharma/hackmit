@@ -17,6 +17,13 @@ import {
 
 const DEFAULT_LIMIT = 4;
 const ELASTIC_ENOUGH = 3;
+const RESULT_CACHE_TTL_MS = 90_000;
+const SCRAPE_BUDGET_MS = 2_500;
+
+const resultCache = new Map<
+  string,
+  { expires: number; products: Product[] }
+>();
 
 export type SourceProductsOptions = {
   /** Final shopping query string (already contextualized if needed). */
@@ -34,24 +41,60 @@ export type SourceProductsOptions = {
   designQuery?: string | null;
 };
 
-function dimensionsIncomplete(product: Product): boolean {
-  const d = product.dimensions;
-  return d.h_in == null || d.w_in == null || d.d_in == null;
+function cacheKey(options: SourceProductsOptions): string {
+  return [
+    options.shoppingQuery.trim().toLowerCase(),
+    (options.designQuery ?? "").trim().toLowerCase(),
+    options.maxPrice ?? "",
+    options.limit ?? DEFAULT_LIMIT,
+  ].join("|");
 }
 
-/** Backfill missing W/H/D from the retailer PDP (best-effort). */
+function getCached(options: SourceProductsOptions): Product[] | null {
+  const hit = resultCache.get(cacheKey(options));
+  if (!hit) return null;
+  if (hit.expires <= Date.now()) {
+    resultCache.delete(cacheKey(options));
+    return null;
+  }
+  return hit.products;
+}
+
+function setCache(options: SourceProductsOptions, products: Product[]): void {
+  if (products.length === 0) return;
+  resultCache.set(cacheKey(options), {
+    expires: Date.now() + RESULT_CACHE_TTL_MS,
+    products,
+  });
+  if (resultCache.size > 40) {
+    const oldest = resultCache.keys().next().value;
+    if (oldest) resultCache.delete(oldest);
+  }
+}
+
+function hasAnyDimension(product: Product): boolean {
+  const d = product.dimensions;
+  return d.h_in != null || d.w_in != null || d.d_in != null;
+}
+
+/** Only scrape PDPs with zero dims; abort each scrape after a short budget. */
 export async function fillMissingDimensions(
   products: Product[]
 ): Promise<Product[]> {
   return Promise.all(
     products.map(async (product) => {
-      if (!dimensionsIncomplete(product)) return product;
+      if (hasAnyDimension(product)) return product;
       try {
-        const scraped = await scrapeRetailerDimensions(
-          product.product_url,
-          product.retailer,
-          product.dimensions
-        );
+        const scraped = await Promise.race([
+          scrapeRetailerDimensions(
+            product.product_url,
+            product.retailer,
+            product.dimensions
+          ),
+          new Promise<typeof product.dimensions>((resolve) =>
+            setTimeout(() => resolve(product.dimensions), SCRAPE_BUDGET_MS)
+          ),
+        ]);
         return { ...product, dimensions: scraped };
       } catch (error) {
         console.warn(
@@ -79,6 +122,14 @@ function finalizeProducts(
   return diversifyProductsByQuery(products, designQuery).slice(0, limit);
 }
 
+function isColorDominated(products: Product[]): boolean {
+  if (products.length === 0) return false;
+  const colored = products.filter((p) =>
+    /\b(pink|rose|blush)\b/i.test(p.title || "")
+  ).length;
+  return colored > products.length / 2;
+}
+
 /**
  * Source products for one shopping query:
  *   1) Elasticsearch catalog first (relevance-filtered)
@@ -88,6 +139,9 @@ function finalizeProducts(
 export async function sourceProductsForQuery(
   options: SourceProductsOptions
 ): Promise<Product[]> {
+  const cached = getCached(options);
+  if (cached) return cached;
+
   const limit = options.limit ?? DEFAULT_LIMIT;
   const elasticMin = options.elasticMin ?? ELASTIC_ENOUGH;
   const designQuery = options.designQuery ?? options.shoppingQuery;
@@ -111,8 +165,12 @@ export async function sourceProductsForQuery(
         maxPriceCents,
       })
     );
-    // Broad queries like "lamp" must hit SerpAPI — Elastic is full of prior pink lamps.
-    if (elasticProducts.length >= elasticMin && !broad) {
+    // Broad queries skip Elastic-only unless the catalog isn't color-dominated.
+    const trustElastic =
+      elasticProducts.length >= elasticMin &&
+      (!broad || !isColorDominated(elasticProducts));
+
+    if (trustElastic) {
       const filled = await fillMissingDimensions(
         finalizeProducts(elasticProducts, designQuery, limit)
       );
@@ -127,6 +185,7 @@ export async function sourceProductsForQuery(
         );
       });
       if (improved) upsertInBackground(filled);
+      setCache(options, filled);
       return filled;
     }
   } catch (error) {
@@ -138,9 +197,11 @@ export async function sourceProductsForQuery(
 
   if (!options.apiKey) {
     if (elasticProducts.length > 0) {
-      return fillMissingDimensions(
+      const filled = await fillMissingDimensions(
         finalizeProducts(elasticProducts, designQuery, limit)
       );
+      setCache(options, filled);
+      return filled;
     }
     throw new Error("SERPAPI_KEY is not configured");
   }
@@ -151,9 +212,11 @@ export async function sourceProductsForQuery(
   );
   if (!result.ok) {
     if (elasticProducts.length > 0) {
-      return fillMissingDimensions(
+      const filled = await fillMissingDimensions(
         finalizeProducts(elasticProducts, designQuery, limit)
       );
+      setCache(options, filled);
+      return filled;
     }
     console.warn("[source] SerpAPI shopping failed:", result.error);
     return [];
@@ -162,11 +225,11 @@ export async function sourceProductsForQuery(
   const enriched = await enrichShoppingResults(result.shopping_results, {
     maxPrice: options.maxPrice,
     apiKey: options.apiKey,
-    maxProducts: Math.max(limit + 3, 8),
+    maxProducts: limit + 1,
+    designQuery,
   });
   const resolved = applyRelevance(enriched);
 
-  // Prefer fresh Serp hits; fill gaps from Elastic without letting cache dominate.
   const seen = new Set(resolved.map((p) => p.id));
   const merged = [
     ...resolved,
@@ -178,6 +241,7 @@ export async function sourceProductsForQuery(
 
   if (products.length > 0) {
     upsertInBackground(products);
+    setCache(options, products);
     return products;
   }
 
@@ -186,10 +250,13 @@ export async function sourceProductsForQuery(
       finalizeProducts(enriched, designQuery, limit)
     );
     upsertInBackground(fallback);
+    setCache(options, fallback);
     return fallback;
   }
 
-  return fillMissingDimensions(
+  const elasticFallback = await fillMissingDimensions(
     finalizeProducts(elasticProducts, designQuery, limit)
   );
+  setCache(options, elasticFallback);
+  return elasticFallback;
 }

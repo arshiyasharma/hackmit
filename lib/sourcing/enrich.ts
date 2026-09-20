@@ -15,6 +15,10 @@ import type {
 } from "@/lib/sourcing/product";
 import { fetchImmersiveProduct } from "@/lib/sourcing/serpapi";
 import {
+  diversifyProductsByQuery,
+  filterProductsByDesignQuery,
+} from "@/lib/sourcing/roomContext";
+import {
   getWhitelistedDomain,
   isDirectRetailerUrl,
   isGoogleHostedUrl,
@@ -448,6 +452,8 @@ export async function enrichShoppingResults(
     maxPrice?: number | null;
     apiKey?: string;
     maxProducts?: number;
+    /** Filter candidates by title before expensive immersive fetches. */
+    designQuery?: string | null;
   }
 ): Promise<Product[]> {
   if (!Array.isArray(results)) return [];
@@ -465,10 +471,29 @@ export async function enrichShoppingResults(
   }
 
   candidates = applyMaxPriceToCandidates(candidates, options?.maxPrice);
+
+  // Drop irrelevant titles before any immersive Serp calls.
+  if (options?.designQuery) {
+    const filtered = diversifyProductsByQuery(
+      filterProductsByDesignQuery(candidates, options.designQuery),
+      options.designQuery
+    );
+    if (filtered.length > 0) candidates = filtered;
+  }
+
   candidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
 
-  // Only resolve the top candidates we intend to return.
-  const top = candidates.slice(0, maxProducts);
+  // Prefer direct PDP links — they skip immersive entirely.
+  const withDirect = candidates.filter((c) => c.existing_direct_url);
+  const needImmersive = candidates.filter((c) => !c.existing_direct_url);
+  const top = [
+    ...withDirect.slice(0, maxProducts),
+    ...needImmersive.slice(
+      0,
+      Math.max(0, maxProducts - Math.min(withDirect.length, maxProducts))
+    ),
+  ].slice(0, maxProducts);
+
   const apiKey = options?.apiKey;
   const resolved = await Promise.all(
     top.map(async (candidate) => {
@@ -477,9 +502,6 @@ export async function enrichShoppingResults(
       let immersiveTitle: string | null = null;
       let in_stock: boolean | null = null;
 
-      // Immersive is only required when Shopping didn't give a direct retailer URL.
-      // Skipping it when we already have a PDP link saves one SerpAPI round-trip
-      // per candidate (often the dominant cost).
       if (!directUrl && candidate.immersive_token && apiKey) {
         const immersive = await fetchImmersiveProduct(
           candidate.immersive_token,

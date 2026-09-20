@@ -32,8 +32,10 @@ export type SerpShoppingSearchResult = SerpShoppingSuccess | SerpShoppingFailure
 async function fetchSerpJson(
   requestUrl: string
 ): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(requestUrl);
+    const response = await fetch(requestUrl, { signal: controller.signal });
     if (!response.ok) {
       return {
         ok: false,
@@ -50,6 +52,8 @@ async function fetchSerpJson(
       ok: false,
       error: err instanceof Error ? err.message : "SerpAPI network error",
     };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -150,37 +154,57 @@ export async function searchGoogleShopping(
 }
 
 /**
- * Try the primary Shopping query, then simpler fallbacks until something hits.
+ * Try the primary Shopping query, then at most one parallel fallback batch.
+ * Caps Serp round-trips so empty Google pages don't cascade into 5 sequential waits.
  */
 export async function searchGoogleShoppingWithFallbacks(
   queries: string[],
   apiKey: string
 ): Promise<SerpShoppingSearchResult> {
-  const tried = new Set<string>();
-  let lastError: string | null = null;
-
+  const unique: string[] = [];
+  const seen = new Set<string>();
   for (const raw of queries) {
     const q = raw.trim().replace(/\s+/g, " ");
     if (!q) continue;
     const key = q.toLowerCase();
-    if (tried.has(key)) continue;
-    tried.add(key);
-
-    const result = await searchGoogleShopping(q, apiKey);
-    if (!result.ok) {
-      lastError = result.error;
-      if (isGoogleNoResultsError(result.error)) continue;
-      // Transient/network — try next fallback before giving up.
-      continue;
-    }
-    if (result.shopping_results.length > 0) {
-      return result;
-    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(q);
+    if (unique.length >= 3) break;
   }
 
-  if (lastError && !isGoogleNoResultsError(lastError)) {
-    return { ok: false, error: lastError };
+  if (unique.length === 0) {
+    return { ok: true, shopping_results: [] };
   }
+
+  // Primary first — usually hits and avoids burning extra Serp calls.
+  const primary = await searchGoogleShopping(unique[0]!, apiKey);
+  if (primary.ok && primary.shopping_results.length > 0) {
+    return primary;
+  }
+
+  const rest = unique.slice(1);
+  if (rest.length === 0) {
+    return primary.ok
+      ? primary
+      : isGoogleNoResultsError(primary.error)
+        ? { ok: true, shopping_results: [] }
+        : primary;
+  }
+
+  // Remaining fallbacks in parallel (max 2).
+  const results = await Promise.all(
+    rest.map((q) => searchGoogleShopping(q, apiKey))
+  );
+  for (const result of results) {
+    if (result.ok && result.shopping_results.length > 0) return result;
+  }
+
+  const hard = results.find(
+    (r) => !r.ok && !isGoogleNoResultsError(r.error)
+  );
+  if (hard && !hard.ok) return hard;
+  if (!primary.ok && !isGoogleNoResultsError(primary.error)) return primary;
 
   return { ok: true, shopping_results: [] };
 }
@@ -191,7 +215,7 @@ export function buildShoppingQueryFallbacks(
   designQuery?: string | null
 ): string[] {
   const STYLE_WORDS =
-    /\b(warm|cool|neutral|eclectic|boho|vintage|romantic|french|cottage|modern|minimal|organic|natural|wood)\b/gi;
+    /\b(warm|cool|neutral|eclectic|boho|vintage|romantic|french|cottage|modern|minimal|organic|natural|wood|chic|bedroom)\b/gi;
 
   const out: string[] = [];
   const seen = new Set<string>();
@@ -205,19 +229,9 @@ export function buildShoppingQueryFallbacks(
   };
 
   add(shoppingQuery);
+  if (designQuery) add(designQuery);
   add(shoppingQuery.replace(STYLE_WORDS, " "));
-  if (designQuery) {
-    add(designQuery);
-    add(designQuery.replace(STYLE_WORDS, " "));
-  }
-
-  const words = (designQuery || shoppingQuery)
-    .replace(STYLE_WORDS, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (words.length > 2) add(words.slice(-2).join(" "));
-  if (words.length > 1) add(words.slice(-1).join(" "));
+  if (designQuery) add(designQuery.replace(STYLE_WORDS, " "));
 
   return out;
 }
