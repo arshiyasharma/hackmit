@@ -246,7 +246,9 @@ function Dimensions({ product, compact }: { product: Product; compact: boolean }
         {quoted ? (
           `from the ${product.retailer} listing`
         ) : (
-          <span className="font-sans font-medium text-warn">estimated</span>
+          <span className="font-sans font-medium text-warn">
+            {product.dimsSource === "approx" ? "approx" : "estimated"}
+          </span>
         )}
       </span>
     </p>

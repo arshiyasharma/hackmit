@@ -103,7 +103,14 @@ export type ScaleReference = {
  * warn colour, and "missing" reads "no dimensions listed" — never hide the
  * difference between quoted, guessed and absent.
  */
-export type DimsSource = "quoted" | "estimated" | "missing";
+/**
+ * Where a size came from. "quoted" is the retailer's own number, "estimated"
+ * is the scraper's reading of an unclear page, "approx" is what this kind of
+ * object usually measures — a bowl-sized bowl — and "missing" is nothing at
+ * all. They are never allowed to blur together: everything downstream says
+ * which one it is showing.
+ */
+export type DimsSource = "quoted" | "estimated" | "approx" | "missing";
 
 export type Product = {
   id: string;

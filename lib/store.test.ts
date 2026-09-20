@@ -80,7 +80,7 @@ describe("room context edits", () => {
 
     const query = searchQuery(roomContextFor(useStore.getState()), "a tall lamp");
 
-    expect(query).toBe("sage brass tall lamp");
+    expect(query).toBe("sage warm wood brass tall lamp");
     expect(query).not.toContain("ornate");
   });
 

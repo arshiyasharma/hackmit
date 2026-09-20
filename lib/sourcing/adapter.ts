@@ -1,4 +1,5 @@
 import { sourceProductsForQuery } from "@/lib/sourcing/sourceProducts";
+import { typicalDimsMm } from "@/lib/sourcing/typical";
 import type { Product as SourcedProduct } from "@/lib/sourcing/enrich";
 import type { Carton, DimsSource, Product } from "@/types";
 
@@ -87,7 +88,11 @@ function toMm(inches: number | null | undefined): number | null {
   return Math.round(inches * MM_PER_INCH);
 }
 
-function toCarton(dimensions: SourcedProduct["dimensions"]): {
+function toCarton(
+  dimensions: SourcedProduct["dimensions"],
+  title?: string,
+  request?: string
+): {
   dimsMm?: Carton;
   dimsSource: DimsSource;
 } {
@@ -95,8 +100,16 @@ function toCarton(dimensions: SourcedProduct["dimensions"]): {
   const height = toMm(dimensions.h_in);
   const depth = toMm(dimensions.d_in);
 
-  // the fit kernel needs all three; a partial listing is treated as missing
+  /*
+   * The fit kernel needs all three. A listing that quotes one or two numbers
+   * is not half-measured, it is unmeasured — but it is still a bowl, and a
+   * bowl-sized bowl standing in the room beats an object with no size at all.
+   * Marked "approx" everywhere it is shown, so nobody mistakes it for the
+   * retailer's own figure.
+   */
   if (width == null || height == null || depth == null) {
+    const typical = typicalDimsMm(title, request);
+    if (typical) return { dimsMm: typical, dimsSource: "approx" };
     return { dimsSource: "missing" };
   }
 
@@ -115,11 +128,20 @@ function ladder(query: string, request: string): string[] {
   const bare = request.trim().replace(/^(?:a|an|the)\s+/i, "");
   const words = query.trim().split(/\s+/).filter(Boolean);
   const bareWords = bare.split(/\s+/).filter(Boolean).length;
-  const styleWords = Math.max(0, words.length - bareWords);
+  const extras = words.slice(0, Math.max(0, words.length - bareWords));
 
+  /*
+   * The middle rung DROPS ONE WORD, it does not drop the aesthetic.
+   *
+   * It used to fall back to the first word plus the object — which, now that
+   * colours lead the query, meant "cream coffee table" and no style at all. A
+   * room described as stone and travertine searched as though the only thing
+   * known about it was that something in it was cream. So the shortest step
+   * down is taken instead: lose the last style word, keep the colour and the
+   * one before it.
+   */
   const rungs = [query.trim()];
-  // one style word plus the request, when there was more than one to begin with
-  if (styleWords > 1) rungs.push([words[0], bare].join(" "));
+  if (extras.length > 1) rungs.push([...extras.slice(0, -1), bare].join(" "));
   if (bare) rungs.push(bare);
 
   return rungs.filter((rung, i, all) => rung && all.indexOf(rung) === i);
@@ -133,7 +155,11 @@ function retailerDomain(url: string): string | undefined {
   }
 }
 
-function toProduct(sourced: SourcedProduct, itemId?: string): Product | null {
+function toProduct(
+  sourced: SourcedProduct,
+  itemId?: string,
+  request?: string
+): Product | null {
   // no link means a judge cannot check it, so it is not an option
   if (!sourced.product_url || !sourced.title) return null;
 
@@ -146,7 +172,7 @@ function toProduct(sourced: SourcedProduct, itemId?: string): Product | null {
     imageUrl: sourced.image_url || undefined,
     priceCents: sourced.price_cents ?? 0,
     currency: sourced.currency ?? "USD",
-    ...toCarton(sourced.dimensions),
+    ...toCarton(sourced.dimensions, sourced.title, request),
     inStock: sourced.in_stock ?? true,
     itemId,
   };
@@ -341,7 +367,7 @@ async function fetchOptions(
   }
 
   const options = sourced
-    .map((product) => toProduct(product, itemId))
+    .map((product) => toProduct(product, itemId, request))
     .filter((product): product is Product => product !== null);
 
   /* one line that answers "was it slow, or was it empty?" */
@@ -364,7 +390,8 @@ async function fetchOptions(
   const rank: Record<DimsSource, number> = {
     quoted: 0,
     estimated: 1,
-    missing: 2,
+    approx: 2,
+    missing: 3,
   };
 
   return options

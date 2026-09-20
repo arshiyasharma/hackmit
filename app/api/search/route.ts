@@ -115,7 +115,9 @@ function dimsSourceOf(
 ): DimsSource {
   if (!dims) return "missing";
   const declared = str(raw.dimsSource)?.toLowerCase();
-  return declared === "quoted" ? "quoted" : "estimated";
+  if (declared === "quoted") return "quoted";
+  if (declared === "approx") return "approx";
+  return "estimated";
 }
 
 function domainOf(url: string): string | undefined {

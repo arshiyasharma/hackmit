@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { filterProductsByDesignQuery } from "@/lib/sourcing/roomContext";
 import { titleFamily } from "@/lib/sourcing/sourceProducts";
 import { applyMaxPrice } from "@/lib/sourcing/enrich";
+import { typicalDimsMm } from "@/lib/sourcing/typical";
 import {
   isDirectRetailerUrl,
   resolveRetailer,
@@ -137,5 +138,28 @@ describe("the budget", () => {
 
   it("leaves the order alone when everything fits", () => {
     expect(applyMaxPrice(shelf, 10_000)).toEqual(shelf);
+  });
+});
+
+describe("a size for things that quote none", () => {
+  it("knows roughly how big a bowl is", () => {
+    expect(typicalDimsMm("Handmade Stoneware Bowl")).toEqual([150, 80, 150]);
+  });
+
+  it("reads the request when the title says nothing useful", () => {
+    expect(typicalDimsMm("Ida & Totem Set, Handmade", "a plushie")).toEqual([
+      300, 400, 250,
+    ]);
+  });
+
+  it("prefers the specific match to the general one", () => {
+    expect(typicalDimsMm("Brass Floor Lamp")).toEqual([350, 1500, 350]);
+    expect(typicalDimsMm("Oak Coffee Table")).toEqual([1200, 450, 600]);
+    expect(typicalDimsMm("Velvet Floor Pillow")).toEqual([650, 200, 650]);
+  });
+
+  it("says nothing when it does not know", () => {
+    expect(typicalDimsMm("Assorted Curiosity")).toBeNull();
+    expect(typicalDimsMm("")).toBeNull();
   });
 });

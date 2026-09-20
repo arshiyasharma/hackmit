@@ -164,9 +164,8 @@ export function dimsCaption(item: PlacedItem): string {
   if (!product.dimsMm || product.dimsSource === "missing") {
     return "no dimensions listed";
   }
-  return product.dimsSource === "quoted"
-    ? `${product.retailer} listing`
-    : "estimated";
+  if (product.dimsSource === "quoted") return `${product.retailer} listing`;
+  return product.dimsSource === "approx" ? "approx" : "estimated";
 }
 
 /** "estimated" and a missing size are warnings, a quoted size is not. */

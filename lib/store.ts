@@ -74,12 +74,17 @@ const MAX_PALETTE = 8;
  *   "warm decorative floor pillows"                         -> 0 results
  *   "minimalist luxury glass coffee table"                  -> 0 results
  *   "minimalist glass coffee table"                         -> 40 results
- * Google Shopping falls off a cliff at two adjectives in front of a
- * multi-word object, and every word past that buys nothing. The strip still
- * shows every word and every colour — they are what the user can edit, and
- * the newest of each is what goes to the shops.
+ * Google Shopping falls off a cliff in front of a multi-word object, and
+ * every word past that buys nothing. So the query carries ONE colour and the
+ * TWO newest style words — the aesthetic is the whole point of the strip, and
+ * a search that only ever says "cream" is not searching for the room.
+ *
+ * The rungs below it in lib/sourcing/adapter.ts are what make that safe: the
+ * full query and a shorter one that keeps the colour and the first style word
+ * go out together, and the bare object is the last word. The strip still shows
+ * every word and every colour; the newest of each is what goes to the shops.
  */
-const MAX_QUERY_TAGS = 1;
+const MAX_QUERY_TAGS = 2;
 const MAX_QUERY_COLOURS = 1;
 
 /** "#ABC", "abc123", "#AABBCC" all become "#aabbcc"; anything else is null. */

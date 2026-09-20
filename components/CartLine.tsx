@@ -280,10 +280,12 @@ export function CartLine({
           {dims ? (
             <span className="tabular">
               {dims}
-              {product.dimsSource === "estimated" ? (
-                <span className="ml-1 text-warn">estimated</span>
-              ) : (
+              {product.dimsSource === "quoted" ? (
                 <span className="ml-1">{product.retailer} listing</span>
+              ) : (
+                <span className="ml-1 text-warn">
+                  {product.dimsSource === "approx" ? "approx" : "estimated"}
+                </span>
               )}
             </span>
           ) : (
