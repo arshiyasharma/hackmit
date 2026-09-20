@@ -142,11 +142,58 @@ const INSTRUCTION = [
   'e.g. "a tall lamp", "a floor rug".',
 ].join(" ");
 
+/** The exact answer this route can use. Enforced on the model, not on hope. */
+const ROOM_SCHEMA = {
+  type: "object",
+  properties: {
+    styleTags: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 3,
+      maxItems: 5,
+    },
+    palette: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 5,
+      maxItems: 5,
+    },
+    lighting: { type: "string", enum: ["warm", "cool", "neutral"] },
+    roomType: { type: "string" },
+    suggestions: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 4,
+      maxItems: 4,
+    },
+  },
+  required: ["styleTags", "palette", "lighting", "roomType", "suggestions"],
+  propertyOrdering: [
+    "styleTags",
+    "palette",
+    "lighting",
+    "roomType",
+    "suggestions",
+  ],
+} as const;
+
 /* ------------------------------------------------------------------ parsing */
 
+/**
+ * THE KEY THE MODEL ANSWERS WITH IS NOT ALWAYS THE KEY WE ASKED FOR.
+ *
+ * The prompt asks for "styleTags" and a flash model will happily answer
+ * "style_tags". `palette` is one word so it always matched, which is why the
+ * room came back with five colours and no keywords at all — a half-read photo
+ * that looked, from the strip, like the words had simply stopped working.
+ * Every list is read through its plausible spellings now.
+ */
 function strings(source: unknown, key: string, limit: number): string[] {
   if (!source || typeof source !== "object") return [];
-  const value = (source as Record<string, unknown>)[key];
+  const record = source as Record<string, unknown>;
+  const snake = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+  const value =
+    record[key] ?? record[snake] ?? record[key.toLowerCase()] ?? undefined;
   if (!Array.isArray(value)) return [];
   return value
     .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
@@ -156,7 +203,10 @@ function strings(source: unknown, key: string, limit: number): string[] {
 
 function text(source: unknown, key: string): string | undefined {
   if (!source || typeof source !== "object") return undefined;
-  const value = (source as Record<string, unknown>)[key];
+  const record = source as Record<string, unknown>;
+  const snake = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+  const value =
+    record[key] ?? record[snake] ?? record[key.toLowerCase()] ?? undefined;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
@@ -168,7 +218,10 @@ function toRoomContext(raw: unknown): RoomContext | null {
   if (palette.length < 3) return null;
   while (palette.length < 5) palette.push(NEUTRAL_PALETTE[palette.length]);
 
-  const styleTags = strings(raw, "styleTags", 6)
+  const styleTags = [
+    ...strings(raw, "styleTags", 6),
+    ...strings(raw, "keywords", 6),
+  ]
     .map((tag) => tag.toLowerCase().replace(/[^a-z0-9 -]/g, "").trim())
     .filter((tag) => tag.length > 2 && tag.length < 24)
     .filter((tag) => !BANNED_TAGS.has(tag))
@@ -181,6 +234,7 @@ function toRoomContext(raw: unknown): RoomContext | null {
   const suggestions = [
     ...strings(raw, "suggestions", 4),
     ...strings(raw, "searchTerms", 5),
+    ...strings(raw, "needs", 4),
   ]
     .map((s) => s.toLowerCase())
     .filter((s, i, all) => all.indexOf(s) === i)
@@ -235,7 +289,15 @@ async function readRoomGemini(
           ],
         },
       ],
-      config: { responseMimeType: "application/json" },
+      config: {
+        responseMimeType: "application/json",
+        /*
+         * ASK FOR THE SHAPE, DON'T HOPE FOR IT. Without a schema the model
+         * picks its own key names, and one that answers "style_tags" instead
+         * of "styleTags" reads as a room with no style at all.
+         */
+        responseSchema: ROOM_SCHEMA,
+      },
     });
     try {
       return toRoomContext(JSON.parse(response.text ?? ""));
@@ -379,12 +441,25 @@ export async function POST(request: NextRequest) {
 
   const gemini = process.env.GEMINI_API_KEY;
   const openai = process.env.OPENAI_API_KEY;
-  if (!dataUrl || (!gemini && !openai)) return answer(NEUTRAL);
+  if (!dataUrl) {
+    console.warn("[analyze] no usable image in the request; neutral palette");
+    return answer(NEUTRAL);
+  }
+  if (!gemini && !openai) {
+    console.warn("[analyze] no GEMINI_API_KEY or OPENAI_API_KEY; neutral palette");
+    return answer(NEUTRAL);
+  }
 
   const key = cacheKey(dataUrl);
   const seen = reads.get(key);
-  if (seen) return answer(seen);
+  if (seen) {
+    console.info(
+      `[analyze] same photo as before: ${seen.styleTags.length} style words, ${seen.palette.length} colours`
+    );
+    return answer(seen);
+  }
 
+  const startedAt = Date.now();
   try {
     const context = gemini
       ? ((await withTimeout(readRoomGemini(dataUrl, gemini), TIMEOUT_MS)) ??
@@ -392,7 +467,23 @@ export async function POST(request: NextRequest) {
           ? await withTimeout(readRoomOpenAI(dataUrl, openai), TIMEOUT_MS)
           : null))
       : await withTimeout(readRoomOpenAI(dataUrl, openai as string), TIMEOUT_MS);
-    return answer(context ? remember(key, context) : NEUTRAL);
+    if (!context) {
+      // a 200 that carries nothing is the one failure that used to be silent
+      console.warn(
+        `[analyze] the model answered nothing usable after ${Date.now() - startedAt}ms; neutral palette`
+      );
+      return answer(NEUTRAL);
+    }
+    console.info(
+      `[analyze] read the room in ${Date.now() - startedAt}ms: ` +
+        `${context.styleTags.length} style words (${context.styleTags.join(", ") || "none"}), ` +
+        `${context.palette.length} colours`
+    );
+    /*
+     * A read with no style words is half a read, and remembering it means the
+     * same photo can never come back better. Answer with it, keep nothing.
+     */
+    return answer(context.styleTags.length > 0 ? remember(key, context) : context);
   } catch (error) {
     // timeout, network, refusal — the capture screen is already on /room.
     // It still answers 200, but it says WHY in the server log: a silent
