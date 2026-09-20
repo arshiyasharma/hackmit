@@ -275,20 +275,19 @@ export function BudgetHud() {
     ? ({ duration: 0.15 } as const)
     : ({ type: "spring", stiffness: 420, damping: 34 } as const);
 
+  /*
+   * NO LONGER POSITIONED HERE. The budget used to float absolutely in the
+   * top-right while the room-context strip was capped at 58% beside it, which
+   * left a 2% gutter between them — so a wide total ("$1,240 of $1,500") sat on
+   * top of the strip's pinned "+". Both now live in one flex row owned by
+   * app/room/page.tsx, where they cannot overlap by construction: the strip
+   * takes the space that is left and scrolls its own contents.
+   */
   return (
-    <div
-      className={cn(
-        // absolute, not fixed: it anchors to the room stage, so it lands on the
-        // same edge as the photo instead of the window's on a wide screen
-        "pointer-events-none absolute inset-x-0 top-0 z-40",
-        // the same top inset as the room-context strip, so the two readouts
-        // sit on one line rather than 4px apart
-        "gutter pt-[max(12px,env(safe-area-inset-top))]"
-      )}
-    >
-      <div className="mx-auto flex w-full max-w-md justify-end">
+    <div className="pointer-events-none flex shrink-0 justify-end">
+      <div className="contents">
         {/* the deltas and the counters panel hang off this box */}
-        <div className="pointer-events-auto relative flex max-w-[40%] flex-col items-end">
+        <div className="pointer-events-auto relative flex max-w-[60vw] flex-col items-end">
           <div
             className={cn(
               "w-full min-w-[8rem] rounded-2xl border border-line",

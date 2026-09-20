@@ -66,7 +66,7 @@ function AddStyleTag() {
 
   if (!open) {
     return (
-      <li className="shrink-0">
+      <>
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -81,12 +81,12 @@ function AddStyleTag() {
           <Plus className="size-3" aria-hidden />
           word
         </button>
-      </li>
+      </>
     );
   }
 
   return (
-    <li className="shrink-0">
+    <>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -124,7 +124,7 @@ function AddStyleTag() {
           <Check className="size-3.5" aria-hidden />
         </button>
       </form>
-    </li>
+    </>
   );
 }
 
@@ -253,11 +253,8 @@ export function RoomContextStrip() {
   /* still reading the photo — the strip is a skeleton of what is coming */
   if (!roomContext) {
     return (
-      <div className="pointer-events-none w-full max-w-[58%] select-none">
-        {/* scrolls sideways like the chip row: eight swatches plus the open
-          colour form are wider than the 58% the strip is allowed, and the
-          overflow used to slide under the budget readout in the corner */}
-      <div className="no-scrollbar -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5">
+      <div className="pointer-events-none w-full min-w-0 select-none">
+        <div className="flex items-center gap-1.5">
           {SLOTS.map((i) => (
             <Skeleton key={i} className="size-5 rounded-full" />
           ))}
@@ -280,8 +277,16 @@ export function RoomContextStrip() {
   const generic = roomContext.source === "fallback";
 
   return (
-    <div className="relative w-full max-w-[58%]">
-      <div className="flex items-center gap-1.5">
+    <div className="relative w-full min-w-0">
+      {/*
+       * THE CONTROL IS PINNED, THE SWATCHES SCROLL UNDER IT. Eight swatches are
+       * wider than the 58% the strip is allowed, and when the "+" scrolled with
+       * them it ended up off the right edge — the one thing you were reaching
+       * for was the first to disappear. It sits on the right now, over a short
+       * fade, and the colours pass beneath it.
+       */}
+      <div className="relative">
+        <div className="no-scrollbar -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5 pr-8">
         {/*
          * A swatch is a control, like a style chip: the palette steers what the
          * stand-in is drawn in, so a colour the photo got wrong has to be
@@ -330,18 +335,27 @@ export function RoomContextStrip() {
             </motion.button>
           ))}
         </AnimatePresence>
-        <span className="sr-only">
-          The colours read from your photo: {palette.join(", ")}
-        </span>
+          <span className="sr-only">
+            The colours read from your photo: {palette.join(", ")}
+          </span>
+        </div>
 
-        <AddPaletteColor />
+        {/* the fade tells you there is more to the left of the pinned control */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-6 w-4 bg-gradient-to-r from-transparent to-background"
+        />
+        <div className="absolute inset-y-0 right-0 grid place-items-center bg-background/80 pl-0.5 backdrop-blur-sm">
+          <AddPaletteColor />
+        </div>
       </div>
 
       {/* one scrolling line, never a wrapping block: the strip is 58% of a
           390px column, so wrapping put every word on its own row and pushed
           the top chrome 180px down the screen */}
       {tags.length > 0 ? (
-        <ul className="no-scrollbar -mx-1 mt-1.5 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+        <div className="relative mt-1.5">
+          <ul className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 pr-16">
           <AnimatePresence initial={false}>
             {tags.map((tag) => (
               <motion.li
@@ -378,8 +392,17 @@ export function RoomContextStrip() {
               </motion.li>
             ))}
           </AnimatePresence>
-          <AddStyleTag />
-        </ul>
+          </ul>
+
+          {/* same rule as the swatches: the way in never scrolls away */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-14 w-5 bg-gradient-to-r from-transparent to-background"
+          />
+          <div className="absolute inset-y-0 right-0 flex items-center bg-background/80 pl-1 backdrop-blur-sm">
+            <AddStyleTag />
+          </div>
+        </div>
       ) : (
         <div className="mt-1.5 flex items-start gap-2">
           <p className="max-w-[18ch] text-[11px] leading-snug text-muted-foreground">

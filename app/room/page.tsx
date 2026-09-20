@@ -171,23 +171,19 @@ export default function RoomPage() {
 
       {/* --------------------------------------------------- 3. the chrome */}
 
-      {/* top: the room context that explains the results, and the budget */}
-      {/* BudgetHud positions ITSELF: fixed, top-right of this same max-w-md
-          column, inside the safe area, capped at 40% of it, with its own
-          `relative` box for the floating deltas. Wrapping it in another
-          positioned bar does nothing to a fixed element except steal width
-          from the strip beside it, so it is rendered as a sibling and the
-          strip gets the whole column to cap itself against. */}
-      <BudgetHud />
-
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
-        <div className="gutter mx-auto flex w-full max-w-md items-start pt-[max(12px,env(safe-area-inset-top))]">
-          {/* the strip caps itself at 58% so the budget keeps the top-right
-              corner; do not add padding here or the chips stack vertically */}
-          <div className="pointer-events-auto min-w-0 flex-1">
-            <RoomContextStrip />
+        {/* top: the room context that explains the results, and the budget */}
+        {/*
+         * ONE ROW, so the two readouts cannot land on each other. The strip
+         * takes what is left after the budget and scrolls its own contents;
+         * the budget keeps its natural width however long the number gets.
+         */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-40">
+          <div className="gutter mx-auto flex w-full max-w-md items-start gap-2 pt-[max(12px,env(safe-area-inset-top))]">
+            <div className="pointer-events-auto min-w-0 flex-1">
+              <RoomContextStrip />
+            </div>
+            <BudgetHud />
           </div>
-        </div>
 
         {/* the photo is where the palette comes from; say so if there isn't one */}
         {roomImage === null ? (
