@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { filterProductsByDesignQuery } from "@/lib/sourcing/roomContext";
 import { titleFamily } from "@/lib/sourcing/sourceProducts";
+import { applyMaxPrice } from "@/lib/sourcing/enrich";
 import {
   isDirectRetailerUrl,
   resolveRetailer,
@@ -109,5 +110,32 @@ describe("shelf hygiene", () => {
   it("calls the shop eBay, not the seller's handle", () => {
     expect(retailerFromSourceLabel("eBay - wealthvis_0")).toBe("ebay");
     expect(retailerFromSourceLabel("Target")).toBe("target");
+  });
+});
+
+describe("the budget", () => {
+  const shelf = [
+    { title: "Cheap Pillow", price_cents: 1999 },
+    { title: "Mid Table", price_cents: 24900 },
+    { title: "Grand Table", price_cents: 252900 },
+  ] as Parameters<typeof applyMaxPrice>[0];
+
+  it("never empties the shelf, however little is left", () => {
+    // $1 left: every coffee table on earth is over budget
+    const ranked = applyMaxPrice(shelf, 1);
+    expect(ranked).toHaveLength(3);
+  });
+
+  it("puts what fits the budget first", () => {
+    const ranked = applyMaxPrice(shelf, 500);
+    expect(ranked.map((p) => p.title)).toEqual([
+      "Cheap Pillow",
+      "Mid Table",
+      "Grand Table",
+    ]);
+  });
+
+  it("leaves the order alone when everything fits", () => {
+    expect(applyMaxPrice(shelf, 10_000)).toEqual(shelf);
   });
 });

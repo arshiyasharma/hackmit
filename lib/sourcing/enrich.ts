@@ -424,7 +424,20 @@ function rankAndCap(products: Product[], maxProducts = MAX_PRODUCTS): Product[] 
   return scored.slice(0, limit).map((s) => s.product);
 }
 
-function applyMaxPrice(
+/**
+ * THE BUDGET RANKS THE SHELF. IT DOES NOT EMPTY IT.
+ *
+ * What is left of the budget was a hard filter, at both the candidate stage
+ * and the end — so once a couple of things were placed, every search answered
+ * "40 from Google, 0 with a Buy link" and the room said nothing came back. A
+ * coffee table costs more than $60 whatever the budget says; hiding all of
+ * them does not make one affordable, it just breaks the search.
+ *
+ * So affordable listings come first and the rest follow. The HUD already says
+ * what is left, each card shows its price, and the fit check still speaks for
+ * itself.
+ */
+export function applyMaxPrice(
   products: Product[],
   maxPriceDollars: number | null | undefined
 ): Product[] {
@@ -432,11 +445,21 @@ function applyMaxPrice(
     return products;
   }
   const maxCents = Math.round(maxPriceDollars * 100);
-  return products.filter(
+  const affordable = products.filter(
     (p) => p.price_cents == null || p.price_cents <= maxCents
   );
+  if (affordable.length === products.length) return products;
+
+  const rest = products.filter(
+    (p) => p.price_cents != null && p.price_cents > maxCents
+  );
+  console.info(
+    `[source] ${affordable.length} of ${products.length} listings fit what is left of the budget; showing the rest behind them`
+  );
+  return [...affordable, ...rest];
 }
 
+/** Affordable candidates are looked up first; none are thrown away. */
 function applyMaxPriceToCandidates(
   candidates: ShoppingCandidate[],
   maxPriceDollars: number | null | undefined
@@ -445,9 +468,9 @@ function applyMaxPriceToCandidates(
     return candidates;
   }
   const maxCents = Math.round(maxPriceDollars * 100);
-  return candidates.filter(
-    (c) => c.price_cents == null || c.price_cents <= maxCents
-  );
+  const within = (c: ShoppingCandidate) =>
+    c.price_cents == null || c.price_cents <= maxCents;
+  return [...candidates.filter(within), ...candidates.filter((c) => !within(c))];
 }
 
 /**
@@ -522,6 +545,7 @@ export async function enrichShoppingResults(
     if (filtered.length > 0) candidates = filtered;
   }
 
+  // stable sort: candidates arrive affordable-first, and equal scores keep it
   candidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
 
   /*

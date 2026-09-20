@@ -42,15 +42,15 @@ export async function POST(request: NextRequest) {
       });
     }
     console.info(
-      `[cutout] kept ${imageUrl.slice(0, 70)} — keyed ${cut.keyedRatio.toFixed(
-        2
-      )}, trimmed ${cut.trimmedRatio.toFixed(2)}`
+      `[cutout] ${cut.keyed ? "keyed" : "kept as it is"} ${imageUrl.slice(0, 70)} — ` +
+        `keyed ${cut.keyedRatio.toFixed(2)}, trimmed ${cut.trimmedRatio.toFixed(2)}`
     );
     return Response.json({
       url: cut.url,
       widthRatio: cut.widthRatio,
       keyedRatio: cut.keyedRatio,
       trimmedRatio: cut.trimmedRatio,
+      keyed: cut.keyed,
     });
   } catch {
     return Response.json({ url: null, note: "Could not read that photo." });

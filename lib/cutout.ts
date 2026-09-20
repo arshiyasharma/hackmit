@@ -57,6 +57,8 @@ export type CutoutResult = {
   keyedRatio: number;
   /** trimmed area over original area — a collage barely shrinks */
   trimmedRatio: number;
+  /** false when the background could not be removed and the photo stands as it is */
+  keyed: boolean;
 };
 
 function keyFor(imageUrl: string): string {
@@ -81,6 +83,7 @@ export async function cutoutFromListing(
       widthRatio: cached.entry.widthRatio,
       keyedRatio: 1,
       trimmedRatio: 1,
+      keyed: true,
     };
   }
 
@@ -115,13 +118,52 @@ export async function cutoutFromListing(
   const trimmedRatio =
     originalArea > 0 ? (cut.width * cut.height) / originalArea : 1;
 
-  // a photo that is all background, has none, or refused to shrink is not a
-  // product shot — the room keeps the stand-in rather than showing an advert
-  if (
-    cut.keyedRatio > MAX_KEYED_RATIO ||
-    cut.keyedRatio < MIN_KEYED_RATIO ||
-    trimmedRatio > MAX_TRIMMED_RATIO
-  ) {
+  /*
+   * A REFUSED KEY IS NOT A REFUSED PHOTO.
+   *
+   * The gates below catch a marketing collage — thumbnail strips, a hand
+   * holding a remote — which must never stand in the room wearing an alpha
+   * channel. But refusing outright left the generated drawing standing where
+   * the user had just chosen a real product, which is the one thing they
+   * asked not to happen. Google's own listing thumbnails come off
+   * encrypted-tbn*.gstatic.com already padded, and they trip these gates
+   * routinely.
+   *
+   * So a photo that will not key cleanly still becomes the sprite — as
+   * itself, opaque, on its own background — as long as it is shaped like a
+   * product shot rather than a banner. Only something that is not a photo of
+   * one thing is refused.
+   */
+  const refusal =
+    cut.keyedRatio > MAX_KEYED_RATIO
+      ? `keyed ${cut.keyedRatio.toFixed(2)} — no background to remove`
+      : cut.keyedRatio < MIN_KEYED_RATIO
+        ? `keyed ${cut.keyedRatio.toFixed(2)} — background is not plain`
+        : trimmedRatio > MAX_TRIMMED_RATIO
+          ? `trimmed ${trimmedRatio.toFixed(2)} — the photo barely shrank`
+          : null;
+
+  if (refusal) {
+    const plain = await plainSprite(bytes, meta);
+    if (plain) {
+      console.info(`[cutout] ${refusal}; using the listing photo as it is`);
+      await writeCacheEntry(key, plain.png, {
+        widthRatio: plain.widthRatio,
+        category: "listing",
+        source: "generated",
+        width: plain.width,
+        height: plain.height,
+        createdAt: 0,
+      });
+      return {
+        url: urlForKey(key),
+        widthRatio: plain.widthRatio,
+        keyedRatio: cut.keyedRatio,
+        trimmedRatio,
+        keyed: false,
+      };
+    }
+    console.info(`[cutout] refused: ${refusal}`);
     return null;
   }
 
@@ -135,5 +177,36 @@ export async function cutoutFromListing(
     createdAt: 0,
   });
 
-  return { url: urlForKey(key), widthRatio, keyedRatio: cut.keyedRatio, trimmedRatio };
+  return {
+    url: urlForKey(key),
+    widthRatio,
+    keyedRatio: cut.keyedRatio,
+    trimmedRatio,
+    keyed: true,
+  };
+}
+
+/**
+ * The listing photo as it is: no alpha, just the picture, re-encoded as a PNG
+ * so it travels the same path as a keyed cutout. Refused when the frame is
+ * shaped like a banner rather than a product shot.
+ */
+async function plainSprite(
+  bytes: Buffer,
+  meta: { width?: number; height?: number }
+): Promise<{ png: Buffer; widthRatio: number; width: number; height: number } | null> {
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
+  if (width < 80 || height < 80) return null;
+
+  const ratio = width / height;
+  // wider than 5:2 or taller than 2:5 is a banner or a colour strip
+  if (ratio > 2.5 || ratio < 0.4) return null;
+
+  try {
+    const png = await sharp(bytes).png().toBuffer();
+    return { png, widthRatio: ratio, width, height };
+  } catch {
+    return null;
+  }
 }
