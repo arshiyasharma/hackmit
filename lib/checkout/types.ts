@@ -17,6 +17,10 @@
  * here — one direction of drift is survivable, two is not.
  */
 
+import type { ProfileMm } from "@/lib/fit";
+
+export type { ProfileMm };
+
 export type Retailer =
   | "amazon"
   | "wayfair"
@@ -63,6 +67,16 @@ export interface Basket {
   basketId: string;
   lines: BasketLine[];
   budgetMinor: number;       // the HUD's cap
+  /**
+   * The doorway and landing the delivery has to survive, in integer millimetres.
+   *
+   * `null` when the screen sent none, and null means the agent's fit constraint
+   * is OFF rather than failing every line — an unconfigured feature is off, not
+   * failed, the same rule TAP follows. Spelled with the `...Mm` names because
+   * that is what the browser's profile carries; `profileFromMm` in lib/fit.ts
+   * translates it for the kernel.
+   */
+  profileMm: ProfileMm | null;
 }
 
 /**
@@ -118,12 +132,20 @@ export interface PaymentLineResult {
  * that adding them changed nothing about how `state` discriminates. Each is
  * absent until the line reaches that beat, and absent for the whole run when
  * the feature is not configured — an unconfigured feature is off, not failed.
+ *
+ * `held` IS NOT `failed`. Nothing went wrong: the agent had the money and the
+ * shop's permission, and chose not to spend it because the thing will not fit
+ * through the door or the budget is gone. A failure is the agent being stopped;
+ * a hold is the agent stopping itself, and it is handed back to the person to
+ * decide. The review screen still lets them buy it anyway — the constraint
+ * binds the agent, not its owner.
  */
 export type LineStatus = (
   | { state: "pending" }
   | { state: "walking" }               // agent is on the retailer page
   | { state: "authorizing" }
   | { state: "placed"; orderRef: string; mode: "test" | "live" }
+  | { state: "held"; reason: string }
   | { state: "failed"; reason: string }
 ) & { tap?: TapLineVerdict; payment?: PaymentLineResult };
 

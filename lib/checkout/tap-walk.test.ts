@@ -98,6 +98,7 @@ function fourLinesThreeRetailers(): Basket {
   return {
     basketId: crypto.randomUUID(),
     budgetMinor: 125000,
+    profileMm: null,
     lines: [line("ikea"), line("wayfair"), line("ikea"), line("target")],
   };
 }
@@ -121,6 +122,7 @@ describe("the walk, with the agent's identity switched on", () => {
     const run = createRun({
       basketId: crypto.randomUUID(),
       budgetMinor: 125000,
+      profileMm: null,
       lines: [line("ikea")],
     });
 
@@ -142,6 +144,7 @@ describe("the walk, with the agent's identity switched on", () => {
     const run = createRun({
       basketId: crypto.randomUUID(),
       budgetMinor: 125000,
+      profileMm: null,
       // an IKEA line pointing at a Wayfair page: the signature is made for
       // wayfair.com and IKEA's verifier can see it is not for them
       lines: [line("ikea", { productUrl: "https://www.wayfair.com/furniture/pdp/lamp-1" })],
@@ -225,16 +228,24 @@ describe("TAP_VERIFY_BASE_URL — the same check, one hop away", () => {
       const run = createRun({
         basketId: crypto.randomUUID(),
         budgetMinor: 125000,
+        profileMm: null,
         lines: [line("ikea"), line("wayfair")],
       });
       await runCheckout(run.runId, { stepMs: 1 });
 
+      // One POST per line, but the two shops are walked by separate agents at
+      // the same time, so the ORDER they arrive in is not ours to promise.
+      // Match them by the shop they went to, never by index.
       expect(calls).toHaveLength(2);
-      expect(calls[0].url).toBe("http://127.0.0.1:3000/api/retailer/ikea/verify");
-      expect(calls[1].url).toBe("http://127.0.0.1:3000/api/retailer/wayfair/verify");
-      expect(calls[0].headers["Signature-Input"]).toContain('tag="payment"');
-      expect(calls[0].headers.Signature).toMatch(/^sig1=:/);
-      expect(calls[0].body).toEqual({
+      expect(calls.map((c) => c.url).sort()).toEqual([
+        "http://127.0.0.1:3000/api/retailer/ikea/verify",
+        "http://127.0.0.1:3000/api/retailer/wayfair/verify",
+      ]);
+
+      const ikeaCall = calls.find((c) => c.url.includes("/ikea/"))!;
+      expect(ikeaCall.headers["Signature-Input"]).toContain('tag="payment"');
+      expect(ikeaCall.headers.Signature).toMatch(/^sig1=:/);
+      expect(ikeaCall.body).toEqual({
         targetUrl: PRODUCT_URL.ikea,
         requiredTag: "payment",
       });
@@ -261,6 +272,7 @@ describe("TAP_VERIFY_BASE_URL — the same check, one hop away", () => {
       const run = createRun({
         basketId: crypto.randomUUID(),
         budgetMinor: 125000,
+        profileMm: null,
         lines: [line("ikea")],
       });
       await runCheckout(run.runId, { stepMs: 1 });

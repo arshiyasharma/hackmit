@@ -1,11 +1,20 @@
 /**
- * The agent that works the basket, shop by shop.
+ * The agents that work the basket, one per shop, all at once.
  *
- * THIS IS THE PART THE JUDGE WATCHES, so it is paced for a human: one line
- * moves at a time, and each move is written to the run store the instant it
- * happens rather than batched at the end. The stream endpoint reads those
- * writes and the overlay redraws. If every row lit up at once the walk would
- * be over before anyone could read it.
+ * THIS IS THE PART THE JUDGE WATCHES, so it is paced for a human — but the
+ * pacing is PER LANE, not across the whole basket. Every shop gets its own
+ * agent and they walk concurrently, because "three shops, one button" is the
+ * argument and a reader should see three lanes moving. Within a shop its lines
+ * still move one at a time: fanning out every line at once would finish the
+ * walk before anyone could read a word of it. Each move is written to the run
+ * store the instant it happens rather than batched at the end. The stream
+ * endpoint reads those writes and the overlay redraws.
+ *
+ * AN AGENT CAN REFUSE ITSELF. Before a line is authorised it goes through
+ * `evaluateLine` — will the thing clear the door, and is there budget left. A
+ * line that fails is `held`, not `failed`, and is handed back to the person.
+ * The constraint binds the agent; the review screen still lets its owner buy
+ * the thing anyway.
  *
  * IT BUYS NOTHING AND IT CONTACTS NO RETAILER. There is no `fetch` in this
  * file and there is not going to be one — not a HEAD, not a prefetch, not a
@@ -39,10 +48,12 @@ import {
 } from "@/lib/visaAcceptance/payments";
 
 import { lineTotalMinor } from "./basket";
+import { evaluateLine, holdSentence } from "./constraints";
 import { getRun, updateLine } from "./runs";
 import type {
   BasketLine,
   PaymentLineResult,
+  ProfileMm,
   Retailer,
   TapLineVerdict,
 } from "./types";
@@ -105,8 +116,10 @@ function testOrderRef(retailer: Retailer): string {
 
 /**
  * Lines grouped by shop, in the order the shops first appear in the basket.
- * The grouping IS the argument on screen — three shops, one button — so the
- * walk has to visit them one at a time rather than interleaving.
+ *
+ * The grouping IS the argument on screen — three shops, one button — and it is
+ * also the unit of concurrency: one group is one agent's lane. Order still
+ * matters for how the lanes are laid out, even though they now run together.
  */
 export function groupByRetailer(
   lines: readonly BasketLine[]
@@ -253,11 +266,125 @@ export interface RunCheckoutOptions {
 }
 
 /**
+ * Cents already spoken for by lines this run has let through.
+ *
+ * DERIVED, NEVER ACCUMULATED — the rule `basket.ts` opens with. There is no
+ * counter to drift: the answer is read off the run's own lines every time it is
+ * asked. A line counts once it reaches `authorizing`, which is the moment the
+ * agent committed to it, and stops counting if it later fails, which hands the
+ * money back to whoever is still walking.
+ *
+ * Safe under the parallel walk because the read, the decision and the write
+ * that reserves the money happen with NO `await` between them. JavaScript runs
+ * one of those sequences at a time, so two lanes cannot both see the same
+ * remaining budget and both spend it.
+ */
+function committedMinor(runId: string): number {
+  const run = getRun(runId);
+  if (!run) return 0;
+
+  const byId = new Map(run.basket.lines.map((line) => [line.lineId, line]));
+  return run.lines.reduce((sum, runLine) => {
+    const { state } = runLine.status;
+    if (state !== "authorizing" && state !== "placed") return sum;
+    const line = byId.get(runLine.lineId);
+    return line ? sum + lineTotalMinor(line) : sum;
+  }, 0);
+}
+
+interface LaneContext {
+  stepMs: number;
+  budgetMinor: number;
+  profileMm: ProfileMm | null;
+}
+
+/**
+ * One line, start to finish: `walking` -> `authorizing` -> `placed`, or off the
+ * side into `held` or `failed`.
+ *
+ * Returns nothing and throws nothing. A line that does not place is a recorded
+ * outcome, never an exception — one shop's refusal must not take its siblings
+ * down with it, and the lanes around it are still running.
+ */
+async function walkLine(
+  runId: string,
+  line: BasketLine,
+  retailer: Retailer,
+  ctx: LaneContext
+): Promise<void> {
+  await sleep(ctx.stepMs);
+  updateLine(runId, line.lineId, { state: "walking" });
+
+  await sleep(ctx.stepMs);
+
+  // the identity beat. It happens on the way into `authorizing`, so the
+  // overlay can show "signature verified · <agentId>" at the moment the
+  // line starts asking to spend money.
+  const tap = await presentIdentity(retailer, line.productUrl);
+  if (tap && !tap.ok) {
+    updateLine(runId, line.lineId, {
+      state: "failed",
+      reason: refusalSentence(retailer, tap),
+      tap,
+    });
+    return;
+  }
+
+  // The agent's own gate — door first, then money. Read, decide, and write the
+  // reservation with nothing awaited in between: this sequence is what keeps
+  // two lanes from spending the same cent, so do not put an `await` in it.
+  const verdict = evaluateLine(line, {
+    profileMm: ctx.profileMm,
+    budgetMinor: ctx.budgetMinor,
+    committedMinor: committedMinor(runId),
+  });
+  if (!verdict.ok) {
+    updateLine(runId, line.lineId, {
+      state: "held",
+      reason: holdSentence(retailer, verdict),
+      tap,
+    });
+    return;
+  }
+
+  // reaching `authorizing` is what books the money against the budget
+  updateLine(runId, line.lineId, { state: "authorizing", tap });
+
+  // the payment beat. Absent unless PAYMENT_PROVIDER=acceptance, in which
+  // case this is a real signed authorization against a Visa sandbox — a
+  // hold on a shared test merchant, never captured.
+  const authorized = await authorizeLine(line);
+  if (authorized && "failure" in authorized) {
+    updateLine(runId, line.lineId, {
+      state: "failed",
+      reason: authorized.failure,
+      tap,
+    });
+    return;
+  }
+
+  await sleep(ctx.stepMs);
+  updateLine(runId, line.lineId, {
+    state: "placed",
+    orderRef: testOrderRef(retailer),
+    mode: "test",
+    tap,
+    payment: authorized?.payment,
+  });
+}
+
+/**
  * Walk the run to completion.
  *
- * Shops in order, lines within a shop in order, each line through
- * `walking` -> `authorizing` -> `placed`. Every transition is an `updateLine`
- * call, so the store is always the truth and the stream never has to guess.
+ * One agent per shop, dispatched together; each works its own lines in order.
+ * Every transition is an `updateLine` call, so the store is always the truth
+ * and the stream never has to guess. `updateLine` is a single-line write and
+ * the stream diffs whole statuses, so concurrent lanes need nothing special
+ * from either.
+ *
+ * Resolves when every lane has finished. A lane that ends with a failed or held
+ * line still finishes; nothing here rejects, so one shop can never abort
+ * another.
  *
  * Throws before touching a single line when both live flags are set. Nothing
  * moves, no line is marked failed, and the caller sees the error — pretending
@@ -277,55 +404,20 @@ export async function runCheckout(
   const run = getRun(runId);
   if (!run) return;
 
-  const stepMs = options.stepMs ?? STEP_MS;
+  const ctx: LaneContext = {
+    stepMs: options.stepMs ?? STEP_MS,
+    budgetMinor: run.basket.budgetMinor,
+    profileMm: run.basket.profileMm,
+  };
 
-  for (const group of groupByRetailer(run.basket.lines)) {
-    for (const line of group.lines) {
-      // the run can go away under us — a dev-server reload empties the store.
-      // Stop rather than writing states nobody will ever read.
-      if (!getRun(runId)) return;
-
-      await sleep(stepMs);
-      updateLine(runId, line.lineId, { state: "walking" });
-
-      await sleep(stepMs);
-
-      // the identity beat. It happens on the way into `authorizing`, so the
-      // overlay can show "signature verified · <agentId>" at the moment the
-      // line starts asking to spend money.
-      const tap = await presentIdentity(group.retailer, line.productUrl);
-      if (tap && !tap.ok) {
-        updateLine(runId, line.lineId, {
-          state: "failed",
-          reason: refusalSentence(group.retailer, tap),
-          tap,
-        });
-        continue;
+  await Promise.all(
+    groupByRetailer(run.basket.lines).map(async (group) => {
+      for (const line of group.lines) {
+        // the run can go away under us — a dev-server reload empties the store.
+        // Stop rather than writing states nobody will ever read.
+        if (!getRun(runId)) return;
+        await walkLine(runId, line, group.retailer, ctx);
       }
-
-      updateLine(runId, line.lineId, { state: "authorizing", tap });
-
-      // the payment beat. Absent unless PAYMENT_PROVIDER=acceptance, in which
-      // case this is a real signed authorization against a Visa sandbox — a
-      // hold on a shared test merchant, never captured.
-      const authorized = await authorizeLine(line);
-      if (authorized && "failure" in authorized) {
-        updateLine(runId, line.lineId, {
-          state: "failed",
-          reason: authorized.failure,
-          tap,
-        });
-        continue;
-      }
-
-      await sleep(stepMs);
-      updateLine(runId, line.lineId, {
-        state: "placed",
-        orderRef: testOrderRef(group.retailer),
-        mode: "test",
-        tap,
-        payment: authorized?.payment,
-      });
-    }
-  }
+    })
+  );
 }

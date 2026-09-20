@@ -6,7 +6,7 @@ import { Check, Ruler, TriangleAlert, XCircle } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { NumberPlate } from "@/components/ui/NumberPlate";
-import { fits, type FitResult, type Profile as KernelProfile } from "@/lib/fit";
+import { fits, profileFromMm, type FitResult, type Profile as KernelProfile } from "@/lib/fit";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Product, Profile } from "@/types";
@@ -32,13 +32,7 @@ const FitSheet = dynamic(() => import("@/components/FitSheet"), { ssr: false });
  * names. One translation, in one place, so nothing else has to know.
  */
 export function toKernelProfile(profile: Profile): KernelProfile {
-  return {
-    doorW: profile.doorWidthMm,
-    doorH: profile.doorHeightMm,
-    hallW: profile.hallwayWidthMm,
-    stairW: profile.landingWidthMm,
-    ceiling: profile.ceilingHeightMm,
-  };
+  return profileFromMm(profile);
 }
 
 /** The verdict for one product, or null when the listing quoted no size. */

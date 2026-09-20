@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ExternalLink, ShieldCheck, X } from "lucide-react";
+import { Check, ExternalLink, Hand, ShieldCheck, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { formatMoney } from "@/components/CartLine";
@@ -80,6 +80,7 @@ export type RunState =
   | "checkout"
   | "ready"
   | "ordered"
+  | "held"
   | "failed";
 
 export type RunRow = {
@@ -93,6 +94,9 @@ export type RunRow = {
   simulated: boolean;
   orderRef: string | null;
   error: string | null;
+  /** why the agent stood down here, when it did. Not an error. */
+  heldReason?: string | null;
+  heldCount?: number;
   /** what the server said the run was. Absent on a run that never started. */
   mode?: "test" | "live";
 };
@@ -139,6 +143,9 @@ export function CheckoutRun({
 }: CheckoutRunProps) {
   const reduced = useReducedMotion();
   const budgetCents = useStore((s) => s.budgetCents);
+  // the agent's fit constraint runs on the server, and this is the only place
+  // the room's measurements exist. Send them or the constraint is off.
+  const profile = useStore((s) => s.profile);
 
   const [phase, setPhase] = React.useState<RunPhase>("idle");
   const [lineViews, setLineViews] = React.useState<LineView[]>([]);
@@ -318,7 +325,9 @@ export function CheckoutRun({
     setInstructionId(null);
     setMandateCap(null);
 
-    const { basket, unsupported } = toBasket(lines, budgetCents);
+    const { basket, unsupported } = toBasket(lines, budgetCents, {
+      profileMm: profile,
+    });
     setSkipped(unsupported.map((u) => u.reason));
 
     if (basket.lines.length === 0) {
@@ -431,10 +440,15 @@ export function CheckoutRun({
     } catch {
       void poll();
     }
-  }, [applyLine, budgetCents, closeStream, lines, readRun, requestMandate, settle, writeViews]);
+  }, [applyLine, budgetCents, closeStream, lines, profile, readRun, requestMandate, settle, writeViews]);
 
   /* ------------------------------------------------------------- the copy */
 
+  /**
+   * One entry per shop — which is one entry per AGENT, since the server walks
+   * the shops concurrently. Each lane carries its own live line so the header
+   * can say what that agent is doing without borrowing another lane's state.
+   */
   const groups = React.useMemo(() => {
     const byShop = new Map<string, LineView[]>();
     for (const view of lineViews) {
@@ -445,18 +459,40 @@ export function CheckoutRun({
     return [...byShop.entries()].map(([shopName, shopLines]) => ({
       shopName,
       lines: shopLines,
+      // a lane works its lines in order, so at most one of them is moving
+      active: shopLines.find(
+        (l) => l.state === "walking" || l.state === "authorizing"
+      ),
+      done: shopLines.every((l) => LINE_TERMINAL.has(l.state)),
     }));
   }, [lineViews]);
 
-  const active = lineViews.find(
-    (l) => l.state === "walking" || l.state === "authorizing"
-  );
   const placed = lineViews.filter((l) => l.state === "placed").length;
   const failed = lineViews.filter((l) => l.state === "failed").length;
+  const held = lineViews.filter((l) => l.state === "held").length;
 
-  const statusMessages = active
-    ? [`${active.shopName} — ${LINE_STATE_WORDS[active.state]}`]
-    : ["Handing the basket over"];
+  /**
+   * What the whole swarm is doing, not what one line is doing.
+   *
+   * This used to name the single line that happened to be moving, which was
+   * true when the walk visited one shop at a time. Now several agents move at
+   * once, so naming one of them would be picking a winner at random — the
+   * headline counts the lanes and each lane reports itself.
+   */
+  const movingShops = new Set(
+    lineViews
+      .filter((l) => l.state === "walking" || l.state === "authorizing")
+      .map((l) => l.shopName)
+  ).size;
+
+  const statusMessages =
+    movingShops > 0
+      ? [
+          movingShops === 1
+            ? "1 shop still going"
+            : `${movingShops} shops at once`,
+        ]
+      : ["Handing the basket over"];
 
   /** The verified agent, once any line has been through the identity beat. */
   const verifiedAgent = lineViews.find((l) => l.tap?.ok)?.tap?.agentId ?? null;
@@ -500,11 +536,22 @@ export function CheckoutRun({
             <StatusLine messages={statusMessages} className="mt-1" />
           ) : (
             <p className="mt-1 text-sm text-muted-foreground">
-              {failed === 0
-                ? "Every line went through in test mode. Nothing was bought."
-                : `${failed} of ${lineViews.length} ${
+              {/*
+                A hold is reported separately from a failure, and before it.
+                "The agent left one for you" is a different sentence from
+                "one did not go through", and collapsing them would hide the
+                only decision on this screen that needs a person.
+              */}
+              {held > 0
+                ? `The agent left ${held === 1 ? "one item" : `${held} items`} for you to decide on.`
+                : failed === 0
+                  ? "Every line went through in test mode. Nothing was bought."
+                  : ""}
+              {failed > 0
+                ? `${held > 0 ? " " : ""}${failed} of ${lineViews.length} ${
                     failed === 1 ? "line" : "lines"
-                  } did not go through.`}
+                  } did not go through.`
+                : ""}
             </p>
           )}
 
@@ -550,10 +597,29 @@ export function CheckoutRun({
                   <span className="font-display truncate text-lg font-semibold leading-tight">
                     {group.shopName}
                   </span>
-                  <span className="tabular shrink-0 text-xs text-muted-foreground">
-                    {group.lines.length}{" "}
-                    {group.lines.length === 1 ? "item" : "items"}
-                  </span>
+                  {/*
+                    This lane's own agent, reporting itself. Several lanes say
+                    this at once — that simultaneity IS the argument on screen.
+                  */}
+                  {group.active ? (
+                    <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      <motion.span
+                        className="block size-1.5 rounded-full bg-accent"
+                        animate={reduced ? undefined : { opacity: [1, 0.35, 1] }}
+                        transition={{
+                          duration: 1.2,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                        }}
+                      />
+                      {LINE_STATE_WORDS[group.active.state]}
+                    </span>
+                  ) : (
+                    <span className="tabular shrink-0 text-xs text-muted-foreground">
+                      {group.lines.length}{" "}
+                      {group.lines.length === 1 ? "item" : "items"}
+                    </span>
+                  )}
                 </header>
 
                 <ul className="divide-y divide-line px-3">
@@ -584,6 +650,8 @@ function LineRowView({ line, reduced }: { line: LineView; reduced: boolean }) {
   const waiting = line.state === "pending";
   const working = !waiting && !LINE_TERMINAL.has(line.state);
   const failed = line.state === "failed";
+  // the agent stood down on purpose. Not a failure, and not drawn like one.
+  const held = line.state === "held";
 
   return (
     <motion.li
@@ -598,6 +666,8 @@ function LineRowView({ line, reduced }: { line: LineView; reduced: boolean }) {
       <span className="mt-1 flex size-5 shrink-0 items-center justify-center" aria-hidden>
         {failed ? (
           <X className="size-4 text-warn" />
+        ) : held ? (
+          <Hand className="size-4 text-warn" />
         ) : line.state === "placed" ? (
           <Check className="size-4 text-ok" />
         ) : working ? (
@@ -625,7 +695,11 @@ function LineRowView({ line, reduced }: { line: LineView; reduced: boolean }) {
         <p
           className={cn(
             "mt-0.5 text-sm",
-            failed ? "text-warn" : waiting ? "text-muted-foreground" : "text-foreground"
+            failed || held
+              ? "text-warn"
+              : waiting
+                ? "text-muted-foreground"
+                : "text-foreground"
           )}
         >
           {LINE_STATE_WORDS[line.state]}
@@ -667,6 +741,33 @@ function LineRowView({ line, reduced }: { line: LineView; reduced: boolean }) {
             ) : null}{" "}
             · not captured
           </p>
+        ) : null}
+
+        {/*
+          The agent's own reason for standing down, and the way past it. The
+          constraint binds the agent, not the person who sent it — so the shop
+          link is the override, and it is deliberately right here rather than
+          buried on the confirmation.
+        */}
+        {held ? (
+          <>
+            {line.reason ? (
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                {line.reason}
+              </p>
+            ) : null}
+            {line.url ? (
+              <a
+                href={line.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="tap mt-1 inline-flex items-center gap-1 text-xs font-medium text-foreground underline underline-offset-2"
+              >
+                Buy it yourself at {line.shopName}
+                <ExternalLink className="size-3" aria-hidden />
+              </a>
+            ) : null}
+          </>
         ) : null}
 
         {failed ? (

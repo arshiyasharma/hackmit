@@ -36,6 +36,9 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
 
   const ready = rows.filter((r) => r.state === "ready" || r.state === "ordered");
   const failed = rows.filter((r) => r.state === "failed");
+  /** Shops where the agent chose not to buy. Not failures — decisions. */
+  const heldRows = rows.filter((r) => r.state === "held");
+  const heldCount = heldRows.reduce((n, r) => n + (r.heldCount ?? 0), 0);
   const anySimulated = rows.some((r) => r.simulated);
   /**
    * A run the server reported as test mode is not an order, whatever the row
@@ -51,9 +54,13 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
     rows.length === 0
       ? "Nothing ran."
       : failed.length === 0
-        ? testRun
-          ? "Test run complete."
-          : "Ordered."
+        ? heldCount > 0
+          // not "complete" — the agent deliberately left something undone, and
+          // saying otherwise would bury the only decision waiting for a person
+          ? `${heldCount === 1 ? "One" : heldCount} left for you.`
+          : testRun
+            ? "Test run complete."
+            : "Ordered."
         : `${ready.length} of ${rows.length} done.`;
 
   /* The fit line, measured from the same kernel the review used. */
@@ -135,12 +142,20 @@ export function Confirmation({ rows, lines, onPlaceAnother }: ConfirmationProps)
                 {" · "}
                 {row.state === "failed"
                   ? "needs finishing by hand"
-                  : row.state === "ordered"
-                    ? (row.orderRef ?? "ordered")
-                    : "sitting on the confirm screen"}
+                  : row.state === "held"
+                    ? `${row.heldCount ?? 1} left for you`
+                    : row.state === "ordered"
+                      ? (row.orderRef ?? "ordered")
+                      : "sitting on the confirm screen"}
                 {row.simulated ? " · simulated" : ""}
               </span>
-              {row.state === "failed" && row.url ? (
+              {/* why the agent stood down, in its own words */}
+              {row.state === "held" && row.heldReason ? (
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                  {row.heldReason}
+                </span>
+              ) : null}
+              {(row.state === "failed" || row.state === "held") && row.url ? (
                 <a
                   href={row.url}
                   target="_blank"

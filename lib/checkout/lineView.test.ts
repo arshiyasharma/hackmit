@@ -135,7 +135,7 @@ describe("the state vocabulary matches the server's", () => {
   });
 
   it("knows which states a line never leaves", () => {
-    expect([...LINE_TERMINAL].sort()).toEqual(["failed", "placed"]);
+    expect([...LINE_TERMINAL].sort()).toEqual(["failed", "held", "placed"]);
   });
 });
 
@@ -186,6 +186,42 @@ describe("deriveShopRows — the bug that said 'Nothing ran.'", () => {
     ]);
     expect(ikea.state).toBe("failed");
     expect(ikea.error).toBe("the shop refused the signature");
+  });
+
+  it("a shop the agent stood down at is held, not failed", () => {
+    const [ikea] = deriveShopRows([
+      line(),
+      line({
+        state: "held",
+        orderRef: null,
+        reason: "Needs 812 mm of clear width; your door is 762.",
+      }),
+    ]);
+
+    // nothing broke here — drawing it as a failure would send a person
+    // chasing a bug that does not exist
+    expect(ikea.state).toBe("held");
+    expect(ikea.error).toBeNull();
+    expect(ikea.heldReason).toBe("Needs 812 mm of clear width; your door is 762.");
+    expect(ikea.heldCount).toBe(1);
+  });
+
+  it("counts held quantity, not held lines", () => {
+    const [ikea] = deriveShopRows([
+      line({ state: "held", orderRef: null, reason: "too wide", quantity: 3 }),
+    ]);
+    expect(ikea.heldCount).toBe(3);
+  });
+
+  it("a real failure outranks a hold — the broken thing is the urgent one", () => {
+    const [ikea] = deriveShopRows([
+      line({ state: "held", orderRef: null, reason: "too wide" }),
+      line({ state: "failed", orderRef: null, reason: "the shop refused the signature" }),
+    ]);
+    expect(ikea.state).toBe("failed");
+    expect(ikea.error).toBe("the shop refused the signature");
+    // the hold is still reported, just not as the headline
+    expect(ikea.heldReason).toBe("too wide");
   });
 
   it("carries the TEST- order reference and never claims real work", () => {

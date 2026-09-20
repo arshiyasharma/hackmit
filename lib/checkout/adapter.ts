@@ -1,7 +1,7 @@
 import type { CartItem, Product } from "@/types";
 
 import { RETAILER_DOMAINS, RETAILERS, hostBelongsTo } from "./retailers";
-import type { Basket, BasketLine, Retailer } from "./types";
+import type { Basket, BasketLine, ProfileMm, Retailer } from "./types";
 
 /**
  * Where the room screen's vocabulary meets the server's. The ONLY place.
@@ -96,11 +96,16 @@ export interface BasketConversion {
  * shows. It is passed through untouched — this layer reports the budget, it
  * does not compute it, and when Prompt 7's mandate lands it is this number
  * that becomes the mandate's decline threshold.
+ *
+ * `profileMm` is the room's doorway and landing, and it travels for the same
+ * reason the budget does: the agent's constraint gate runs on the SERVER, and
+ * the profile only exists in the browser's store. Omit it and the fit
+ * constraint is off — off, not failing.
  */
 export function toBasket(
   lines: readonly CartItem[],
   budgetCents: number,
-  basketId?: string
+  options: { basketId?: string; profileMm?: ProfileMm | null } = {}
 ): BasketConversion {
   const unsupported: BasketConversion["unsupported"] = [];
   const basketLines: BasketLine[] = [];
@@ -145,9 +150,10 @@ export function toBasket(
 
   return {
     basket: {
-      basketId: basketId ?? `basket-${Date.now()}`,
+      basketId: options.basketId ?? `basket-${Date.now()}`,
       lines: basketLines,
       budgetMinor: Number.isInteger(budgetCents) && budgetCents > 0 ? budgetCents : 0,
+      profileMm: options.profileMm ?? null,
     },
     unsupported,
   };

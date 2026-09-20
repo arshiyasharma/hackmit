@@ -58,8 +58,19 @@ export function getRun(runId: string): CheckoutRun | undefined {
   return store().get(runId);
 }
 
-/** Every state a line can be in that it will never leave. */
-const TERMINAL: ReadonlySet<LineStatus["state"]> = new Set(["placed", "failed"]);
+/**
+ * Every state a line can be in that it will never leave.
+ *
+ * `held` belongs here: the agent has finished deciding and is waiting on a
+ * person, not on itself. Leaving it out would mean a run with one held line
+ * never stamps `finishedAt`, so the stream never sends `done` and the overlay
+ * spins forever.
+ */
+const TERMINAL: ReadonlySet<LineStatus["state"]> = new Set([
+  "placed",
+  "held",
+  "failed",
+]);
 
 export function isTerminal(status: LineStatus): boolean {
   return TERMINAL.has(status.state);

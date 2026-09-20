@@ -7,7 +7,12 @@ import {
   subtotalMinor,
 } from "@/lib/checkout/basket";
 import { createRun } from "@/lib/checkout/runs";
-import type { Basket, BasketLine, Retailer } from "@/lib/checkout/types";
+import type {
+  Basket,
+  BasketLine,
+  ProfileMm,
+  Retailer,
+} from "@/lib/checkout/types";
 
 /**
  * POST /api/checkout — hand the basket to the agent.
@@ -142,6 +147,55 @@ function isProblem(value: BasketLine | LineProblem): value is LineProblem {
   return "reason" in value;
 }
 
+/** The measurements the agent's fit constraint runs on, or nothing. */
+const PROFILE_FIELDS = [
+  "doorWidthMm",
+  "doorHeightMm",
+  "hallwayWidthMm",
+  "landingWidthMm",
+  "ceilingHeightMm",
+] as const;
+
+/**
+ * Read the room profile off the basket, or return null.
+ *
+ * NULL IS NOT AN ERROR. A basket with no profile means the agent's fit
+ * constraint is switched off for this run, exactly as an absent TAP key
+ * switches identity off — an unconfigured feature is off, not failed. The one
+ * thing we will not do is guess a doorway: a made-up measurement would hold
+ * lines for a reason the person never gave us.
+ *
+ * Every field has to be a positive whole number of millimetres, the same
+ * discipline `toLine` applies to `dimensionsMm`. A partial profile is no
+ * profile.
+ */
+function toProfile(raw: unknown): ProfileMm | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+
+  const read = (key: (typeof PROFILE_FIELDS)[number]): number | undefined => {
+    const value = r[key];
+    return typeof value === "number" && Number.isInteger(value) && value > 0
+      ? value
+      : undefined;
+  };
+
+  const values = PROFILE_FIELDS.map(read);
+  if (values.some((value) => value === undefined)) return null;
+
+  const [doorWidthMm, doorHeightMm, hallwayWidthMm, landingWidthMm, ceilingHeightMm] =
+    values as number[];
+
+  return {
+    doorWidthMm,
+    doorHeightMm,
+    hallwayWidthMm,
+    landingWidthMm,
+    ceilingHeightMm,
+    ...(r.flatPack === true ? { flatPack: true } : {}),
+  };
+}
+
 /**
  * Start the walk WITHOUT blocking this response.
  *
@@ -201,6 +255,7 @@ export async function POST(request: NextRequest) {
     basketId: str(rawBasket.basketId) || crypto.randomUUID(),
     lines,
     budgetMinor: minor(rawBasket.budgetMinor) ?? 0,
+    profileMm: toProfile(rawBasket.profileMm),
   };
 
   const subtotal = subtotalMinor(basket);

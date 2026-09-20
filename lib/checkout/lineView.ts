@@ -88,10 +88,15 @@ export const LINE_STATE_WORDS: Readonly<Record<LineViewState, string>> = {
   walking: "on the product page",
   authorizing: "authorising",
   placed: "test order placed",
+  held: "left for you to decide",
   failed: "couldn't complete",
 };
 
-export const LINE_TERMINAL: ReadonlySet<LineViewState> = new Set(["placed", "failed"]);
+export const LINE_TERMINAL: ReadonlySet<LineViewState> = new Set([
+  "placed",
+  "held",
+  "failed",
+]);
 
 /* ------------------------------------------------- settling a finished run */
 
@@ -111,10 +116,14 @@ export interface SettledShopRow {
   itemCount: number;
   subtotalCents: number;
   currency: string;
-  state: "ordered" | "failed";
+  state: "ordered" | "held" | "failed";
   simulated: true;
   orderRef: string | null;
   error: string | null;
+  /** why the agent stood down, when it did. Separate from `error` on purpose. */
+  heldReason: string | null;
+  /** how many of this shop's lines the agent declined to buy */
+  heldCount: number;
   mode: "test";
 }
 
@@ -131,9 +140,14 @@ export interface SettleableLine {
 /**
  * Group the lines by shop and say what became of each shop.
  *
- * A shop counts as `ordered` only when EVERY one of its lines was placed.
- * Anything else is `failed`, because a shop that half-worked needs a human,
- * and reporting it as done is how a partial failure gets missed.
+ * A shop counts as `ordered` only when EVERY one of its lines was placed. A
+ * genuine failure still outranks everything: a shop that half-worked needs a
+ * human, and reporting it as done is how a partial failure gets missed.
+ *
+ * `held` sits between the two. Nothing broke — the agent looked at the door or
+ * the budget and stood down — so a shop whose only non-placed lines were held
+ * must not wear the failure colour. It is a decision waiting for its owner, and
+ * the row says how many and why.
  */
 export function deriveShopRows(
   lines: readonly SettleableLine[],
@@ -149,6 +163,17 @@ export function deriveShopRows(
   return [...byShop.entries()].map(([retailer, shopLines]) => {
     const placed = shopLines.filter((l) => l.state === "placed");
     const failed = shopLines.filter((l) => l.state === "failed");
+    const held = shopLines.filter((l) => l.state === "held");
+
+    // a real failure outranks a hold; a hold outranks nothing but success
+    const state: SettledShopRow["state"] =
+      placed.length === shopLines.length
+        ? "ordered"
+        : failed.length > 0
+          ? "failed"
+          : held.length > 0
+            ? "held"
+            : "failed";
 
     return {
       retailer,
@@ -156,11 +181,13 @@ export function deriveShopRows(
       itemCount: shopLines.reduce((n, l) => n + l.quantity, 0),
       subtotalCents: shopLines.reduce((n, l) => n + l.priceCents * l.quantity, 0),
       currency,
-      state: placed.length === shopLines.length ? "ordered" : "failed",
+      state,
       // the server contacted no shop and says so. Never claim otherwise.
       simulated: true,
       orderRef: placed[0]?.orderRef ?? null,
       error: failed[0]?.reason ?? null,
+      heldReason: held[0]?.reason ?? null,
+      heldCount: held.reduce((n, l) => n + l.quantity, 0),
       mode: "test",
     };
   });

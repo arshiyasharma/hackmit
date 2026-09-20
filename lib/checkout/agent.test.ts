@@ -23,7 +23,7 @@ function line(retailer: Retailer, patch: Partial<BasketLine> = {}): BasketLine {
 }
 
 function basket(lines: BasketLine[]): Basket {
-  return { basketId: crypto.randomUUID(), lines, budgetMinor: 125000 };
+  return { basketId: crypto.randomUUID(), lines, budgetMinor: 125000, profileMm: null };
 }
 
 /** The demo basket: four lines, three shops, one of them twice. */
@@ -188,34 +188,131 @@ describe("runCheckout with both live flags set", () => {
   });
 });
 
-describe("the walk is legible — one line moves at a time", () => {
-  it("never has two lines mid-walk, and passes through every state", async () => {
+describe("the walk is a swarm — one agent per shop, each taking its lines in turn", () => {
+  it("runs the shops together but never two lines of the same shop at once", async () => {
     delete process.env.CHECKOUT_MODE;
     const run = createRun(fourLinesThreeRetailers());
 
+    const retailerOf = new Map(
+      getRun(run.runId)!.basket.lines.map((l) => [l.lineId, l.retailer])
+    );
+
     const seen = new Set<string>();
-    let maxMoving = 0;
+    let maxMovingAnyShop = 0;
+    let maxMovingOverall = 0;
 
     const sampler = setInterval(() => {
       const current = getRun(run.runId);
       if (!current) return;
-      let moving = 0;
+
+      const movingPerShop = new Map<string, number>();
       for (const l of current.lines) {
         seen.add(l.status.state);
-        if (l.status.state === "walking" || l.status.state === "authorizing") moving += 1;
+        if (l.status.state !== "walking" && l.status.state !== "authorizing") continue;
+        const retailer = retailerOf.get(l.lineId)!;
+        movingPerShop.set(retailer, (movingPerShop.get(retailer) ?? 0) + 1);
       }
-      maxMoving = Math.max(maxMoving, moving);
+
+      const overall = [...movingPerShop.values()].reduce((n, v) => n + v, 0);
+      maxMovingOverall = Math.max(maxMovingOverall, overall);
+      for (const count of movingPerShop.values()) {
+        maxMovingAnyShop = Math.max(maxMovingAnyShop, count);
+      }
     }, 3);
 
     await runCheckout(run.runId, { stepMs: 30 });
     clearInterval(sampler);
 
-    expect(maxMoving).toBeLessThanOrEqual(1);
+    // each lane is still readable: a shop's own lines go one at a time
+    expect(maxMovingAnyShop).toBeLessThanOrEqual(1);
+    // and the lanes genuinely overlap — this is the swarm, and the whole point
+    expect(maxMovingOverall).toBeGreaterThanOrEqual(2);
+
     expect(seen.has("walking")).toBe(true);
     expect(seen.has("authorizing")).toBe(true);
     expect(seen.has("placed")).toBe(true);
     // not all at once at the end
     expect(seen.has("pending")).toBe(true);
+  });
+});
+
+describe("the agent refuses itself", () => {
+  /** A standard interior door, and a sofa that will never get through it. */
+  const ROOM = {
+    doorWidthMm: 762,
+    doorHeightMm: 2032,
+    hallwayWidthMm: 914,
+    landingWidthMm: 914,
+    ceilingHeightMm: 2438,
+  };
+  const TOO_BIG = { w: 2400, h: 900, d: 1100 };
+
+  it("holds the thing that will not fit, places its siblings, and still finishes", async () => {
+    delete process.env.CHECKOUT_MODE;
+    const run = createRun({
+      basketId: crypto.randomUUID(),
+      budgetMinor: 125000,
+      profileMm: ROOM,
+      lines: [
+        line("ikea", { dimensionsMm: TOO_BIG }),
+        line("ikea", { dimensionsMm: { w: 600, h: 900, d: 400 } }),
+        line("wayfair", { dimensionsMm: null }),
+      ],
+    });
+
+    await runCheckout(run.runId, { stepMs: 1 });
+
+    const [sofa, lamp, frame] = getRun(run.runId)!.lines;
+
+    expect(sofa.status.state).toBe("held");
+    if (sofa.status.state === "held") {
+      expect(sofa.status.reason).toContain("ikea");
+    }
+
+    // a hold is not contagious: the rest of the lane keeps going
+    expect(lamp.status.state).toBe("placed");
+    expect(frame.status.state).toBe("placed");
+
+    // and a run that held something is still a finished run, or the overlay
+    // spins forever waiting for a `done` that never comes
+    expect(getRun(run.runId)!.finishedAt).not.toBeNull();
+  });
+
+  it("holds nothing when no room was measured", async () => {
+    delete process.env.CHECKOUT_MODE;
+    const run = createRun({
+      basketId: crypto.randomUUID(),
+      budgetMinor: 125000,
+      profileMm: null,
+      lines: [line("ikea", { dimensionsMm: TOO_BIG })],
+    });
+
+    await runCheckout(run.runId, { stepMs: 1 });
+
+    expect(getRun(run.runId)!.lines[0].status.state).toBe("placed");
+  });
+
+  it("stops spending when the budget runs out, across lanes", async () => {
+    delete process.env.CHECKOUT_MODE;
+    // four lines at 4200 = 16800, with room for three of them
+    const run = createRun({
+      basketId: crypto.randomUUID(),
+      budgetMinor: 13000,
+      profileMm: null,
+      lines: [line("ikea"), line("wayfair"), line("ikea"), line("target")],
+    });
+
+    await runCheckout(run.runId, { stepMs: 1 });
+
+    const states = getRun(run.runId)!.lines.map((l) => l.status.state);
+    const placed = states.filter((s) => s === "placed").length;
+    const held = states.filter((s) => s === "held").length;
+
+    // whichever lanes got there first, the cap is the cap: three fit under
+    // 13000 and the fourth cannot, however the lanes interleaved
+    expect(placed).toBe(3);
+    expect(held).toBe(1);
+    expect(getRun(run.runId)!.finishedAt).not.toBeNull();
   });
 });
 
@@ -230,8 +327,13 @@ describe("the real pace, at the constant the demo runs", () => {
       await runCheckout(run.runId);
       const elapsedMs = Date.now() - started;
 
-      // 4 lines x 3 transitions x STEP_MS, plus scheduler slop
-      expect(elapsedMs).toBeGreaterThanOrEqual(4 * 3 * STEP_MS);
+      // The walk is as long as its LONGEST LANE, not the sum of every line.
+      // Three shops go together; ikea has two lines, so ikea is the long pole:
+      // 2 lines x 3 transitions x STEP_MS.
+      expect(elapsedMs).toBeGreaterThanOrEqual(2 * 3 * STEP_MS);
+      // and it is genuinely shorter than walking all four in turn would be —
+      // if this ever creeps back up to 4 x 3 x STEP_MS the fan-out is gone
+      expect(elapsedMs).toBeLessThan(4 * 3 * STEP_MS);
       expect(elapsedMs).toBeLessThan(15_000);
 
       for (const l of getRun(run.runId)!.lines) {

@@ -41,7 +41,7 @@ function line(retailer: Retailer, patch: Partial<BasketLine> = {}): BasketLine {
 }
 
 function basket(lines: BasketLine[]): Basket {
-  return { basketId: crypto.randomUUID(), lines, budgetMinor: 125000 };
+  return { basketId: crypto.randomUUID(), lines, budgetMinor: 125000, profileMm: null };
 }
 
 function authorized(amount: string) {

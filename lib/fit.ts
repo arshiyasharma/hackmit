@@ -14,6 +14,40 @@ export type Profile = {
   flatPack?: boolean;
 };
 
+/**
+ * The same measurements under the spelled-out names the rest of the app uses.
+ *
+ * Declared STRUCTURALLY rather than imported from types/index.ts so this file
+ * keeps its promise above: no imports. `types/index.ts`'s `Profile` carries
+ * extra fields and satisfies this shape, so it can be passed straight in.
+ */
+export type ProfileMm = {
+  doorWidthMm: number;
+  doorHeightMm: number;
+  hallwayWidthMm: number;
+  landingWidthMm: number;
+  ceilingHeightMm: number;
+  flatPack?: boolean;
+};
+
+/**
+ * The one translation between the two spellings.
+ *
+ * It used to exist twice, once in CartLine and once in FitBadge, and a third
+ * copy was about to appear on the server for the agent's fit constraint. Both
+ * components now delegate here.
+ */
+export function profileFromMm(p: ProfileMm): Profile {
+  return {
+    doorW: p.doorWidthMm,
+    doorH: p.doorHeightMm,
+    hallW: p.hallwayWidthMm,
+    stairW: p.landingWidthMm,
+    ceiling: p.ceilingHeightMm,
+    ...(p.flatPack === undefined ? {} : { flatPack: p.flatPack }),
+  };
+}
+
 export type FitResult = {
   verdict: "pass" | "tight" | "fail";
   binding:

@@ -5,7 +5,7 @@ import { ArrowRight, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { formatCarton } from "@/components/ui/NumberPlate";
-import { fits, type FitResult, type Profile as FitProfile } from "@/lib/fit";
+import { fits, profileFromMm, type FitResult, type Profile as FitProfile } from "@/lib/fit";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { productImage, type CartItem, type Product, type Profile } from "@/types";
@@ -53,13 +53,7 @@ export function formatMoney(
  * so the mismatch lives in exactly one place until the two agree.
  */
 export function toFitProfile(profile: Profile): FitProfile {
-  return {
-    doorW: profile.doorWidthMm,
-    doorH: profile.doorHeightMm,
-    hallW: profile.hallwayWidthMm,
-    stairW: profile.landingWidthMm,
-    ceiling: profile.ceilingHeightMm,
-  };
+  return profileFromMm(profile);
 }
 
 /** null means the listing never published a size — a UI state, not a verdict. */
