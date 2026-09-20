@@ -108,7 +108,8 @@ function toCarton(dimensions: SourcedProduct["dimensions"]): {
  * empties are dropped, so an unstyled ask is a single rung and a single call.
  */
 function ladder(query: string, request: string): string[] {
-  const bare = request.trim();
+  // "a plushie" asks a shop about the word "a"; "plushie" asks about plushies
+  const bare = request.trim().replace(/^(?:a|an|the)\s+/i, "");
   const words = query.trim().split(/\s+/).filter(Boolean);
   const bareWords = bare.split(/\s+/).filter(Boolean).length;
   const styleWords = Math.max(0, words.length - bareWords);
@@ -236,7 +237,7 @@ async function fetchOptions(
   const deadline = startedAt + SEARCH_BUDGET_MS;
   let sourced: SourcedProduct[] = [];
 
-  for (const rung of rungs) {
+  for (const [index, rung] of rungs.entries()) {
     const left = deadline - now();
     if (left < MIN_RUNG_MS) {
       console.info(
@@ -254,7 +255,9 @@ async function fetchOptions(
       // the rungs ARE the fallbacks; a second ladder underneath this one is
       // how a single question turned into six SerpAPI calls
       fallbacks: false,
-      deadline: now() + Math.min(left, RUNG_CAP_MS),
+      deadline:
+        now() +
+        (index === rungs.length - 1 ? left : Math.min(left, RUNG_CAP_MS)),
     });
     if (sourced.length > 0) {
       if (rung !== query) {

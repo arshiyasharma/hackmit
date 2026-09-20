@@ -166,23 +166,24 @@ export async function sourceProductsForQuery(
   const broad = isBroadProductQuery(designQuery);
 
   /*
-   * Relevance is a PREFERENCE, not a gate. A filter that empties the shelf has
-   * told the user "nothing came back" about listings that did come back, which
-   * is the worse of the two failures — so when it keeps nothing, the unfiltered
-   * set goes through instead. Same rule enrichShoppingResults already follows.
+   * RELEVANCE IS A GATE HERE, AND IT HAS TO BE.
+   *
+   * It was briefly a preference — keep everything when the filter keeps
+   * nothing — on the theory that showing something beats saying "nothing came
+   * back". Asking for a plushie then returned a table lamp and two coffee
+   * tables in half a second, because Elasticsearch is a fuzzy search over a
+   * catalogue of furniture: it always answers, and for a word it has never
+   * indexed it answers with whatever it does have. Three wrong answers cleared
+   * the "enough hits to skip SerpAPI" bar, so the shops were never asked.
+   *
+   * An empty shelf sends the question on to Google. A shelf of the wrong thing
+   * ends the search with the wrong thing on it.
    */
-  const applyRelevance = (products: Product[]) => {
-    const kept = filterProductsByDesignQuery(products, designQuery);
-    if (kept.length === 0 && products.length > 0) {
-      console.info(
-        `[search] "${designQuery}" matched no title exactly; showing the ${products.length} the shops returned`
-      );
-    }
-    return diversifyProductsByQuery(
-      kept.length > 0 ? kept : products,
+  const applyRelevance = (products: Product[]) =>
+    diversifyProductsByQuery(
+      filterProductsByDesignQuery(products, designQuery),
       designQuery
     );
-  };
 
   let elasticProducts: Product[] = [];
   try {
@@ -276,6 +277,10 @@ export async function sourceProductsForQuery(
       options.deadline != null ? options.deadline - Date.now() : undefined,
   });
   const resolved = applyRelevance(enriched);
+  console.info(
+    `[source] "${options.shoppingQuery}" — ${result.shopping_results.length} from Google, ` +
+      `${enriched.length} with a Buy link, ${resolved.length} relevant`
+  );
 
   const seen = new Set(resolved.map((p) => p.id));
   const merged = [

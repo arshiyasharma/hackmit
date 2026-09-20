@@ -80,7 +80,7 @@ describe("room context edits", () => {
 
     const query = searchQuery(roomContextFor(useStore.getState()), "a tall lamp");
 
-    expect(query).toBe("traditional warm wood brass sage a tall lamp");
+    expect(query).toBe("traditional warm wood brass sage tall lamp");
     expect(query).not.toContain("ornate");
   });
 
@@ -89,7 +89,7 @@ describe("room context edits", () => {
     useStore.getState().addPaletteColor("#2e7d32"); // green
 
     const query = searchQuery(roomContextFor(useStore.getState()), "a side table");
-    expect(query).toBe("rattan green a side table");
+    expect(query).toBe("rattan green side table");
   });
 
   it("forgets the edits when a new room is photographed", () => {

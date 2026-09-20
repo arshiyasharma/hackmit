@@ -694,6 +694,18 @@ export function cartByRetailer(lines: CartItem[]): Array<{
 }
 
 /** The styled search query, built in one place so the screen and the call agree. */
+/**
+ * "a plushie" is how a person asks and "plushie" is how a shop is asked.
+ *
+ * The leading article went straight through to Google Shopping, where it is
+ * one more word to match: the dev log has "plushie" answering in 2.5s and
+ * "a plushie" timing out at 12s on the same afternoon. Stripped here rather
+ * than at the call so the strip on screen still shows the query that ran.
+ */
+function shoppable(request: string): string {
+  return request.trim().replace(/^(?:a|an|the)\s+/i, "");
+}
+
 export function searchQuery(
   context: RoomContext | null,
   request: string
@@ -719,5 +731,5 @@ export function searchQuery(
    * ("brown gold rust cream black tall lamp") buries the object itself.
    */
   const colours = colourNames(context?.picked ?? []).slice(-MAX_QUERY_COLOURS);
-  return [...tags, ...colours, request.trim()].filter(Boolean).join(" ");
+  return [...tags, ...colours, shoppable(request)].filter(Boolean).join(" ");
 }
