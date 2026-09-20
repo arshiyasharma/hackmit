@@ -1,0 +1,93 @@
+{
+  "_readme": {
+    "what": "The frozen catalogue. lib/checkout/listings.ts reads this and NOTHING ELSE — no listing is fetched while a demo is running.",
+    "shape": "{ _readme, listings: Listing[] } where Listing is lib/checkout/types.ts's Listing, exactly: listingId, retailer, title, productUrl, imageUrl, priceMinor, currency, dimensionsMm.",
+    "units": "priceMinor is an INTEGER OF CENTS. dimensionsMm is millimetres, or null.",
+    "provenance": "listingId, title, productUrl, imageUrl and priceMinor were fetched live from IKEA's own search backend (sik.search.blue.cdtapps.com) on 2026-09-19, and every productUrl was checked to return a page whose rel=canonical is a /p/ product page.",
+    "dimensions": "dimensionsMm is filled ONLY where IKEA's own measure string gives an unambiguous width x depth x height. Everywhere else it is null, which renders as 'no dimensions listed' and a muted fit badge. Estimating a carton here would feed lib/fit.ts a number nobody measured, and the fit verdict is the one rigorous thing in the product.",
+    "retailers": "Every row is IKEA. Amazon, Target, Wayfair, West Elm, CB2 and Etsy all block automated reads (403/429), so no product URL at those shops could be verified, and an unverified URL that quietly redirects to a category page is worse on stage than none.",
+    "replacing": "Tian's scraper overwrites this file. Keep the shape and the units; add rows for the other retailers and fill dimensionsMm from the listing's own quoted measurements."
+  },
+  "listings": [
+    {
+      "listingId": "ikea-70437814",
+      "retailer": "ikea",
+      "title": "BARLAST Floor lamp, black/white",
+      "productUrl": "https://www.ikea.com/us/en/p/barlast-floor-lamp-black-white-70437814/",
+      "imageUrl": "https://www.ikea.com/us/en/images/products/barlast-floor-lamp-black-white__0957676_pe805130_s5.jpg",
+      "priceMinor": 999,
+      "currency": "USD",
+      "dimensionsMm": null
+    },
+    {
+      "listingId": "ikea-70096377",
+      "retailer": "ikea",
+      "title": "FADO Table lamp, white",
+      "productUrl": "https://www.ikea.com/us/en/p/fado-table-lamp-white-70096377/",
+      "imageUrl": "https://www.ikea.com/us/en/images/products/fado-table-lamp-white__0606976_pe682645_s5.jpg",
+      "priceMinor": 2999,
+      "currency": "USD",
+      "dimensionsMm": null
+    },
+    {
+      "listingId": "ikea-40541421",
+      "retailer": "ikea",
+      "title": "HOLMERUD Side table, oak effect",
+      "productUrl": "https://www.ikea.com/us/en/p/holmerud-side-table-oak-effect-40541421/",
+      "imageUrl": "https://www.ikea.com/us/en/images/products/holmerud-side-table-oak-effect__1193662_pe901564_s5.jpg",
+      "priceMinor": 5999,
+      "currency": "USD",
+      "dimensionsMm": null
+    },
+    {
+      "listingId": "ikea-40104294",
+      "retailer": "ikea",
+      "title": "LACK Coffee table, black-brown",
+      "productUrl": "https://www.ikea.com/us/en/p/lack-coffee-table-black-brown-40104294/",
+      "imageUrl": "https://www.ikea.com/us/en/images/products/lack-coffee-table-black-brown__57540_pe163122_s5.jpg",
+      "priceMinor": 2999,
+      "currency": "USD",
+      "dimensionsMm": null
+    },
+    {
+      "listingId": "ikea-20522046",
+      "retailer": "ikea",
+      "title": "BILLY Bookcase, white",
+      "productUrl": "https://www.ikea.com/us/en/p/billy-bookcase-white-20522046/",
+      "imageUrl": "https://www.ikea.com/us/en/images/products/billy-bookcase-white__1590272_pe1038911_s5.jpg",
+      "priceMinor": 7900,
+      "currency": "USD",
+      "dimensionsMm": { "w": 800, "h": 2019, "d": 279 }
+    },
+    {
+      "listingId": "ikea-30533493",
+      "retailer": "ikea",
+      "title": "EKENÄSET Armchair, Kilanda light beige",
+      "productUrl": "https://www.ikea.com/us/en/p/ekenaeset-armchair-kilanda-light-beige-30533493/",
+      "imageUrl": "https://www.ikea.com/us/en/images/products/ekenaeset-armchair-kilanda-light-beige__1109687_pe870153_s5.jpg",
+      "priceMinor": 29900,
+      "currency": "USD",
+      "dimensionsMm": null
+    },
+    {
+      "listingId": "ikea-40559166",
+      "retailer": "ikea",
+      "title": "TIPHEDE Rug, flatwoven, natural/black",
+      "productUrl": "https://www.ikea.com/us/en/p/tiphede-rug-flatwoven-natural-black-40559166/",
+      "imageUrl": "https://www.ikea.com/us/en/images/products/tiphede-rug-flatwoven-natural-black__0772066_pe755879_s5.jpg",
+      "priceMinor": 3999,
+      "currency": "USD",
+      "dimensionsMm": null
+    },
+    {
+      "listingId": "ikea-00548896",
+      "retailer": "ikea",
+      "title": "RÖDALM Frame, black",
+      "productUrl": "https://www.ikea.com/us/en/p/roedalm-frame-black-00548896/",
+      "imageUrl": "https://www.ikea.com/us/en/images/products/roedalm-frame-black__1251233_pe924195_s5.jpg",
+      "priceMinor": 1199,
+      "currency": "USD",
+      "dimensionsMm": null
+    }
+  ]
+}

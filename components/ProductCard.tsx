@@ -417,7 +417,17 @@ function LinkButton({
       )}
       whileTap={reduced || disabled || linked ? undefined : { scale: 0.94 }}
       animate={reduced ? undefined : { scale: linked ? [1, 1.06, 1] : 1 }}
-      transition={{ type: "spring", stiffness: 520, damping: 18 }}
+      /*
+       * The bounce is three keyframes, and motion 13 throws on a spring with
+       * more than two ("Only two keyframes currently supported with spring and
+       * inertia animations") — which fired on every single link. Keyframes get
+       * a tween; everything else keeps the spring.
+       */
+      transition={
+        linked && !reduced
+          ? { duration: 0.28, times: [0, 0.4, 1], ease: "easeOut" }
+          : { type: "spring", stiffness: 520, damping: 18 }
+      }
     >
       {linked ? (
         <Check className={compact ? "size-5" : "size-4"} aria-hidden />

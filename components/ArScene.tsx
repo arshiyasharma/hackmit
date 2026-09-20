@@ -118,10 +118,22 @@ export function ArScene() {
   const [arSupported, setArSupported] = React.useState<boolean | null>(null);
 
   /* the XR store reaches for navigator, so it is built on the client only */
-  const store = React.useMemo<XRStore | null>(
-    () => (mounted ? createXRStore({ hitTest: true, domOverlay: true }) : null),
-    [mounted]
-  );
+  const store = React.useMemo<XRStore | null>(() => {
+    if (!mounted) return null;
+
+    /*
+     * ?xrsim=1 injects IWER, the emulated XR device that ships inside
+     * @react-three/xr, so the immersive-ar path can be walked on a laptop with
+     * no headset and no phone. It is opt-in by URL and nothing else reads it,
+     * so a real device and production are untouched — and because IWER injects
+     * navigator.xr itself, it also works over plain http, where WebXR is
+     * absent for want of a secure context.
+     */
+    const emulate =
+      new URLSearchParams(window.location.search).get("xrsim") === "1";
+
+    return createXRStore({ hitTest: true, domOverlay: true, emulate });
+  }, [mounted]);
 
   React.useEffect(() => {
     if (!mounted) return;
@@ -132,11 +144,32 @@ export function ArScene() {
           xr?: { isSessionSupported: (mode: string) => Promise<boolean> };
         }
       ).xr;
-      try {
-        const ok = (await xr?.isSessionSupported?.("immersive-ar")) ?? false;
-        if (live) setArSupported(ok);
-      } catch {
-        if (live) setArSupported(false);
+      /*
+       * A real Android answers on the first ask. The ?xrsim=1 emulator does
+       * not: @react-three/xr installs IWER asynchronously, so navigator.xr can
+       * still be missing or still be answering "no" for a beat after mount.
+       * A few cheap retries cost a real device nothing and stop the emulated
+       * device from being declared unsupported before it has finished loading.
+       */
+      for (let attempt = 0; attempt < 5 && live; attempt += 1) {
+        let ok = false;
+        try {
+          const api = (
+            navigator as Navigator & {
+              xr?: { isSessionSupported: (mode: string) => Promise<boolean> };
+            }
+          ).xr;
+          ok = (await (api ?? xr)?.isSessionSupported?.("immersive-ar")) ?? false;
+        } catch {
+          ok = false;
+        }
+        if (!live) return;
+        if (ok) {
+          setArSupported(true);
+          return;
+        }
+        setArSupported(false);
+        await new Promise((resolve) => setTimeout(resolve, 400));
       }
     })();
     return () => {

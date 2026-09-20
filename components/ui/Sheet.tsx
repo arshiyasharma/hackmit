@@ -50,14 +50,34 @@ export function Sheet({
   // prefers-reduced-motion swaps the spring for a plain fade, everywhere
   const reducedMotion = useReducedMotion() ?? false;
 
-  // initialSnap must stay inside snapPoints or the sheet opens off screen
-  const snap = Math.min(Math.max(initialSnap, 0), snapPoints.length - 1);
+  /*
+   * react-modal-sheet 5 changed what snapPoints means. It now wants them
+   * ASCENDING, starting at 0 (fully closed) and ending at 1 (fully open), and
+   * it says so at runtime:
+   *   "First snap point should be 0 to ensure the sheet can be fully closed."
+   * Handed the old descending [0.9, 0.4] it opened at ~96% of the screen and
+   * could not be dragged shut — the options sheet covered the room and had no
+   * way out on a desktop.
+   *
+   * Callers still describe a sheet the way a person would: how much of the
+   * screen it covers, biggest first, with initialSnap indexing that list. The
+   * translation lives here so no call site has to know the library's rules.
+   */
+  const { points, snap } = React.useMemo(() => {
+    const wanted = snapPoints.filter((p) => p > 0 && p < 1);
+    const chosen =
+      wanted[Math.min(Math.max(initialSnap, 0), wanted.length - 1)] ??
+      wanted[0] ??
+      0.9;
+    const ascending = [0, ...[...new Set(wanted)].sort((a, b) => a - b), 1];
+    return { points: ascending, snap: ascending.indexOf(chosen) };
+  }, [snapPoints, initialSnap]);
 
   return (
     <ModalSheet
       isOpen={open}
       onClose={() => onOpenChange(false)}
-      snapPoints={snapPoints}
+      snapPoints={points}
       initialSnap={snap}
       onSnap={onSnap}
       disableDrag={disableDrag}
