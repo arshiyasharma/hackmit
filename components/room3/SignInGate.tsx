@@ -25,14 +25,12 @@ export default function SignInGate({ onLeave, onContinue }: Props) {
   const [problem, setProblem] = React.useState<string | null>(() =>
     cameBackFailed() ? "Google sign-in didn’t complete. Please try again." : null
   );
-  const [previewAvailable, setPreviewAvailable] = React.useState(false);
   const busy = status === "connecting" || status === "leaving";
 
   const google = React.useCallback(async () => {
     if (busy) return;
     setStatus("connecting");
     setProblem(null);
-    setPreviewAvailable(false);
 
     try {
       const result = await signInWithGoogle();
@@ -43,14 +41,13 @@ export default function SignInGate({ onLeave, onContinue }: Props) {
           ? "Google sign-in isn’t connected in this local preview. You can explore without signing in."
           : "Google sign-in couldn’t connect. Please try again."
       );
-      setPreviewAvailable(unavailable);
     } catch {
       setProblem("Google sign-in couldn’t connect. Please try again.");
     }
     setStatus("failed");
   }, [busy]);
 
-  const preview = React.useCallback(() => {
+  const guest = React.useCallback(() => {
     if (busy) return;
     setStatus("leaving");
     continueAsGuest();
@@ -90,13 +87,13 @@ export default function SignInGate({ onLeave, onContinue }: Props) {
           </span>
         </button>
 
+        {!session ? (
+          <button type="button" className="pixx-gate-preview" onClick={guest} disabled={busy}>
+            Continue as guest
+          </button>
+        ) : null}
         {problem ? (
           <p id="pixx-gate-error" className="pixx-gate-error" role="alert">{problem}</p>
-        ) : null}
-        {previewAvailable && !session ? (
-          <button type="button" className="pixx-gate-preview" onClick={preview} disabled={busy}>
-            Explore without signing in
-          </button>
         ) : null}
       </div>
     </section>

@@ -42,6 +42,16 @@ describe("listing-photo extraction", () => {
     expect(cut).not.toBeNull();
     expect((await pixels(cut!.png)).at(28, 30)).toEqual(white);
   });
+  it("requests semantic refinement for enclosed white gaps instead of treating them as finished", async () => {
+    const table = await photo((x, y) => {
+      if (inside(x, y, 20, 30, 108, 96)) return inside(x, y, 28, 38, 100, 88) ? white : dark;
+      return white;
+    });
+    const cut = await extractProductCutout(table);
+    expect(cut?.needsRefinement).toBe(true);
+    const readyAlpha = await photo((x, y) => inside(x, y, 20, 30, 108, 96) ? white : [0, 0, 0, 0]);
+    expect((await extractProductCutout(readyAlpha))?.needsRefinement).toBe(false);
+  });
   it("learns an off-white background without removing a white object", async () => {
     const background: Pixel = [244, 240, 232, 255];
     const cut = await extractProductCutout(await photo((x, y) => inside(x, y, 35, 30, 93, 98) ? white : background));
@@ -56,7 +66,7 @@ describe("listing-photo extraction", () => {
       return [shade, shade, shade, 255];
     }));
     expect(cut).not.toBeNull();
-    expect([cut!.width, cut!.height]).toEqual([48, 60]);
+    expect([cut!.width, cut!.height]).toEqual([50, 62]);
   });
   it("keeps a slender lamp even when almost all of its frame is background", async () => {
     const cut = await extractProductCutout(await photo((x, y) => inside(x, y, 63, 15, 65, 107) || inside(x, y, 53, 107, 75, 111) ? dark : white));
@@ -87,15 +97,60 @@ describe("listing-photo extraction", () => {
     expect(image.at(0, 30)).toEqual([255, 255, 255, 128]);
     expect(image.at(28, 30)).toEqual(white);
   });
-  it("rejects blank backgrounds and objects cut off by the frame", async () => {
+  it("rejects a blank background", async () => {
     expect(await extractProductCutout(await photo(() => white))).toBeNull();
-    expect(await extractProductCutout(await photo((x, y) => inside(x, y, 45, 0, 83, 80) ? dark : white))).toBeNull();
+  });
+  it("accepts a cropped product when most of the frame still identifies the background", async () => {
+    const cut = await extractProductCutout(await photo((x, y) => inside(x, y, 24, 0, 104, 90) || inside(x, y, 30, 90, 40, 116) ? dark : white));
+    expect(cut).not.toBeNull();
+    expect([cut!.width, cut!.height]).toEqual([80, 116]);
+    const image = await pixels(cut!.png);
+    expect(image.at(40, 0)).toEqual(dark);
+    expect(image.at(70, 110)[3]).toBe(0);
+  });
+  it("adds transparent padding when a tight product crop would otherwise be opaque", async () => {
+    const cut = await extractProductCutout(await photo((x, y) => inside(x, y, 45, 0, 83, 80) ? dark : white));
+    expect(cut).not.toBeNull();
+    expect([cut!.width, cut!.height]).toEqual([40, 82]);
+    const image = await pixels(cut!.png);
+    expect(image.at(0, 0)[3]).toBe(0);
+    expect(image.at(1, 1)).toEqual(dark);
+    expect(image.at(38, 80)).toEqual(dark);
+    expect(image.at(39, 81)[3]).toBe(0);
+  });
+  it("keeps a cropped alpha matte without rekeying opaque white furniture", async () => {
+    const cut = await extractProductCutout(await photo((x, y) => inside(x, y, 20, 0, 108, 92) || inside(x, y, 20, 92, 30, 128) ? white : [0, 0, 0, 0]));
+    expect(cut).not.toBeNull();
+    const image = await pixels(cut!.png);
+    expect(image.at(40, 0)).toEqual(white);
+    expect(image.at(70, 120)[3]).toBe(0);
+  });
+  it("accepts a uniform coloured studio backdrop while retaining white product pixels", async () => {
+    const background: Pixel = [92, 128, 162, 255];
+    const cut = await extractProductCutout(await photo((x, y) => inside(x, y, 30, 20, 96, 88) || inside(x, y, 35, 88, 43, 108) ? white : background));
+    expect(cut).not.toBeNull();
+    const image = await pixels(cut!.png);
+    expect(image.at(30, 30)).toEqual(white);
+    expect(image.at(55, 80)[3]).toBe(0);
+  });
+  it("does not call a two-tone room wall and floor a flat backdrop", async () => {
+    const cut = await extractProductCutout(await photo((x, y) => {
+      if (inside(x, y, 30, 20, 96, 108)) return dark;
+      return y < 70 ? [238, 236, 230, 255] : [164, 139, 117, 255];
+    }));
+    expect(cut).toBeNull();
   });
   it("rejects lifestyle photos and white-padded opaque photo rectangles", async () => {
     expect(await extractProductCutout(await photo((x, y) => [100 + x % 100, 120 + y % 100, 150, 255]))).toBeNull();
     expect(await extractProductCutout(await photo((x, y) => inside(x, y, 15, 15, 113, 113) ? [100 + x % 100, 120 + y % 100, 150, 255] : white))).toBeNull();
   });
-  it("rejects collages with more than one substantial isolated object", async () => {
-    expect(await extractProductCutout(await photo((x, y) => inside(x, y, 15, 25, 50, 105) || inside(x, y, 78, 25, 113, 105) ? dark : white))).toBeNull();
+  it("retains multiple substantial product components separated by background", async () => {
+    const cut = await extractProductCutout(await photo((x, y) => inside(x, y, 15, 25, 50, 105) || inside(x, y, 78, 25, 113, 105) ? dark : white));
+    expect(cut).not.toBeNull();
+    expect([cut!.width, cut!.height]).toEqual([98, 80]);
+    const image = await pixels(cut!.png);
+    expect(image.at(20, 40)).toEqual(dark);
+    expect(image.at(80, 40)).toEqual(dark);
+    expect(image.at(49, 40)[3]).toBe(0);
   });
 });

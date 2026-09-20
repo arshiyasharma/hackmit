@@ -36,9 +36,9 @@ const mono = Sometype_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PIXX-AR — see it, fit it, buy it",
+  title: "PIXX-AR — the future of spatial shopping",
   description:
-    "Point your phone at your room, ask for one thing, and see real furniture standing in it at real size — then let one approval buy it at every shop.",
+    "The future of spatial shopping: your vision, curated in one secure marketplace, one click away.",
 };
 
 export const viewport: Viewport = {

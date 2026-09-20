@@ -10,7 +10,7 @@ import { NumberPlate, centsToUnits, formatCarton } from "@/components/ui/NumberP
 import { withDemo } from "@/lib/demo";
 import type { FitResult } from "@/lib/fit";
 import { DUR, EASE } from "@/lib/motion";
-import { retryListingCutout } from "@/lib/listingCutout";
+import { recoverListingCutoutRequests, retryListingCutout } from "@/lib/listingCutout";
 export { retryListingCutout } from "@/lib/listingCutout";
 import { usePreview } from "@/lib/preview";
 import { useStore, itemById } from "@/lib/store";
@@ -180,13 +180,19 @@ export async function linkProductToItem(
  * whatever the chrome is currently about.
  */
 function useLinking(product: Product) {
+  React.useEffect(() => { recoverListingCutoutRequests(); }, []);
   const activeItemId = useStore((s) => s.activeItemId);
   const itemId = product.itemId ?? activeItemId;
   const item = useStore((s) => itemById(s.items, itemId));
   const linked = item?.linkedProduct?.id === product.id;
   const linking = linked && item?.listingCutoutStatus === "pending";
   const failed = linked && item?.listingCutoutStatus === "failed";
-  const needsPhoto = linked && !item?.listingCutoutUrl && !linking && !failed;
+  const hasPhoto = linked && !!item?.listingCutoutUrl;
+  const needsPhoto = linked && !hasPhoto && !linking && !failed;
+  const refreshAvailable = hasPhoto && !linking && !failed;
+  const refresh = React.useCallback(() => {
+    if (itemId) void retryListingCutout(itemId, true);
+  }, [itemId]);
 
   const link = React.useCallback(() => {
     if (!itemId || (linked && !failed && !needsPhoto)) return;
@@ -199,7 +205,7 @@ function useLinking(product: Product) {
     usePreview.getState().clear();
   }, [itemId, linked, failed, needsPhoto, product]);
 
-  return { itemId, linked, linking, failed, needsPhoto, link };
+  return { itemId, linked, linking, failed, needsPhoto, hasPhoto, refreshAvailable, refresh, link };
 }
 
 /* -------------------------------------------------------------- the pieces */
@@ -374,7 +380,7 @@ const FIT_STYLING =
 
 function CompactCard({ product }: { product: Product }) {
   const reduced = useReducedMotion();
-  const { itemId, linked, linking, failed, needsPhoto, link } = useLinking(product);
+  const { itemId, linked, linking, failed, needsPhoto, hasPhoto, link } = useLinking(product);
 
   return (
     <div
@@ -398,7 +404,7 @@ function CompactCard({ product }: { product: Product }) {
         <Dimensions product={product} compact />
         <div className={FIT_STYLING}><FitBadge product={product} /></div>
       </div>
-      <LinkButton compact linked={linked} busy={linking} failed={failed} needsPhoto={needsPhoto} disabled={!itemId} onLink={link} reduced={reduced} />
+      <LinkButton compact linked={linked} busy={linking} failed={failed} needsPhoto={needsPhoto} hasPhoto={hasPhoto} disabled={!itemId} onLink={link} reduced={reduced} />
     </div>
   );
 }
@@ -406,7 +412,7 @@ function CompactCard({ product }: { product: Product }) {
 /** One quiet, compact match. Hover preview is owned by the surrounding result list. */
 function TrayCard({ product, index }: { product: Product; index?: number }) {
   const reduced = useReducedMotion();
-  const { itemId, linked, linking, failed, needsPhoto, link } = useLinking(product);
+  const { itemId, linked, linking, failed, needsPhoto, hasPhoto, refreshAvailable, refresh, link } = useLinking(product);
   const trying = usePreview((s) => s.product?.id === product.id && s.itemId === itemId) && !linked;
 
   return (
@@ -457,7 +463,14 @@ function TrayCard({ product, index }: { product: Product; index?: number }) {
         </details>
       </div>
       <div className="mt-auto">
-        <LinkButton linked={linked} busy={linking} failed={failed} needsPhoto={needsPhoto} disabled={!itemId} onLink={link} reduced={reduced} />
+        <LinkButton linked={linked} busy={linking} failed={failed} needsPhoto={needsPhoto} hasPhoto={hasPhoto} disabled={!itemId} onLink={link} reduced={reduced} />
+        {refreshAvailable ? (
+          <button type="button" data-card-refresh="" onClick={refresh}
+            className="mt-1.5 inline-flex items-center gap-1 py-1 text-[11px] text-muted-foreground hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            title="Get the latest cutout while keeping the current photo visible">
+            <RotateCw className="size-3" aria-hidden />Refresh photo
+          </button>
+        ) : null}
       </div>
     </article>
   );
@@ -469,6 +482,7 @@ function LinkButton({
   busy,
   failed,
   needsPhoto,
+  hasPhoto,
   disabled,
   onLink,
   reduced,
@@ -478,12 +492,13 @@ function LinkButton({
   busy: boolean;
   failed: boolean;
   needsPhoto: boolean;
+  hasPhoto: boolean;
   disabled: boolean;
   onLink: () => void;
   reduced: boolean | null;
   compact?: boolean;
 }) {
-  const label = busy ? "Removing background…" : failed ? "Retry product photo" : needsPhoto ? "Use product photo" : linked ? "In your room" : "Use in room";
+  const label = busy ? (hasPhoto ? "Refreshing photo…" : "Removing background…") : failed ? "Retry product photo" : needsPhoto ? "Use product photo" : linked ? "In your room" : "Use in room";
   return (
     <motion.button
       type="button"
@@ -493,7 +508,7 @@ function LinkButton({
       aria-disabled={(linked && !failed && !needsPhoto) || undefined}
       aria-busy={busy || undefined}
       disabled={disabled || busy}
-      title={disabled ? "Ask for an item first, then choose a product for it" : failed ? "Background removal failed. The illustration is still shown; retry the product photo." : compact ? label : undefined}
+      title={disabled ? "Ask for an item first, then choose a product for it" : failed ? (hasPhoto ? "Refresh failed. The previous product photo is still shown; try again." : "Background removal failed. The illustration is still shown; retry the product photo.") : compact ? label : undefined}
       className={cn(
         "inline-flex items-center justify-center gap-1.5 rounded-none border font-sans text-[12px] font-medium",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",

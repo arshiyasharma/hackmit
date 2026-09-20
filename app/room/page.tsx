@@ -76,6 +76,21 @@ export default function RoomPage() {
     };
   }, []);
 
+  // Reserve the actual composer height when the selection wraps on narrow screens.
+  React.useEffect(() => {
+    const workspace = workspaceRef.current;
+    const composer = workspace?.querySelector<HTMLElement>(".room-bottom");
+    if (!workspace || !composer) return;
+    const measure = () => {
+      const bottom = Number.parseFloat(window.getComputedStyle(composer).bottom) || 0;
+      workspace.style.setProperty("--composer-clearance", `${Math.ceil(composer.getBoundingClientRect().height + bottom + 12)}px`);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(composer);
+    measure();
+    return () => observer.disconnect();
+  }, []);
+
   // An explicit search or item selection opens matches on compact screens.
   React.useEffect(() => {
     if (!trayVisible || !window.matchMedia("(max-width: 960px)").matches) return;
@@ -231,7 +246,11 @@ export default function RoomPage() {
       <RoomAesthetic onEdit={() => setPanel("style")} />
       <div className="room-stage">
         <ArScene />
-        <aside className="room-inventory" aria-label="Your room inventory"><ItemsStrip /></aside>
+        <aside className="room-inventory" aria-label="Your room inventory">
+          <ItemsStrip onSelect={() => {
+            if (window.matchMedia("(max-width: 960px)").matches) setSidebarOpen(true);
+          }} />
+        </aside>
         {offerBudget ? <BudgetPrompt /> : null}
         <div className="room-bottom">
           {active ? (
@@ -246,9 +265,9 @@ export default function RoomPage() {
                 {selectedProduct ? <div className="room-selection-fit"><FitBadge product={selectedProduct} /></div> : null}
               </div>
               <div className="room-selection-actions">
-                <button type="button" className="room-tool" onClick={() => window.dispatchEvent(new CustomEvent(ADJUST_ITEM_EVENT, { detail: { itemId: active.id } }))} title="Show resize and rotate handles"><Maximize2 size={15} aria-hidden /><span>Adjust</span></button>
                 <button type="button" className="room-tool room-choose-product" onClick={showMatches}>{active.linkedProduct ? "Change product" : "Choose product"}<ArrowUpRight size={15} aria-hidden /></button>
                 <button type="button" className="room-tool" onClick={() => removeItem(active.id)} aria-label={`Remove ${active.category}`} title="Remove piece"><Trash2 size={15} aria-hidden /></button>
+                <button type="button" className="room-tool" onClick={() => window.dispatchEvent(new CustomEvent(ADJUST_ITEM_EVENT, { detail: { itemId: active.id } }))} title="Show resize and rotate handles"><Maximize2 size={15} aria-hidden /><span>Adjust</span></button>
               </div>
             </section>
           ) : null}

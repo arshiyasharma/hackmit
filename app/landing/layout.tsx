@@ -11,9 +11,9 @@ import { Reenie_Beanie } from "next/font/google";
 const reenie = Reenie_Beanie({ variable: "--font-reenie", subsets: ["latin"], weight: "400", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "PIXX-AR — fill the room, tap once",
+  title: "PIXX-AR — the future of spatial shopping",
   description:
-    "Point your phone at your room and see real furniture standing in it, at real size.",
+    "The future of spatial shopping: your vision, curated in one secure marketplace, one click away.",
 };
 
 /** The root layout already covers the notch; this restates it so the landing

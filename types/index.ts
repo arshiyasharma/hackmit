@@ -210,6 +210,10 @@ export type PlacedItem = {
    */
   listingCutoutUrl: string | null;
   listingWidthRatio: number | null;
+  /** Server extraction revision that produced the visible photo. */
+  listingCutoutVersion: string | null;
+  /** Target revision already attempted for this link; prevents upgrade loops. */
+  listingCutoutRequestedVersion: string | null;
   listingCutoutStatus: ListingCutoutStatus;
   /** A short explanation when the listing photo could not replace the illustration. */
   listingCutoutNote: string | null;

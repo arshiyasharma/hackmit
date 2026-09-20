@@ -214,7 +214,7 @@ export const manifest = {
     },
     intro: {
       name: "PIXX-AR",
-      deck: "Point your phone at your room and see real furniture standing in it, at *real size*.",
+      deck: "The future of spatial shopping: your vision, curated in one secure marketplace, one click away.",
       action: "Fill the room. Tap once.",
       enter: "Enter",
       notice: "For the full experience, turn on your sound",
@@ -224,7 +224,7 @@ export const manifest = {
       eyebrow: ["SENSE", "PRESENTS"],
       rows: [["FILL", "THE"], ["ROOM", "TAP"]],
       spread: "ONCE",
-      body: ["Furnish your room at real size.", "Approve once. Software does the shopping."],
+      body: ["Your vision, curated in one place.", "Secure shopping. One approval."],
       enter: "Enter",
     },
     onboarding: ["Pick up your phone", "and get started"],

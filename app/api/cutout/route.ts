@@ -9,14 +9,12 @@ import { cutoutFromListing } from "@/lib/cutout";
  * the listing's own photo, with its background removed and trimmed to the
  * object. Cached by URL, so relinking back and forth costs one fetch each.
  *
- * NEVER 500s and never blocks the link. A photo that will not key cleanly
- * answers 200 with { url: null }, and the room keeps the generated stand-in —
- * a drawing that is honest about being a drawing beats a cutout with a slice of
- * someone else's room stuck to it.
+ * Uses a quick packshot mask, then fast local segmentation for complex images.
+ * Imperfect/cropped foregrounds are usable; only absent or invalid mattes fail.
  */
 
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
   let imageUrl: string | null = null;
@@ -32,13 +30,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const cut = await cutoutFromListing(imageUrl, request.signal);
+    const cut = await cutoutFromListing(imageUrl, AbortSignal.any([request.signal, AbortSignal.timeout(28_000)]));
     if (!cut) {
       // a refusal is a decision, and a silent one looks like a broken feature
       console.info(`[cutout] refused ${imageUrl.slice(0, 90)}`);
       return Response.json({
         url: null,
-        note: "We couldn’t isolate that product photo cleanly. Keeping the shape preview.",
+        note: "Couldn’t read a usable product photo. Try another listing or retry.",
       });
     }
     console.info(
@@ -47,6 +45,7 @@ export async function POST(request: NextRequest) {
     );
     return Response.json({
       url: cut.url,
+      version: cut.version,
       widthRatio: cut.widthRatio,
       keyedRatio: cut.keyedRatio,
       trimmedRatio: cut.trimmedRatio,

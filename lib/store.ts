@@ -190,12 +190,12 @@ export type VisaActions = {
   ) => void;
   /** the user's own size for one sprite; 1 puts it back to the listing's */
   resizeItem: (id: string, scale: number) => void;
-  /** Begin one extraction for the current link; null when there is none or it is busy. */
-  startListingCutout: (id: string) => number | null;
-  /** Complete only the matching extraction; null keeps the illustrated stand-in. */
+  /** Refresh may keep the current photo visible until a new one is ready. */
+  startListingCutout: (id: string, preserveExisting?: boolean, requestedVersion?: string) => number | null;
+  /** Complete only the matching extraction; a failed refresh keeps its previous photo. */
   setListingCutout: (
     id: string,
-    cutout: { url: string; widthRatio: number } | null,
+    cutout: { url: string; widthRatio: number; version?: string | null } | null,
     requestId?: number,
     note?: string
   ) => void;
@@ -369,6 +369,8 @@ export const useStore = create<VisaStore>()(
               scale: 1,
               listingCutoutUrl: null,
               listingWidthRatio: null,
+              listingCutoutVersion: null,
+              listingCutoutRequestedVersion: null,
               listingCutoutStatus: "idle",
               listingCutoutNote: null,
               linkedProductVersion: 0,
@@ -425,6 +427,8 @@ export const useStore = create<VisaStore>()(
             linkedProductVersion: ++listingJobSeq,
             listingCutoutUrl: null,
             listingWidthRatio: null,
+            listingCutoutVersion: null,
+            listingCutoutRequestedVersion: null,
             listingCutoutStatus: "idle",
             listingCutoutNote: null,
             listingCutoutRequestId: null,
@@ -447,15 +451,17 @@ export const useStore = create<VisaStore>()(
           })),
         })),
 
-      startListingCutout: (id) => {
+      startListingCutout: (id, preserveExisting = false, requestedVersion) => {
         const current = get().items.find((item) => item.id === id);
         if (!current?.linkedProduct || current.listingCutoutStatus === "pending") return null;
         const requestId = ++listingJobSeq;
         set((s) => ({
           items: patchItem(s.items, id, (item) => ({
             ...item,
-            listingCutoutUrl: null,
-            listingWidthRatio: null,
+            listingCutoutUrl: preserveExisting ? item.listingCutoutUrl : null,
+            listingWidthRatio: preserveExisting ? item.listingWidthRatio : null,
+            listingCutoutVersion: preserveExisting ? item.listingCutoutVersion ?? null : null,
+            listingCutoutRequestedVersion: requestedVersion ?? item.listingCutoutRequestedVersion ?? null,
             listingCutoutStatus: "pending",
             listingCutoutNote: null,
             listingCutoutRequestId: requestId,
@@ -472,8 +478,9 @@ export const useStore = create<VisaStore>()(
             )) return item;
             return {
               ...item,
-              listingCutoutUrl: cutout?.url ?? null,
-              listingWidthRatio: cutout?.widthRatio ?? null,
+              listingCutoutUrl: cutout?.url ?? (requestId !== undefined ? item.listingCutoutUrl : null),
+              listingWidthRatio: cutout?.widthRatio ?? (requestId !== undefined ? item.listingWidthRatio : null),
+              listingCutoutVersion: cutout ? cutout.version ?? null : requestId !== undefined ? item.listingCutoutVersion : null,
               listingCutoutStatus: cutout ? "ready" : requestId === undefined ? "idle" : "failed",
               listingCutoutNote: cutout ? null : note ?? null,
               // Legacy direct clears also invalidate any in-flight attempt.

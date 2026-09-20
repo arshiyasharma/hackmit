@@ -19,7 +19,7 @@ function render(budgetCents: number, priceCents: number): string {
     id: "lamp", request: "a lamp", category: "lamp", placeholderUrl: "",
     placeholderWidthRatio: 1, placeholderStatus: "ready", options: [], optionsStatus: "ready",
     position: [0, 0, 0], rotationY: 0, scale: 1, listingCutoutUrl: null,
-    listingWidthRatio: null, listingCutoutStatus: "idle", listingCutoutNote: null,
+    listingWidthRatio: null, listingCutoutVersion: null, listingCutoutRequestedVersion: null, listingCutoutStatus: "idle", listingCutoutNote: null,
     linkedProductVersion: 0, listingCutoutRequestId: null, placed: true, fit: null, createdAt: 0,
     linkedProduct: { id: "lamp-product", retailer: "IKEA", title: "Lamp", url: "https://www.ikea.com/p/lamp", imageUrl: "", priceCents, currency: "USD", dimsSource: "missing", inStock: true },
   }];

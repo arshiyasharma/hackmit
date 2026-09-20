@@ -6,10 +6,15 @@ export type ProductCutout = {
   height: number;
   keyedRatio: number;
   trimmedRatio: number;
+  /** Pale foreground on a pale backdrop needs a semantic matte for enclosed gaps. */
+  needsRefinement?: boolean;
 };
 
 const ALPHA_FLOOR = 8;
 const MAX_SIDE = 1536;
+// Cropped products can occupy part of the frame. Require a clear background
+// majority, rather than treating every non-background border pixel as a veto.
+const BORDER_CONSENSUS = 0.7;
 type RGB = [number, number, number];
 
 function distance(data: Buffer, offset: number, background: RGB): number {
@@ -42,7 +47,7 @@ export async function extractProductCutout(input: Buffer): Promise<ProductCutout
   for (let y = 1; y < h - 1; y++) border.push(y * w, y * w + w - 1);
 
   const transparentBorder = border.filter((i) => data[i * 4 + 3] <= ALPHA_FLOOR).length / border.length;
-  const hasCutoutAlpha = transparentBorder >= 0.9;
+  const hasCutoutAlpha = transparentBorder >= 0.55;
   const outside = new Uint8Array(count);
   let background: RGB | null = null;
 
@@ -56,13 +61,12 @@ export async function extractProductCutout(input: Buffer): Promise<ProductCutout
       const values = opaqueBorder.map((i) => data[i * 4 + c]).sort((a, b) => a - b);
       return values[Math.floor(values.length / 2)];
     }) as RGB;
-    if (Math.min(...background) < 220 || Math.max(...background) - Math.min(...background) > 24) return null;
-
     const differences = opaqueBorder.map((i) => distance(data, i * 4, background!)).sort((a, b) => a - b);
-    // A flat background needs only a small JPEG/noise allowance. The previous
-    // fixed 200..236 threshold removed the material of white sofas and lamps.
-    const tolerance = Math.min(10, Math.max(4, differences[Math.floor(differences.length * 0.9)] + 2));
-    if (differences.filter((d) => d <= tolerance).length < border.length * 0.94) return null;
+    // Learn noise from the dominant border colour, excluding cropped product
+    // edges. Keep the tolerance narrow: widening it eats pale furniture. A
+    // coloured backdrop is safe only with the same strong, flat consensus.
+    const tolerance = Math.min(10, Math.max(4, differences[Math.floor(differences.length * 0.6)] + 2));
+    if (differences.filter((d) => d <= tolerance).length < border.length * BORDER_CONSENSUS) return null;
 
     const queue = new Uint32Array(count);
     let head = 0;
@@ -87,12 +91,16 @@ export async function extractProductCutout(input: Buffer): Promise<ProductCutout
 
   let minX = w, minY = h, maxX = -1, maxY = -1;
   let foreground = 0;
+  let paleForeground = 0;
   for (let i = 0; i < count; i++) {
     if (outside[i] || data[i * 4 + 3] <= ALPHA_FLOOR) continue;
     const x = i % w, y = Math.floor(i / w);
     minX = Math.min(minX, x); maxX = Math.max(maxX, x);
     minY = Math.min(minY, y); maxY = Math.max(maxY, y);
     foreground++;
+    const pixel = i * 4;
+    if (Math.min(data[pixel], data[pixel + 1], data[pixel + 2]) >= 225 &&
+        Math.max(data[pixel], data[pixel + 1], data[pixel + 2]) - Math.min(data[pixel], data[pixel + 1], data[pixel + 2]) <= 24) paleForeground++;
   }
   const keyedRatio = 1 - foreground / count;
   if (foreground < Math.max(24, count * 0.002) || keyedRatio < 0.1) return null;
@@ -100,36 +108,13 @@ export async function extractProductCutout(input: Buffer): Promise<ProductCutout
   const trimmedRatio = width * height / count;
   if (width < 4 || height < 4) return null;
   if (!hasCutoutAlpha) {
-    // A product cut off at the frame, or a lifestyle image whose only removable
-    // pixels are narrow margins, cannot be sized as an isolated whole object.
-    if (minX === 0 || minY === 0 || maxX === w - 1 || maxY === h - 1 || trimmedRatio > 0.9) return null;
     // White padding around a rectangular lifestyle/photo card is not a matte.
     // Prefer the existing shape preview for these ambiguous, nearly full boxes.
     if (trimmedRatio > 0.4 && foreground / (width * height) > 0.985) return null;
 
-    // Multiple substantial disconnected objects usually mean a collage or an
-    // advert. Tiny edge specks do not disqualify an otherwise isolated product.
-    const seen = new Uint8Array(count);
-    const queue = new Uint32Array(count);
-    let largest = 0, second = 0;
-    for (let start = 0; start < count; start++) {
-      if (outside[start] || seen[start] || data[start * 4 + 3] <= ALPHA_FLOOR) continue;
-      let head = 0, tail = 1;
-      queue[0] = start; seen[start] = 1;
-      const visit = (i: number) => {
-        if (outside[i] || seen[i] || data[i * 4 + 3] <= ALPHA_FLOOR) return;
-        seen[i] = 1; queue[tail++] = i;
-      };
-      while (head < tail) {
-        const i = queue[head++], x = i % w, y = Math.floor(i / w);
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-          if ((dx || dy) && x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h) visit(i + dy * w + dx);
-        }
-      }
-      if (tail > largest) { second = largest; largest = tail; }
-      else second = Math.max(second, tail);
-    }
-    if (second > foreground * 0.08) return null;
+    // Keep disconnected pieces (legs, a detached shade, a furniture set) and
+    // cropped edges. They are still real product pixels on a known backdrop;
+    // neither their component count nor touching the frame requires a model.
   }
 
   // Unmatte only the one-pixel foreground boundary, using nearby interior
@@ -163,9 +148,23 @@ export async function extractProductCutout(input: Buffer): Promise<ProductCutout
     data[p + 3] = Math.round(alpha * original[p + 3]);
   }
 
-  const png = await sharp(data, { raw: { width: w, height: h, channels: 4 } })
-    .extract({ left: minX, top: minY, width, height })
-    .png({ compressionLevel: 9 })
-    .toBuffer();
-  return { png, width, height, keyedRatio, trimmedRatio };
+  // A rectangular product can occupy its entire tight crop. Preserve a tiny
+  // transparent rim in that case, rather than returning an all-opaque PNG.
+  let transparentInCrop = false;
+  for (let y = minY; y <= maxY && !transparentInCrop; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (data[(y * w + x) * 4 + 3] < 250) { transparentInCrop = true; break; }
+    }
+  }
+  const padding = transparentInCrop ? 0 : 1;
+  let output = sharp(data, { raw: { width: w, height: h, channels: 4 } })
+    .extract({ left: minX, top: minY, width, height });
+  if (padding) output = output.extend({
+    top: padding, bottom: padding, left: padding, right: padding,
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
+  });
+  const png = await output.png({ compressionLevel: 6 }).toBuffer();
+  const needsRefinement = !hasCutoutAlpha && !!background && Math.min(...background) >= 210 &&
+    paleForeground >= Math.max(12, foreground * 0.01);
+  return { png, width: width + padding * 2, height: height + padding * 2, keyedRatio, trimmedRatio, needsRefinement };
 }

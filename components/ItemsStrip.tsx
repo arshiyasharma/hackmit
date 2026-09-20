@@ -7,6 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { RemoveButton } from "@/components/BudgetHud";
 import { openOptionsFor } from "@/components/OptionSheet";
+import { retryListingCutout } from "@/lib/listingCutout";
 import { DUR, EASE, EXIT, REDUCED } from "@/lib/motion";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -49,7 +50,7 @@ function overBudgetIds(items: PlacedItem[], budgetCents: number): Set<string> {
 }
 
 /** A persistent room inventory. Selecting a row opens its existing product options. */
-export function ItemsStrip() {
+export function ItemsStrip({ onSelect }: { onSelect?: () => void } = {}) {
   const items = useStore((s) => s.items);
   const activeItemId = useStore((s) => s.activeItemId);
   const budgetCents = useStore((s) => s.budgetCents);
@@ -86,6 +87,8 @@ export function ItemsStrip() {
               const label = titleCase(item.category);
               const status = itemStatus(item);
               const isOver = over.has(item.id);
+              const extractingPhoto = !!linked && item.listingCutoutStatus === "pending";
+              const needsPhoto = !!linked && !extractingPhoto && (!item.listingCutoutUrl || item.listingCutoutStatus === "failed");
 
               return (
                 <motion.li
@@ -105,6 +108,7 @@ export function ItemsStrip() {
                     onClick={() => {
                       setActiveItem(item.id);
                       openOptionsFor(item.id);
+                      onSelect?.();
                     }}
                     data-item-select=""
                     aria-current={active ? "true" : undefined}
@@ -132,6 +136,15 @@ export function ItemsStrip() {
                     label={label}
                     className="room-item-remove border-transparent bg-transparent opacity-70 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   />
+                  {extractingPhoto ? <p className="room-item-photo-state" role="status">Removing background…</p> : needsPhoto ? (
+                    <button
+                      type="button"
+                      className="room-item-photo-retry"
+                      onClick={() => void retryListingCutout(item.id)}
+                      aria-label={`Retry product photo for ${label}`}
+                      title={item.listingCutoutNote || "Replace the illustration with the product photo"}
+                    >Retry photo</button>
+                  ) : null}
                 </motion.li>
               );
             })}
